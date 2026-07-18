@@ -4,6 +4,9 @@
   "name": "xuanfopu-sumeru",
   "main": "worker/index.js",
   "compatibility_date": "2026-07-01",
+  "routes": [
+    { "pattern": "game.foyue.org", "custom_domain": true }
+  ],
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS"
