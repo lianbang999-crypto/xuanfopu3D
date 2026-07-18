@@ -35,13 +35,19 @@ npm run gen:docs                # 重新生成世界模型经证总表
 一个 Worker 同时托管静态前端（`dist/`）与联机后端（Durable Objects），一条命令部署：
 
 ```bash
-npm run deploy     # = vite build + wrangler deploy（首次会引导登录 Cloudflare）
+npm run deploy     # = vite build + npx wrangler deploy（首次会引导登录 Cloudflare）
 ```
 
 绑定自有域名：Cloudflare Dashboard → Workers → xuanfopu-sumeru → Settings → Domains & Routes。
 
 推上 GitHub 后如需自动部署，可在仓库加一个 Actions 工作流跑 `npm ci && npm run deploy`
 （需在仓库 Secrets 配置 `CLOUDFLARE_API_TOKEN`）。
+
+## 问义加速架构
+
+- 浏览器只请求同域 `/api/ask`，由游戏 Worker 通过 Cloudflare Service Binding 直连 `xuanfopu-evidence-agent`，不暴露模型密钥。
+- 问义 Worker 使用 D1 保存 30 天全局答案缓存；相同问题首次生成，之后跨设备直接复用经据核验后的完整回答。
+- 每日 100 次限制由服务端按匿名哈希标识执行，只计算真正生成；本机缓存和 D1 缓存命中都不消耗生成次数。
 
 ## 工程结构
 
@@ -51,10 +57,10 @@ src/game.js           游戏本体（Three.js 须弥山世界 + 选佛谱行棋 
 src/net.js            联机客户端（房间/轮次/聊天/重连）
 src/data.js           世界模型：55 节点 · 102 条经证（CBETA 结构化）
 src/sfp-data.js       选佛谱：15 门 220 位 · 组合行位表（依原谱逐字结构化）
-worker/index.js       Cloudflare Worker + RoomDO（房间制 WebSocket：名单/轮次/转发/留存）
+worker/index.js       Cloudflare Worker + RoomDO（房间制 WebSocket + 问义同域代理）
 scripts/              无头模拟 · 联机测试 · 文档生成
 docs/                 世界模型经证总表 + 设计文档
-wrangler.jsonc        Cloudflare 部署配置（静态资源 + Durable Objects）
+wrangler.jsonc        Cloudflare 部署配置（静态资源 + Durable Objects + 问义 Service Binding）
 ```
 
 ## 联机架构

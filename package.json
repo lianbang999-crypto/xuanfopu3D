@@ -8,8 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "server": "wrangler dev --port 8787",
-    "deploy": "npm run build && wrangler deploy",
+    "server": "npx wrangler dev --port 8787",
+    "deploy": "npm run build && npx wrangler deploy",
     "gen:docs": "node scripts/gen-worldmodel.mjs"
   },
   "dependencies": {

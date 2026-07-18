@@ -6,6 +6,7 @@ const ROOM_MAX = 4;                 // 原谱多人局：至多四位同修
 const CHAT_KEEP = 120;              // 聊天留存条数（重连可回看）
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 去易混字符的房号字母表
 const PLAYER_COLORS = ['#e8c766', '#96e1d6', '#d98873', '#b9a7e0']; // 金·青·赭·藕——四位同修珠色
+const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
 
 function newCode(len = 4) {
   let s = '';
@@ -20,10 +21,54 @@ function json(data, status = 200) {
   });
 }
 
+async function sha256(value) {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function proxyAsk(request, env) {
+  if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+  if (!(request.headers.get('content-type') || '').includes('application/json')) {
+    return json({ error: 'content type must be application/json' }, 415);
+  }
+
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'invalid json' }, 400); }
+  const question = typeof body?.question === 'string' ? body.question.trim() : '';
+  if (!question || question.length > 2000) return json({ error: 'question must be 1-2000 characters' }, 400);
+
+  // 不向问义服务传原始 IP；以哈希后的浏览器网络指纹执行服务端日限额。
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const ua = (request.headers.get('User-Agent') || 'unknown').slice(0, 240);
+  const clientKey = await sha256(`${ip}\n${ua}`);
+  const upstream = await env.ASK_SERVICE.fetch(new Request(ASK_INTERNAL_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-ask-client': clientKey,
+      'user-agent': 'xuanfopu-sumeru/1.0',
+    },
+    body: JSON.stringify({ ...body, question }),
+    signal: request.signal,
+  }));
+
+  const headers = new Headers(upstream.headers);
+  headers.set('cache-control', 'no-store');
+  headers.set('x-ask-proxy', 'service-binding');
+  headers.delete('access-control-allow-origin');
+  headers.delete('vary');
+  return new Response(upstream.body, { status: upstream.status, headers });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // ---- 问义 API：同域入口 → Cloudflare Service Binding → 经据智能体 ----
+    if (path === '/api/ask') return proxyAsk(request, env);
 
     // ---- 联机 API ----
     if (path === '/api/room/new') {

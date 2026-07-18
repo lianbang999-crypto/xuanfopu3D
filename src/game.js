@@ -5276,7 +5276,7 @@ function openSfpNote(pid         ) {
   openOverlay(inner);
 }
 // —— 问义：选佛谱智能助手（用户自建 RAG 服务，依经检证行与不行的缘由）
-const SFP_ASK_API = 'https://foyue.org/xuanfopu/ask/api';
+const SFP_ASK_API = '/api/ask';
 const ASK_LIMIT = 100;
 function askQuotaLeft()         {
   const today = new Date().toISOString().slice(0, 10);
@@ -5336,7 +5336,7 @@ function openSfpAsk(preset         ) {
 }
 async function runSfpAsk(q        , out             , btn                   ) {
   const hitCache = askCacheGet(q);
-  if (hitCache) { renderAskAnswer(hitCache, out, true); return; } // 同问秒回，不耗额度不走网络
+  if (hitCache) { renderAskAnswer(hitCache, out, 'local'); return; } // 同问秒回，不耗额度不走网络
   if (askQuotaLeft() <= 0) {
     out.innerHTML = zh('<div style="color:#f08f7a">今日问义已满一百次，明日再来；谱注原文不限次，点控制台位名仍可查阅。</div>');
     return;
@@ -5352,19 +5352,28 @@ async function runSfpAsk(q        , out             , btn                   ) {
     });
     clearTimeout(to);
     const d = await r.json();
-    if (!d || !d.answer) throw new Error(d && d.message ? d.message : 'empty');
-    save.askq.n++; persist(); // 只计成功得答的一次
+    if (!r.ok || !d || !d.answer) throw new Error(d && d.message ? d.message : 'empty');
+    const edgeHit = d.cacheStatus === 'hit';
+    if (!edgeHit) {
+      save.askq.n = Number.isInteger(d.remaining)
+        ? Math.max(save.askq.n, ASK_LIMIT - d.remaining)
+        : save.askq.n + 1;
+      persist(); // 只计真正生成的一次；云端缓存命中不耗生成额度
+    }
     askCachePut(q, d);
     const leftEl = document.getElementById('askLeft');
     if (leftEl) leftEl.textContent = String(askQuotaLeft());
-    renderAskAnswer(d, out, false);
+    renderAskAnswer(d, out, edgeHit ? 'edge' : '');
   } catch (e) {
-    out.innerHTML = zh('<div style="color:#f08f7a">助手暂时问不到（网络或服务未就绪），谱注原文点控制台位名仍可查阅。</div>');
+    const limited = e instanceof Error && e.message.includes('今日问义生成次数已满');
+    out.innerHTML = zh(limited
+      ? '<div style="color:#f08f7a">今日问义生成次数已满；本机及云端已经缓存的问答仍可继续查看。</div>'
+      : '<div style="color:#f08f7a">助手暂时问不到（网络或服务未就绪），谱注原文点控制台位名仍可查阅。</div>');
   } finally {
     btn.disabled = false; btn.classList.remove('dis');
   }
 }
-function renderAskAnswer(d     , out             , fromCache         ) {
+function renderAskAnswer(d     , out             , cacheSource         ) {
   const paras = String(d.answer).split(/\n+/).filter((s        ) => s.trim())
     .map((s        ) => `<div style="margin-bottom:6px">${esc(s)}</div>`).join('');
   const conf = d.confidence ? `<span class="kind">可信度：${esc(ASK_CONF[d.confidence] || String(d.confidence))}</span>` : '';
@@ -5374,7 +5383,11 @@ function renderAskAnswer(d     , out             , fromCache         ) {
         <div class="citeItem">${c.supports ? `<div class="src">${esc(c.supports)}</div>` : ''}
         <div class="txt">${esc(String(c.quote || '').slice(0, 420))}${String(c.quote || '').length > 420 ? '……' : ''}</div>
         ${c.url ? `<a href="${esc(c.url)}" target="_blank" rel="noopener" style="color:#d7aa45;font-size:var(--fs-xs)">CBETA 原文 ↗</a>` : ''}</div></details>`).join('') : '';
-  const cacheTag = fromCache ? '<div style="font-size:var(--fs-xs);color:#9d9170;margin-top:4px">（本机缓存·即答，不计次数）</div>' : '';
+  const cacheTag = cacheSource === 'local'
+    ? '<div style="font-size:var(--fs-xs);color:#9d9170;margin-top:4px">（本机缓存·即答，不计生成次数）</div>'
+    : cacheSource === 'edge'
+      ? '<div style="font-size:var(--fs-xs);color:#9d9170;margin-top:4px">（云端经据缓存·即答，不计生成次数）</div>'
+      : '';
   out.innerHTML = zh(`<div>${paras}</div>${basis}${cites ? `<div style="font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px;margin:6px 0 4px">出处</div>${cites}` : ''}${cacheTag}`);
 }
 // 问义回答本机缓存：同一问题（v109 默认问是规范串，同位同掷同款）只请一次，之后秒回且不耗额度

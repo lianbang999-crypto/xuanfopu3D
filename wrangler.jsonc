@@ -16,6 +16,9 @@
       { "name": "ROOM", "class_name": "RoomDO" }
     ]
   },
+  "services": [
+    { "binding": "ASK_SERVICE", "service": "xuanfopu-evidence-agent" }
+  ],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["RoomDO"] }
   ],
