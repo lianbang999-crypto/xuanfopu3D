@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>结跏趺坐菩萨 · Three.js 程序化重建</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #f3efe6; overflow: hidden; }
+  #info {
+    position: fixed; left: 12px; top: 10px; z-index: 10;
+    font: 13px/1.5 -apple-system, "PingFang SC", sans-serif; color: #5a4632;
+    background: rgba(255,255,255,.7); padding: 8px 12px; border-radius: 8px;
+  }
+  #info b { color: #8a4a33; }
+  button {
+    font: 12px sans-serif; margin-right: 6px; padding: 4px 8px;
+    border: 1px solid #c9b99a; background: #fff; border-radius: 6px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div id="info">
+  <b>结跏趺坐菩萨</b> · object-to-threejs-procedural 试跑<br />
+  <span id="stats">loading…</span><br />
+  <button id="btnWire">线框</button>
+  <button id="btnSpin">转台</button>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createBuddhaModel } from './src/createBuddhaModel.js';
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf3efe6);
+
+const camera = new THREE.PerspectiveCamera(32, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(1.1, 2.35, 7.4);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.75, 0);
+controls.enableDamping = true;
+
+// —— 中性转台灯光（look-dev），与参考图无关 ——
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8f8674, 0.55);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xfff3e0, 1.15);
+key.position.set(5, 9, 7); key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+key.shadow.camera.top = 6; key.shadow.camera.bottom = -2;
+key.shadow.camera.left = -5; key.shadow.camera.right = 5;
+scene.add(key);
+const fill = new THREE.DirectionalLight(0xd8e6ff, 0.38);
+fill.position.set(-6, 3, 3); scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 0.55);
+rim.position.set(-2, 5, -6); scene.add(rim);
+
+// 地面接触阴影
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(9, 48),
+  new THREE.ShadowMaterial({ opacity: 0.18 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// —— 加载模型 ——
+const { group, runtime } = createBuddhaModel();
+scene.add(group);
+
+// 统计
+let tris = 0;
+group.traverse((o) => { if (o.isMesh) tris += o.geometry.index ? o.geometry.index.count / 3 : o.geometry.attributes.position.count / 3; });
+document.getElementById('stats').textContent =
+  `三角形约 ${Math.round(tris).toLocaleString()} · 节点 ${Object.keys(runtime.nodes).length} · socket ${Object.keys(runtime.sockets).length}`;
+
+// 控件（默认静止正视，便于与参考图对比）
+let spin = false, wire = false;
+document.getElementById('btnSpin').onclick = () => (spin = !spin);
+document.getElementById('btnWire').onclick = () => {
+  wire = !wire;
+  group.traverse((o) => { if (o.isMesh) o.material.wireframe = wire; });
+};
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+renderer.setAnimationLoop(() => {
+  if (spin) group.rotation.y += 0.005;
+  controls.update();
+  renderer.render(scene, camera);
+});
+window.__freeze = () => { renderer.render(scene, camera); renderer.setAnimationLoop(null); };
+window.__resume = () => renderer.setAnimationLoop(() => { if (spin) group.rotation.y += 0.005; controls.update(); renderer.render(scene, camera); });
+window.__snap = (w) => {
+  w = w || 620;
+  const src = renderer.domElement;
+  renderer.render(scene, camera);
+  const c = document.createElement('canvas');
+  c.width = w; c.height = Math.round(src.height * (w / src.width));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.86);
+};
+window.__ready = true;
+</script>
+</body>
+</html>

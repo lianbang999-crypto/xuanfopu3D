@@ -1,0 +1,21 @@
+{
+  "name": "shifajie-sumeru",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "十法界须弥山世界 · 选佛谱——蕅益大师《選佛譜》十五门二百二十位，须弥山十法界宇宙棋盘，最多四人实时联机",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "wrangler dev --port 8787",
+    "deploy": "npm run build && wrangler deploy",
+    "gen:docs": "node scripts/gen-worldmodel.mjs"
+  },
+  "dependencies": {
+    "three": "^0.169.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0"
+  }
+}

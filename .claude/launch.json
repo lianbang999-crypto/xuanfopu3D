@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "vite-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5930
+    },
+    {
+      "name": "worldmap",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5941", "--directory", "/Users/bincai/Downloads/须弥山十法界世界地图"],
+      "port": 5941
+    }
+  ]
+}
