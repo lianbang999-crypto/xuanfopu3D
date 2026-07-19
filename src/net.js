@@ -24,6 +24,7 @@ export const Net = {
 
   // —— 由 game.js 接线的回调 ——
   onRoster: null,         // (players, turn) => void  更新远端珠与界面
+  onJoined: null,         // () => void               本人入房成功（深链入房时游戏侧借此自动入局）
   onRemoteMove: null,     // (move) => void           某同修行棋
   onStarted: null,        // () => void               开局
   onTurnChange: null,     // (myTurn) => void         轮次变化（控掷轮可用性）
@@ -65,12 +66,15 @@ export const Net = {
           this.myName = name; this.code = code;
           this._retry = 0;
           try { localStorage.setItem(NET_KEY, JSON.stringify({ code, playerId: m.playerId, name })); } catch (e) {}
+          this._histPush(code); // 最近的房
+          if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname); // 邀请链已用毕，清参数
           // 重连续局：把本地棋况报回房间
           if (this.getMyState) {
             const st = this.getMyState();
             if (st && (st.pos || st.n)) ws.send(JSON.stringify({ type: 'move', ...st, txt: '' }));
           }
           this._uiRoomSync();
+          this.onJoined && this.onJoined();
           if (!settled) { settled = true; resolve(m); }
           return;
         }
@@ -156,6 +160,12 @@ export const Net = {
     if (toast) this._toastCb = toast;
     if (zh) this.zh = zh;
     this._buildUi();
+    // 邀请链接直达：#r=CODE → 大厅弹出、房号已填，填名号一键即入
+    const m = location.hash.match(/^#r=([A-Za-z0-9]{4,8})$/);
+    if (m) {
+      this.openJoin(m[1].toUpperCase());
+      this._toastCb && this._toastCb(this.zh(`收到莲友邀请——房 ${m[1].toUpperCase()}，写下名号即入`));
+    }
   },
 
   _connState: 'ok',
@@ -217,6 +227,18 @@ export const Net = {
 #netJoinCard .row button.pri{background:rgba(232,199,102,.2);color:#e8c766;border-color:rgba(232,199,102,.6)}
 #netJoinCard .err{color:#d98873;font-size:var(--fs-sm);min-height:16px;margin-top:8px}
 #netJoinCard .x{float:right;background:none;border:none;color:#9aa3b5;font-size:var(--fs-lg);cursor:pointer;padding:0 2px}
+#netJoinCard .big{display:block;width:100%;margin-top:14px;border-radius:11px;padding:13px 0;font-size:var(--fs-md);letter-spacing:2px;cursor:pointer;
+  border:1px solid rgba(232,199,102,.55);background:rgba(232,199,102,.16);color:#e8c766}
+#netJoinCard .or{display:flex;align-items:center;gap:10px;margin:14px 0 8px;color:#9aa3b5;font-size:var(--fs-xs)}
+#netJoinCard .or i{flex:1;height:1px;background:rgba(216,197,139,.18)}
+#netJoinCard .joinrow{display:flex;gap:8px}
+#netJoinCard .joinrow input{flex:1}
+#netJoinCard .joinrow button{border-radius:9px;padding:0 18px;cursor:pointer;border:1px solid rgba(216,197,139,.34);background:rgba(255,255,255,.05);color:#cfc7ad;font-size:var(--fs-md)}
+#njHist{margin-top:10px}
+#njHist .njh{display:inline-flex;align-items:center;gap:7px;margin:4px 6px 0 0;padding:6px 11px;border-radius:11px;cursor:pointer;
+  border:1px solid rgba(216,197,139,.25);background:rgba(255,255,255,.04);color:#cfc7ad;font-size:var(--fs-sm)}
+#njHist .njh b{color:#96e1d6;letter-spacing:1px;font-weight:600}
+#njHist .njh span{color:#9aa3b5;font-size:var(--fs-xs)}
 @media (max-width:520px){#netPanel{bottom:calc(132px + env(safe-area-inset-bottom))}}
 `;
     document.head.appendChild(css);
@@ -232,7 +254,7 @@ export const Net = {
       <div id="netRoster"></div>
       <div id="netMsgs"></div>
       <div id="netInput"><input maxlength="200" placeholder="与同修讨论…（回车发送）"><button>发</button></div>
-      <div id="netBtns"><button id="netStartBtn" class="pri">开局</button><button id="netLeaveBtn">离房</button></div>
+      <div id="netBtns"><button id="netStartBtn" class="pri">开局</button><button id="netInvBtn">邀请</button><button id="netLeaveBtn">离房</button></div>
     </div>`);
     document.body.appendChild(this.$panel);
     this.$msgs = this.$panel.querySelector('#netMsgs');
@@ -252,30 +274,43 @@ export const Net = {
     input.addEventListener('pointerdown', (e) => e.stopPropagation());
     this.$panel.querySelector('#netInput button').addEventListener('click', sendNow);
     this.$panel.querySelector('#netStartBtn').addEventListener('click', () => this.start());
+    // 邀请：优先系统分享面板（微信等可直转），退化为复制链接
+    this.$panel.querySelector('#netInvBtn').addEventListener('click', async () => {
+      const url = this.inviteUrl();
+      const text = this.zh(`邀您同局《选佛谱》——房号 ${this.code}，点开即入：`);
+      try {
+        if (navigator.share) { await navigator.share({ title: this.zh('选佛谱 · 联机同修'), text, url }); return; }
+      } catch (e) { /* 用户取消分享则静默 */ }
+      try { await navigator.clipboard.writeText(`${text}${url}`); this._toastCb && this._toastCb(this.zh('邀请链接已复制——发给莲友，点开即入房')); } catch (e) {}
+    });
     this.$panel.querySelector('#netLeaveBtn').addEventListener('click', () => {
       if (confirm('离开此房？（棋况已存在本机，可再入房续行）')) this.leave();
     });
 
-    // 入房弹窗
+    // 大厅（极简）：名号常记 · 开新房 · 房号入房 · 最近的房（实时在线数）· 邀请链接直达
     this.$join = el(`<div id="netJoin"><div id="netJoinCard">
       <button class="x" title="关闭">✕</button>
       <h3>联机同修</h3>
-      <div class="sub">至多四位同修同局行谱——开房后把房号发给莲友；轮到谁掷轮，谁的名字会亮起。聊天随时可用。</div>
+      <div class="sub">至多四位同修同局行谱，按座次轮掷，聊天随时可用。开房后一键转发邀请，莲友点开即入。</div>
       <label>您的名号</label><input id="njName" maxlength="12" placeholder="如：慧明">
-      <label>房号（入已有房时填写）</label><input id="njCode" maxlength="8" placeholder="如：AB3D" style="text-transform:uppercase">
+      <button class="big pri" id="njNew">开新房 · 得房号邀莲友</button>
+      <div class="or"><i></i><span>或入已有房</span><i></i></div>
+      <div class="joinrow"><input id="njCode" maxlength="8" placeholder="房号，如 AB3D" style="text-transform:uppercase"><button id="njGo">入房</button></div>
+      <div id="njHist"></div>
       <div class="err"></div>
-      <div class="row"><button class="pri" id="njNew">开新房</button><button id="njGo">入此房</button></div>
     </div></div>`);
     document.body.appendChild(this.$join);
     const err = this.$join.querySelector('.err');
     const nameIn = this.$join.querySelector('#njName');
     const codeIn = this.$join.querySelector('#njCode');
     ;[nameIn, codeIn].forEach(i => { i.addEventListener('pointerdown', (e) => e.stopPropagation()); i.addEventListener('keydown', (e) => e.stopPropagation()); });
+    nameIn.addEventListener('input', () => { try { localStorage.setItem('sm10.net.name', nameIn.value.trim()); } catch (e) {} });
+    codeIn.addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(false); });
     this.$join.querySelector('.x').addEventListener('click', () => this.$join.classList.remove('on'));
     this.$join.addEventListener('click', (e) => { if (e.target === this.$join) this.$join.classList.remove('on'); });
-    const doJoin = async (create) => {
+    const doJoin = async (create, code0) => {
       const name = nameIn.value.trim() || '同修';
-      const code = codeIn.value.trim().toUpperCase();
+      const code = (code0 || codeIn.value.trim()).toUpperCase();
       err.textContent = '';
       try {
         if (create) await this.createRoom(name);
@@ -285,19 +320,49 @@ export const Net = {
         }
         this.$join.classList.remove('on');
         this.openPanel();
-        this._sysMsg(create ? `已开房「${this.code}」——点右上房号可复制，发给莲友入房` : `已入房「${this.code}」`);
+        this._sysMsg(create ? `已开房「${this.code}」——点「邀请」转发给莲友，点开即入` : `已入房「${this.code}」`);
       } catch (e2) {
         err.textContent = e2.message || '未能入房';
       }
     };
+    this._doJoin = doJoin;
     this.$join.querySelector('#njNew').addEventListener('click', () => doJoin(true));
     this.$join.querySelector('#njGo').addEventListener('click', () => doJoin(false));
   },
 
-  openJoin(prefillName = '') {
+  // 最近的房：入房成功即记（去重、留三个）；大厅里带实时在线数，点即再入
+  _histPush(code) {
+    try {
+      const h = JSON.parse(localStorage.getItem('sm10.net.hist') || '[]').filter((x) => x.code !== code);
+      h.unshift({ code, ts: Date.now() });
+      localStorage.setItem('sm10.net.hist', JSON.stringify(h.slice(0, 3)));
+    } catch (e) {}
+  },
+
+  _histRender() {
+    const box = this.$join.querySelector('#njHist');
+    let h = [];
+    try { h = JSON.parse(localStorage.getItem('sm10.net.hist') || '[]'); } catch (e) {}
+    box.innerHTML = h.length ? `<label>最近的房</label>` : '';
+    for (const { code } of h) {
+      const chip = el(`<button class="njh"><b>${esc(code)}</b><span>…</span></button>`);
+      chip.addEventListener('click', () => this._doJoin(false, code));
+      box.appendChild(chip);
+      fetch(`/api/room/${code}`).then(r => r.json()).then(st => {
+        chip.querySelector('span').textContent = st.started ? '已开局' : (st.count ? `${st.online || 0}/${st.count}人在房` : '空房');
+      }).catch(() => { chip.querySelector('span').textContent = ''; });
+    }
+  },
+
+  inviteUrl() { return `${location.origin}${location.pathname}#r=${this.code}`; },
+
+  openJoin(prefillCode = '') {
     const saved = this.savedRoom();
-    if (prefillName || saved) this.$join.querySelector('#njName').value = prefillName || (saved && saved.name) || '';
-    if (saved) this.$join.querySelector('#njCode').value = saved.code || '';
+    let nm = '';
+    try { nm = localStorage.getItem('sm10.net.name') || ''; } catch (e) {}
+    this.$join.querySelector('#njName').value = nm || (saved && saved.name) || '';
+    this.$join.querySelector('#njCode').value = prefillCode || (saved && saved.code) || '';
+    this._histRender();
     this.$join.classList.add('on');
   },
 

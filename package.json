@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "server": "npx wrangler dev --port 8787",
     "deploy": "npm run build && npx wrangler deploy",
-    "gen:docs": "node scripts/gen-worldmodel.mjs"
+    "gen:docs": "node scripts/gen-worldmodel.mjs",
+    "check:grant": "node scripts/check-grant-policy.mjs"
   },
   "dependencies": {
     "three": "^0.169.0"

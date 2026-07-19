@@ -1,0 +1,39 @@
+{
+  "ontologyId": "xuanfupu-grant",
+  "ontologyVersion": "grant-ontology-v1.0.0",
+  "status": "final",
+  "effectiveDate": "2026-07-19",
+  "canonicalOperationPolicy": {
+    "mode": "self_continue",
+    "recipient": "same_player",
+    "timing": "immediate",
+    "resolveAt": "current_position_after_trigger",
+    "nestedGrant": "append_to_same_queue",
+    "soloPolicy": "same_as_multiplayer",
+    "onComplete": "close_pending_queue",
+    "authorityLevel": "operational_interpretation"
+  },
+  "evidenceBoundary": {
+    "ruleFacts": "xuanfupu_rule",
+    "originalExplanation": "xuanfupu_direct",
+    "operationPolicy": "operational_interpretation",
+    "prohibitedProductionModes": [
+      "gift_to_other_player",
+      "virtual_throw_without_recipient"
+    ]
+  },
+  "coverage": {
+    "positionCount": 11,
+    "ruleCellCount": 83,
+    "pureGrantCount": 79,
+    "moveAndGrantCount": 4
+  },
+  "answerPolicy": {
+    "mustLabelOperationAs": "本项目定稿操作规则",
+    "forbidOriginalAttribution": [
+      "向其他棋子赠送",
+      "受赠者在自身所在位结算",
+      "单人局作虚掷"
+    ]
+  }
+}

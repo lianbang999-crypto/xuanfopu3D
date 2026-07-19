@@ -815,11 +815,12 @@ const sunMoonPivot = new THREE.Group(); saha.add(sunMoonPivot);
 // 色界四禅：禅定光云层（俱舍·世间品：色界诸天宫殿依空而住，以光明胜劣分位次——愈上愈广愈净）
 {
   const dhyana                                          = [
-    [148, 17, '215,170,69', 0.4],    // 初禅 梵众·梵辅·大梵（星环 r14）
-    [157, 21, '229,199,122', 0.46],  // 二禅 少光·无量光·光音（星环 r18，以光为语）
-    [166, 25, '240,224,168', 0.52],  // 三禅 少净·无量净·遍净（星环 r22）
-    [176, 29, '246,240,218', 0.58],  // 四禅 内四凡 r18 外五圣 r26 两重环，盘最广（俱舍：愈上愈广）
+    [148, 17, '215,170,69', 0.3],    // 初禅 梵众·梵辅·大梵（星环 r14）
+    [157, 21, '229,199,122', 0.34],  // 二禅 少光·无量光·光音（星环 r18，以光为语）
+    [166, 25, '240,224,168', 0.38],  // 三禅 少净·无量净·遍净（星环 r22）
+    [176, 29, '246,240,218', 0.42],  // 四禅 内四凡 r18 外五圣 r26 两重环，盘最广（俱舍：愈上愈广）
   ];
+  // 降噪（极简）：盘晕透明度下调、侧晕减半——层次由星环与题字承担，不靠大面积光斑
   dhyana.forEach(([y, r, rgb, op]) => {
     const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 48),
       clippable(new THREE.MeshBasicMaterial({ map: makeGlow(rgb), transparent: true, opacity: op,
@@ -828,9 +829,9 @@ const sunMoonPivot = new THREE.Group(); saha.add(sunMoonPivot);
     skyDiscMats.push({ m: disc.material                  , op });
     // 侧视可见的扁光晕（否则平盘侧看即隐）
     const halo = new THREE.Sprite(clippable(new THREE.SpriteMaterial({ map: makeGlow(rgb), transparent: true,
-      opacity: op * 0.75, blending: THREE.AdditiveBlending, depthWrite: false }))                        );
-    halo.scale.set(r * 2.1, r * 0.55, 1); halo.position.y = y; skyRealm.add(halo);
-    skyDiscMats.push({ m: halo.material                  , op: op * 0.75 });
+      opacity: op * 0.5, blending: THREE.AdditiveBlending, depthWrite: false }))                        );
+    halo.scale.set(r * 1.9, r * 0.45, 1); halo.position.y = y; skyRealm.add(halo);
+    skyDiscMats.push({ m: halo.material                  , op: op * 0.5 });
   });
 }
 // 色界大曼陀罗环线（v137）：一环一环之「形」——每层成员星环画旋转虚线金环，
@@ -842,7 +843,7 @@ const chanRingLines                                                             
 CHAN_RING_DEF.forEach((rings, i) => rings.forEach(([ry, rr], j) => {
   const pts                  = [];
   for (let k = 0; k <= 96; k++) { const a = k / 96 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * rr, 0, Math.sin(a) * rr)); }
-  const mat = clippable(new THREE.LineDashedMaterial({ color: C.paleGold, dashSize: 1.6, gapSize: 2.6, transparent: true, opacity: 0.16 }))                            ;
+  const mat = clippable(new THREE.LineDashedMaterial({ color: C.paleGold, dashSize: 1.6, gapSize: 2.6, transparent: true, opacity: 0.11 }))                            ;
   const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat);
   line.computeLineDistances();
   line.position.y = ry; skyRealm.add(line);
@@ -1376,11 +1377,11 @@ html.bigfont{--fs-xs:12.5px;--fs-sm:14px;--fs-md:16px;--fs-lg:18px;--fs-xl:21px;
 .nlabel.read{opacity:.78}
 .nlabel.sel{background:rgba(139,63,50,.85);border-color:#d7aa45;color:#fff}
 .ui{position:absolute;font-family:'SmileySans',-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#efe0b4;z-index:10}
-.panel{background:rgba(26,22,44,.93);border:1px solid rgba(215,170,69,.5);border-radius:10px;backdrop-filter:blur(6px)}
+.panel{background:rgba(24,20,40,.94);border:1px solid rgba(215,170,69,.26);border-radius:14px;backdrop-filter:blur(8px)}
 .tkey{margin:-4px -4px 10px;border-radius:8px;overflow:hidden;border:1px solid rgba(215,170,69,.45);box-shadow:0 4px 16px rgba(0,0,0,.5);flex:none;position:relative}
 .tkey img{width:100%;height:148px;object-fit:cover;object-position:center 38%;display:block;transform:scale(1.14)}
 .tkey::after{content:'';position:absolute;inset:0;box-shadow:inset 0 -26px 30px -18px rgba(26,22,44,.85);pointer-events:none}
-button.gbtn{background:rgba(215,170,69,.14);border:1px solid rgba(215,170,69,.6);color:#efe0b4;border-radius:7px;
+button.gbtn{background:rgba(215,170,69,.08);border:1px solid rgba(215,170,69,.34);color:#efe0b4;border-radius:9px;
   padding:9px 14px;font-size:var(--fs-md);font-family:inherit;cursor:pointer;letter-spacing:1px;min-height:40px}
 button.gbtn:active{background:rgba(215,170,69,.35)}
 button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
@@ -1472,7 +1473,7 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .profRow .pk{flex:0 0 4.6em;color:#d7aa45;font-size:var(--fs-sm);letter-spacing:1px;padding-top:1px}
 .profRow .pv{flex:1;color:#dccf9f;font-size:var(--fs-md);line-height:1.65}
 .profRow .psrc{margin-left:6px;font-size:var(--fs-xs);color:#9d9170;border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px;white-space:nowrap}
-.overlay{inset:0;background:rgba(15,12,26,.78);display:flex;align-items:center;justify-content:center;z-index:30;animation:ovIn .18s ease}
+.overlay{inset:0;background:rgba(15,12,26,.66);display:flex;align-items:center;justify-content:center;z-index:30;animation:ovIn .18s ease}
 .overlay .panel{max-width:min(560px,92vw);max-height:82vh;display:flex;flex-direction:column;padding:16px;
   position:relative;animation:pnIn .24s cubic-bezier(.2,.8,.25,1)}
 @keyframes ovIn{from{opacity:0}}
@@ -1632,16 +1633,19 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 @keyframes afWordK{0%{opacity:0;letter-spacing:20px}35%{opacity:1}80%{opacity:1}100%{opacity:0}}
 #ladder{position:absolute;right:6px;top:15%;height:52vh;width:52px;z-index:14;display:none;cursor:pointer}
 #ladder.show{display:block}
-#bodhiNav,#skyNav{position:absolute;top:calc(54px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);max-width:min(660px,calc(100vw - 16px));z-index:15;display:none;gap:6px;padding:6px 10px;border-radius:22px;background:rgba(22,18,38,.62);backdrop-filter:blur(6px);border:1px solid rgba(215,170,69,.25);overflow-x:auto;scrollbar-width:none;pointer-events:auto}
+/* 场景导航（色界四禅/菩萨十科）：左侧竖杆——与右侧十五门天梯同一设计语言（极简：无底无框，色点+名） */
+#bodhiNav,#skyNav{position:absolute;left:6px;top:50%;transform:translateY(-50%);max-height:72vh;z-index:15;display:none;
+  flex-direction:column;gap:1px;padding:8px 5px;border-radius:14px;background:rgba(22,18,38,.42);backdrop-filter:blur(6px);
+  border:1px solid rgba(215,170,69,.16);overflow-y:auto;scrollbar-width:none;pointer-events:auto}
 #bodhiNav::-webkit-scrollbar,#skyNav::-webkit-scrollbar{display:none}
 #bodhiNav.show,#skyNav.show{display:flex;animation:bnvIn .55s ease}
-@keyframes bnvIn{from{opacity:0;transform:translate(-50%,-14px)}to{opacity:1;transform:translate(-50%,0)}}
-.bnv{display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 11px;border-radius:15px;border:1px solid rgba(255,255,255,.16);background:rgba(10,8,20,.35);flex:0 0 auto;transition:background .2s}
-.bnv b{font-weight:400;font-size:var(--fs-sm);letter-spacing:1px;color:inherit;text-shadow:0 1px 3px rgba(10,8,20,.85)}
-.bnv i{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor;flex:0 0 auto}
-.bnv.on{background:currentColor;border-color:transparent}
-.bnv.on b{color:#1c1730;font-weight:700;text-shadow:none}
-.bnv.on i{background:#1c1730;box-shadow:none}
+@keyframes bnvIn{from{opacity:0;transform:translate(-14px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+.bnv{display:flex;align-items:center;gap:6px;cursor:pointer;padding:5px 7px;border-radius:9px;border:none;background:none;flex:0 0 auto;transition:background .2s}
+.bnv b{font-weight:400;font-size:var(--fs-xs);letter-spacing:1px;color:inherit;opacity:.8;white-space:nowrap;text-shadow:0 1px 3px rgba(10,8,20,.85)}
+.bnv i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 5px currentColor;flex:0 0 auto;transition:transform .2s}
+.bnv.on{background:rgba(255,255,255,.09)}
+.bnv.on b{opacity:1;font-weight:700}
+.bnv.on i{transform:scale(1.5);box-shadow:0 0 10px currentColor}
 #ladTrack{position:absolute;right:16px;top:0;bottom:0;width:4px;background:rgba(215,170,69,.16);border-radius:2px}
 #ladTrack i{position:absolute;right:-2px;width:8px;height:2px;background:rgba(215,170,69,.32)}
 #ladMe,#ladAi,#ladNext{display:none}
@@ -1747,7 +1751,7 @@ app.appendChild(secWrap);
 let secOn = true;
 secWrap.style.display = 'none';
 function setSecOn(v         ) { secOn = v; secApplyVis(); }
-function secApplyVis() { secWrap.style.display = secOn && !inPure && !inDoor && !inBodhi ? '' : 'none'; }
+function secApplyVis() { secWrap.style.display = secOn && !inPure && !inDoor && !inBodhi && !inSky ? '' : 'none'; } // 观照场隐探底：左杆让位场景导航
 const secTrack = secWrap.querySelector('#secTrack')               ;
 const secHandle = secWrap.querySelector('#secHandle')               ;
 const secZero = secWrap.querySelector('#secZero')               ;
@@ -3863,10 +3867,16 @@ function aiResolve(combo        , depth = 0)         {
   if (!p.moves || !p.moves.length) return '';
   const mv = (p.moves         ).find(m => m.c.includes(combo));
   if (!mv) return `同修掷得「${combo}」，安住「${p.name}」`;
-  if (!mv.to && mv.bonus) return `同修掷得「${combo}」贈掷连行；` + aiResolve(aiRollCombo(), depth + 1);
+  // 赠掷依定稿（grant-ontology-v1.0.0）：贈N掷＝当前操作者即时续掷N次；纯赠原位续掷，移位兼赠先移位后续掷
+  if (!mv.to && mv.bonus) {
+    let t = `同修掷得「${combo}」贈${'一二三四'[mv.bonus - 1]}掷连行`;
+    for (let i = 0; i < mv.bonus; i++) t += '；' + aiResolve(aiRollCombo(), depth + 1);
+    return t;
+  }
   aiS.pos = mv.to;
   let t = `同修掷得「${combo}」→「${SFP_BY[mv.to].name}」`;
   if (mv.act) t += `，依「${mv.act}」行；` + aiResolve(mv.act, depth + 1);
+  if (mv.bonus) for (let i = 0; i < mv.bonus; i++) t += `；贈掷：` + aiResolve(aiRollCombo(), depth + 1);
   return t;
 }
 function aiTurn() {
@@ -4761,7 +4771,7 @@ function sfpApply(combo        , chain = false) {
   if (!mv.to && mv.bonus) {
     vib([15, 60, 15]);
     const aiWaits = save.sfpAiOn && !aiS.done;
-    showVerdict(`获贈<b class="vdst">${'一二三四'[mv.bonus - 1]}掷</b> · 可再掷而行`, aiWaits ? '原谱贈掷即连掷之赏——同修候您掷毕再行。' : '原谱多人局中贈掷即连行之赏。', '再掷 ▸', () => {
+    showVerdict(`获贈<b class="vdst">${'一二三四'[mv.bonus - 1]}掷</b> · 可再掷而行`, aiWaits ? '本项目定稿操作规则：仍由您续掷——同修候您掷毕再行。' : '本项目定稿操作规则：仍由当前操作者立即续掷。', '再掷 ▸', () => {
       sfpBonusLeft += mv.bonus;
       sfpLog(combo, `贈${'一二三四'[mv.bonus - 1]}掷`);
       sfpShowMsg(`掷得「${combo}」——贈${'一二三四'[mv.bonus - 1]}掷！可连掷而行`);
@@ -5962,6 +5972,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   // ---------------- 联机接线 ----------------
   Net.init({ toast: showToast, zh });
   Net.getMyState = () => ({ pos: sfpS.pos, n: sfpS.n });
+  Net.onJoined = () => { if (!sfpS.active) startSfp(!!(save.sfp && SFP_BY[save.sfp.pos])); }; // 深链入房即入局，免再点开始
   Net.onRoster = () => { netSyncBeads(); };
   Net.onStarted = () => { showToast(zh('开局——按座次轮掷，轮到谁其名亮起'), 3600); playSfx('sfx-done', 0.4); };
   Net.onTurnChange = (mine) => {
