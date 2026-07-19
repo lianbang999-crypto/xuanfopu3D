@@ -1188,23 +1188,43 @@ const labelLayer = document.createElement('div');
 labelLayer.id = 'labels';
 app.appendChild(labelLayer);
 
+// v173 一轴一谱（统一规划十法界与十五门美术）：竖轴即升沉，法界星与门色同用一张三段色谱——
+// 下段恶趣朱砂赤褐（同门1-3）、中段欲界人天青碧（同门4/6-9）、色无色石青（同门5/8）、上段四圣金白（同门10-15）；
+// 器世间地标（须弥/七金山/铁围/日月/三轮）不入法界色，保持金色图注——色只标有情界升沉
+const HUE_AKU = new Set(['hell', 'preta', 'animal', 'asura']);
+const HUE_RT = new Set(['jambu', 'purva', 'godaniya', 'kuru', 'trayastrimsa', 'caturmaharaja', 'yama', 'tusita', 'nirmanarati', 'paranirmita']);
+const HUE_SKY = new Set(['rupa', 'arupa', 'akasa', 'vijnana', 'akimcanya', 'naiva']);
+const realmHue = (d          )         =>
+  HUE_AKU.has(d.id) ? 0xb05a42
+    : (SKY_IDS.has(d.id) || HUE_SKY.has(d.id)) ? 0x5b93a8
+      : HUE_RT.has(d.id) ? 0x33907c
+        : C.gold;
+
 NODES.forEach((d          ) => {
   const group = new THREE.Group();
   const isNS = d.coordKind === 'nonspatial' || d.group === '四圣';
+  const hue = realmHue(d);
   const size = d.tier === 1 ? 2.4 : d.tier === 3 ? 1.0 : /^chan[1-4]$/.test(d.id) ? 2.1 : 1.7; // 禅天主星是层把手：形体加重一档
   let core            ;
   if (isNS) {
     core = new THREE.Mesh(new THREE.OctahedronGeometry(size * 1.2),
       new THREE.MeshStandardMaterial({ color: C.paleGold, emissive: C.paleGold, emissiveIntensity: 1.0, roughness: 0.3, metalness: 0.4 }));
   } else {
-    core = new THREE.Mesh(new THREE.SphereGeometry(size, 16, 12), 
-      new THREE.MeshStandardMaterial({ color: C.gold, emissive: C.gold, emissiveIntensity: 1.1, roughness: 0.35, metalness: 0.4 }));
+    core = new THREE.Mesh(new THREE.SphereGeometry(size, 16, 12),
+      new THREE.MeshStandardMaterial({ color: hue, emissive: hue, emissiveIntensity: 1.1, roughness: 0.35, metalness: 0.4 }));
   }
   group.add(core);
   const halo = new THREE.Mesh(new THREE.RingGeometry(size * 1.7, size * 2.0, 24),
-    new THREE.MeshBasicMaterial({ color: C.gold, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
+    new THREE.MeshBasicMaterial({ color: isNS ? C.paleGold : hue, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
   halo.userData.billboard = true;
   group.add(halo);
+  if (['rupa', 'bodhi', 'hell', 'preta', 'animal', 'asura'].includes(d.id)) {
+    // 四专场入口星（幽冥四星共用一场）：外加一圈细环＝「可入之场」统一记号；极乐星已有双层光晕不另叠
+    const gateRing = new THREE.Mesh(new THREE.RingGeometry(size * 2.35, size * 2.5, 32),
+      new THREE.MeshBasicMaterial({ color: isNS ? C.paleGold : hue, transparent: true, opacity: 0.38, side: THREE.DoubleSide }));
+    gateRing.userData.billboard = true;
+    group.add(gateRing);
+  }
   const hit = new THREE.Mesh(new THREE.SphereGeometry(Math.max(d.tier === 3 ? 3 : 6, size * 3), 8, 6),
     new THREE.MeshBasicMaterial({ visible: false }));
   hit.userData.nodeId = d.id;
@@ -1215,6 +1235,9 @@ NODES.forEach((d          ) => {
   const label = document.createElement('div');
   label.className = 'nlabel' + (d.tier === 1 ? ' t1' : '');
   label.textContent = zh(d.labelText ?? d.name);
+  if (d.tier === 1 && (d.realm || HUE_SKY.has(d.id))) { // 十法界界名题字：界色底线（同一张色谱，四圣淡金）
+    label.style.borderBottom = '2px solid #' + (isNS ? C.paleGold : hue).toString(16).padStart(6, '0');
+  }
   labelLayer.appendChild(label);
 
   const nv           = {
