@@ -5,8 +5,10 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'; // v191 写实化：PBR 环境反射
 import { NODES, REALMS, WORKS, COORD_KIND_LABEL } from './data.js';
 import { SFP_DOORS, SFP_POS, SFP_META, SFP_WHY } from './sfp-data.js';
+import { SFP_CANON_FRONT, SFP_CANON_DOORS } from './sfp-canon.js'; // v177 六卷原文整卷阅读（CBETA B0136 逐字）
 import { SFP_GLOSS } from './sfp-gloss.js';
 import { SFP_WHY_PLAIN } from './sfp-why-plain.js';
 import { ZH_T2S, ZH_S2T } from './zh-conv.js';
@@ -147,7 +149,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, save.settings.lowPerf ? 1 : 2)
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.1;
+renderer.toneMappingExposure = 1.16; // v191 写实化：电影曝光略抬
 renderer.localClippingEnabled = true;
 app.appendChild(renderer.domElement);
 
@@ -165,22 +167,32 @@ controls.minDistance = 36; controls.maxDistance = 520;
 controls.maxPolarAngle = 1.52; controls.minPolarAngle = 0.06;
 controls.screenSpacePanning = false;
 
-const hemi = new THREE.HemisphereLight(0x46608a, 0x2e3a52, 1.42);
+const hemi = new THREE.HemisphereLight(0x3d5273, 0x2a3347, 0.85); // v191 写实化：压底光抬光比
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xf4dfb0, 2.4);
+const sun = new THREE.DirectionalLight(0xffdfae, 3.0);
 sun.position.set(50, 130, 100);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.bias = -0.0004;
 const sc = sun.shadow.camera                            ;
 sc.left = -150; sc.right = 150; sc.top = 150; sc.bottom = -150; sc.near = 10; sc.far = 400;
 scene.add(sun);
+// v191 写实化：冷色轮廓光自背面提体积（不投影，不违反单投影灯）+ RoomEnvironment 供 PBR 环境反射
+const rim = new THREE.DirectionalLight(0x8fb4e6, 0.7);
+rim.position.set(-130, 55, -150);
+scene.add(rim);
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.32; // 反射只做底味，不冲淡矿彩色谱
+}
 
 let composer                        = null;
 let bloomPass                         = null;
 function setupComposer() {
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  bloomPass = new UnrealBloomPass(new THREE.Vector2(app.clientWidth, app.clientHeight), 0.52, 0.42, 0.78);
+  bloomPass = new UnrealBloomPass(new THREE.Vector2(app.clientWidth, app.clientHeight), 0.55, 0.45, 0.8);
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
 }
@@ -195,6 +207,14 @@ function loadTex(url        , repeat = 1) {
 }
 const mineralTex = loadTex('assets/tex-mineral.jpg', 3);
 const mineralTexFine = loadTex('assets/tex-mineral.jpg', 8);
+// v191 写实化：岩石 PBR 法线/ARM（Rock013，青绿矿脉切矿彩色谱）+ 风纹水波法线（Ground098，主循环滑 offset 作活水）——皆 CC0（ambientCG）
+function loadLin(url        , repeat        ) { // 法线/ARM 图不设 colorSpace
+  const t = texLoader.load(url); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); return t;
+}
+const rockN = loadLin('assets/lib/ambientcg-materials/textures/rock/Rock013/normal.jpg', 2);
+const rockA = loadLin('assets/lib/ambientcg-materials/textures/rock/Rock013/arm.jpg', 2);
+const rippleN = loadLin('assets/lib/ambientcg-materials/textures/ground/Ground098/normal.jpg', 5);
+const rippleNS = new THREE.Vector2(0.55, 0.55);
 
 // 星空：程序星辰——分层锐利点星 + 淡银河带（矿彩色温；星群随相机平移，任何观照场都有同一片天）
 const starGroup = new THREE.Group();
@@ -384,7 +404,7 @@ function addEdges(mesh            , color = C.gold, opacity = 0.5) {
   })();
   const sea = new THREE.Mesh(new THREE.CylinderGeometry(130, 130, 12, 96), [
     stdMat(0x86b9c6, { map: mineralTex, side: THREE.DoubleSide, roughness: 0.5, emissive: 0x123239, emissiveIntensity: 0.55 }),
-    stdMat(0xcfe8e2, { map: seaTopTex, roughness: 0.42, emissive: 0x123239, emissiveIntensity: 0.5 }),
+    stdMat(0xcfe8e2, { map: seaTopTex, roughness: 0.42, metalness: 0.05, emissive: 0x123239, emissiveIntensity: 0.5, normalMap: rippleN, normalScale: rippleNS }), // v191 活水法线
     stdMat(0x1c3038, { roughness: 0.9 }),
   ]);
   sea.position.y = -6; sea.receiveShadow = true; saha.add(sea);
@@ -437,7 +457,7 @@ function addEdges(mesh            , color = C.gold, opacity = 0.5) {
 
 // 须弥山（四宝四面：东白银 · 南吠琉璃 · 西颇胝迦 · 北黄金）
 {
-  const face = (c        ) => stdMat(c, { map: mineralTexFine, roughness: 0.7, emissive: c, emissiveIntensity: 0.22 });
+  const face = (c        ) => stdMat(c, { map: mineralTexFine, roughness: 0.7, emissive: c, emissiveIntensity: 0.18, normalMap: rockN, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: rockA }); // v191 岩石 PBR 法线/ARM
   // BoxGeometry 面序 [+x,-x,+y,-y,+z,-z]；场景中 +x=东，+z=南
   const sumeruMats = () => {
     const top = face(0xbcd6c8);
@@ -634,9 +654,9 @@ function ridgeRing(R        , h        , w        , mat                        )
 }
 for (let i = 0; i < 7; i++) {
   const R = 40 + i * 8, h = sevenH[i];
-  const mat = i % 2
-    ? goldMat(0.34, { color: 0xcaa45c, emissive: 0x7e6230, roughness: 0.58, map: mineralTex })
-    : goldMat(0.42, { color: 0xdcae5e, emissive: 0x96742f, roughness: 0.52, map: mineralTex });
+  const mat = i % 2 // v191 岩石 PBR 法线上山脊
+    ? goldMat(0.34, { color: 0xcaa45c, emissive: 0x7e6230, roughness: 0.58, map: mineralTex, normalMap: rockN, normalScale: new THREE.Vector2(0.8, 0.8), roughnessMap: rockA })
+    : goldMat(0.42, { color: 0xdcae5e, emissive: 0x96742f, roughness: 0.52, map: mineralTex, normalMap: rockN, normalScale: new THREE.Vector2(0.8, 0.8) });
   saha.add(ridgeRing(R, h, sevenW[i], mat));
 }
 // 七香水海（俱舍：七金山间七内海，八功德水盈满其中；第七山外方是鹹海）
@@ -655,7 +675,7 @@ for (let i = 0; i < 7; i++) {
 }
 {
   // 铁围山：世界边际环山（铁色低岭，脊线连绵）
-  saha.add(ridgeRing(127, 6.5, 3.6, stdMat(0x3a3644, { metalness: 0.4, roughness: 0.6, map: mineralTex })));
+  saha.add(ridgeRing(127, 6.5, 3.6, stdMat(0x3a3644, { metalness: 0.4, roughness: 0.6, map: mineralTex, normalMap: rockN, normalScale: new THREE.Vector2(0.7, 0.7), roughnessMap: rockA })));
 }
 
 // 水面微光：流光斑纹叠加层缓旋（大海+香水海一张大盘，极乐莲池两层金碧）——不动几何只旋纹理，代价极低
@@ -688,6 +708,7 @@ addShimmer(pureLand, 37.2, 1.76, 0, 30, 0x7fd8c8, 0.10, 6, -0.02, false);
 function waterUpdate(t        , dt        ) {
   waterSpin.forEach(w => { w.m.rotation.z += w.sp * dt; });
   hsMats.forEach((m, i) => { m.emissiveIntensity = 0.5 + 0.16 * Math.sin(t * 0.8 + i * 0.9); });
+  rippleN.offset.x += dt * 0.0085; rippleN.offset.y += dt * 0.0052; // v191 活水：法线图慢滑，海面微波度日
 }
 // 调试钩子：仅供自测断言（只读）
 (window       ).__waterDbg = () => ({ spin: waterSpin.length, rot: waterSpin.map(w => w.m.rotation.z), hs: hsMats.map(m => m.emissiveIntensity) });
@@ -815,11 +836,11 @@ const sunMoonPivot = new THREE.Group(); saha.add(sunMoonPivot);
 // 色界四禅：禅定光云层（俱舍·世间品：色界诸天宫殿依空而住，以光明胜劣分位次——愈上愈广愈净）
 {
   const dhyana                                          = [
-    [148, 17, '215,170,69', 0.3],    // 初禅 梵众·梵辅·大梵（星环 r14）
-    [157, 21, '229,199,122', 0.34],  // 二禅 少光·无量光·光音（星环 r18，以光为语）
-    [166, 25, '240,224,168', 0.38],  // 三禅 少净·无量净·遍净（星环 r22）
-    [176, 29, '246,240,218', 0.42],  // 四禅 内四凡 r18 外五圣 r26 两重环，盘最广（俱舍：愈上愈广）
-  ];
+    [148, 17, '215,170,69', 0.10],    // 初禅 梵众·梵辅·大梵（星环 r14）
+    [157, 21, '229,199,122', 0.115],  // 二禅 少光·无量光·光音（星环 r18，以光为语）
+    [166, 25, '240,224,168', 0.13],   // 三禅 少净·无量净·遍净（星环 r22）
+    [176, 29, '246,240,218', 0.15],   // 四禅 内四凡 r18 外五圣 r26 两重环，盘最广（俱舍：愈上愈广）
+  ]; // v195 用户点单「色界天星云极淡」：原 0.4–0.58 压至四分之一，只留一层气息
   // 降噪（极简）：盘晕透明度下调、侧晕减半——层次由星环与题字承担，不靠大面积光斑
   dhyana.forEach(([y, r, rgb, op]) => {
     const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 48),
@@ -836,9 +857,8 @@ const sunMoonPivot = new THREE.Group(); saha.add(sunMoonPivot);
 }
 // 色界大曼陀罗环线（v137）：一环一环之「形」——每层成员星环画旋转虚线金环，
 // 绽开层环线亮起；四禅内外两环反向慢旋，坐实坛城结构
-const CHAN_RING_DEF                                 = [
-  [[149.4, 14]], [[158.4, 18]], [[167.4, 22]], [[181.1, 26]], // 四禅内环已减（v146 简化：一层一环）
-];
+// v195 用户点单「环状虚线去除」：色界大曼陀罗环线退役，层级交给极淡光云盘与成员星自身（置空即不再画）
+const CHAN_RING_DEF                                 = [];
 const chanRingLines                                                                                   = [];
 CHAN_RING_DEF.forEach((rings, i) => rings.forEach(([ry, rr], j) => {
   const pts                  = [];
@@ -1200,11 +1220,18 @@ const realmHue = (d          )         =>
       : HUE_RT.has(d.id) ? 0x33907c
         : C.gold;
 
+// v192 十法界主星尺寸制度（统一规划十法界星球大小）：与三段色谱同轴，升沉即大小——
+// 下段四恶趣 2.0 → 中段人天/色无色 2.4 → 上段四圣 3.0，佛法界 3.4 为极；子星两档不变（禅天层把手 2.1，tier2 1.7，tier3 1.0）
+const T1_SIZE                         = {
+  hell: 2.0, preta: 2.0, animal: 2.0, asura: 2.0,
+  jambu: 2.4, trayastrimsa: 2.4, rupa: 2.4, arupa: 2.4,
+  sravaka: 3.0, pratyeka: 3.0, bodhi: 3.0, buddha: 3.4,
+};
 NODES.forEach((d          ) => {
   const group = new THREE.Group();
   const isNS = d.coordKind === 'nonspatial' || d.group === '四圣';
   const hue = realmHue(d);
-  const size = d.tier === 1 ? 2.4 : d.tier === 3 ? 1.0 : /^chan[1-4]$/.test(d.id) ? 2.1 : 1.7; // 禅天主星是层把手：形体加重一档
+  const size = d.tier === 1 ? (T1_SIZE[d.id] ?? 2.4) : d.tier === 3 ? 1.0 : /^chan[1-4]$/.test(d.id) ? 2.1 : 1.7; // 禅天主星是层把手：形体加重一档
   let core            ;
   if (isNS) {
     core = new THREE.Mesh(new THREE.OctahedronGeometry(size * 1.2),
@@ -1519,6 +1546,29 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
   .overlay.ovc .panel{width:min(92vw,430px);height:auto;max-height:86vh;border:1px solid rgba(215,170,69,.5);border-radius:12px;
     padding:16px;animation:pnIn .24s cubic-bezier(.2,.8,.25,1)}
 }
+/* 谱务控制台：手机改底部抽屉——从拇指区升起、自适应高度、圆角顶+抓手条（桌面仍居中） */
+.ovsheet .grab{display:none}
+@media (max-width:640px){
+  .overlay.ovsheet{align-items:flex-end;justify-content:center}
+  .overlay.ovsheet .panel{width:100%;max-width:100%;height:auto;max-height:82vh;box-sizing:border-box;
+    border:1px solid rgba(215,170,69,.28);border-bottom:none;border-radius:18px 18px 0 0;
+    padding:8px 16px calc(18px + env(safe-area-inset-bottom));animation:pnUp .28s cubic-bezier(.2,.8,.25,1)}
+  .ovsheet .grab{display:block;width:38px;height:4px;border-radius:2px;background:rgba(215,170,69,.4);margin:2px auto 10px}
+  .ovsheet h2{padding-right:0;text-align:center}
+  .ovsheet .ovClose{display:none} /* 底抽屉：点蒙层或抓手下滑即收，不占角位 */
+}
+@keyframes pnUp{from{opacity:.5;transform:translateY(60%)}}
+/* 谱务格子：本局状态条 + 六格快捷（图字并列，触区≥64px，两击重开变朱砂警示） */
+.smStat{font-size:var(--fs-sm);color:#dccf9f;padding:2px 2px 10px;text-align:center}
+.smGrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.smItem{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;padding:12px 6px;min-height:70px;line-height:1.2}
+.smItem .ic{font-size:var(--fs-lg);color:#e8c766;opacity:.9;line-height:1}
+.smItem b{font-weight:600;font-size:var(--fs-md)}
+.smItem .sub{font-size:var(--fs-xs);color:#9d9170}
+.smItem.arm{background:rgba(217,136,115,.16);border-color:rgba(217,136,115,.6)}
+.smItem.arm .ic,.smItem.arm b{color:#e59a86}
+@media (max-width:640px){ .smGrid{grid-template-columns:1fr 1fr 1fr;gap:9px} .smItem{min-height:76px} }
+@media (max-width:380px){ .smGrid{grid-template-columns:1fr 1fr} }
 .overlay h2{padding-right:48px}
 .overlay h2{margin:0 0 10px;font-size:var(--fs-xl);letter-spacing:3px;color:#f0dfa8;font-weight:600}
 .overlay .body{overflow-y:auto;min-height:0;flex:1 1 auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;font-size:var(--fs-md);line-height:1.85}
@@ -1656,19 +1706,24 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 @keyframes afWordK{0%{opacity:0;letter-spacing:20px}35%{opacity:1}80%{opacity:1}100%{opacity:0}}
 #ladder{position:absolute;right:6px;top:15%;height:52vh;width:52px;z-index:14;display:none;cursor:pointer}
 #ladder.show{display:block}
-/* 场景导航（色界四禅/菩萨十科）：左侧竖杆——与右侧十五门天梯同一设计语言（极简：无底无框，色点+名） */
-#bodhiNav,#skyNav{position:absolute;left:6px;top:50%;transform:translateY(-50%);max-height:72vh;z-index:15;display:none;
-  flex-direction:column;gap:1px;padding:8px 5px;border-radius:14px;background:rgba(22,18,38,.42);backdrop-filter:blur(6px);
-  border:1px solid rgba(215,170,69,.16);overflow-y:auto;scrollbar-width:none;pointer-events:auto}
-#bodhiNav::-webkit-scrollbar,#skyNav::-webkit-scrollbar{display:none}
-#bodhiNav.show,#skyNav.show{display:flex;animation:bnvIn .55s ease}
-@keyframes bnvIn{from{opacity:0;transform:translate(-14px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
-.bnv{display:flex;align-items:center;gap:6px;cursor:pointer;padding:5px 7px;border-radius:9px;border:none;background:none;flex:0 0 auto;transition:background .2s}
-.bnv b{font-weight:400;font-size:var(--fs-xs);letter-spacing:1px;color:inherit;opacity:.8;white-space:nowrap;text-shadow:0 1px 3px rgba(10,8,20,.85)}
-.bnv i{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 5px currentColor;flex:0 0 auto;transition:transform .2s}
-.bnv.on{background:rgba(255,255,255,.09)}
-.bnv.on b{opacity:1;font-weight:700}
-.bnv.on i{transform:scale(1.5);box-shadow:0 0 10px currentColor}
+/* 场景导航（色界四禅/菩萨十科）：左侧极简小滑杆——细金竖轨＋沿轨色点，与右侧天梯镜像；
+   文字默认隐去，仅当前层与 hover 时以小气泡浮出（不占版面、不抢星图） */
+/* column-reverse：升沉轴由下至上——慧学位/初禅（低）在底、圆教六即/四禅（高）在顶，与右侧天梯同向 */
+#bodhiNav,#skyNav{position:absolute;left:8px;top:50%;transform:translateY(-50%);max-height:76vh;z-index:15;display:none;
+  flex-direction:column-reverse;justify-content:center;gap:13px;padding:14px 6px;overflow:visible;pointer-events:auto}
+#bodhiNav::before,#skyNav::before{content:'';position:absolute;left:10px;top:9px;bottom:9px;width:2px;border-radius:1px;
+  background:linear-gradient(rgba(215,170,69,.05),rgba(215,170,69,.22),rgba(215,170,69,.05))}
+#bodhiNav.show,#skyNav.show{display:flex;animation:bnvIn .5s ease}
+@keyframes bnvIn{from{opacity:0;transform:translate(-12px,-50%)}to{opacity:1;transform:translate(0,-50%)}}
+.bnv{position:relative;display:flex;align-items:center;cursor:pointer;flex:0 0 auto;height:11px}
+.bnv i{width:9px;height:9px;border-radius:50%;background:currentColor;box-shadow:0 0 5px currentColor;flex:0 0 auto;
+  position:relative;z-index:1;transition:transform .2s,box-shadow .2s}
+.bnv b{position:absolute;left:19px;white-space:nowrap;font-weight:400;font-size:var(--fs-xs);letter-spacing:1px;color:inherit;
+  padding:3px 9px;border-radius:9px;background:rgba(22,18,38,.84);backdrop-filter:blur(6px);
+  opacity:0;transform:translateX(-6px);pointer-events:none;transition:opacity .2s,transform .2s;text-shadow:0 1px 3px rgba(10,8,20,.9)}
+.bnv:hover b,.bnv.on b{opacity:1;transform:translateX(0)}
+.bnv.on i{transform:scale(1.65);box-shadow:0 0 12px currentColor}
+.bnv.on b{font-weight:700}
 #ladTrack{position:absolute;right:16px;top:0;bottom:0;width:4px;background:rgba(215,170,69,.16);border-radius:2px}
 #ladTrack i{position:absolute;right:-2px;width:8px;height:2px;background:rgba(215,170,69,.32)}
 #ladMe,#ladAi,#ladNext{display:none}
@@ -2178,8 +2233,8 @@ function openTitle() {
   const hasSfp = !!(save.sfp && SFP_BY[save.sfp.pos]);
   const act = sfpS.active;
   const p = el(`<div class="panel" style="text-align:center;max-width:min(430px,92vw)"><div class="tkey"><img src="assets/title-key.jpg" alt=""></div><h2 style="letter-spacing:5px;padding-right:0">选佛谱</h2><div class="body">
-    <div style="color:#dccf9f">蕅益大师《选佛谱》——掷「南无阿弥陀佛」二轮，行十法界棋盘：十五门二百二十位，从地狱直到成佛。</div>
-    <div style="margin-top:6px;font-size:var(--fs-sm);color:#9d9170">一图一局：星图即棋盘，行棋之余随时拖动遨游、点门星展位次；☰ 菜单可观照全图与归位。</div></div>
+    <div style="color:#dccf9f;line-height:1.7">蕅益大师《选佛谱》——掷「南无阿弥陀佛」六字轮，善升恶降，行十法界十五门二百二十位，从凡直到成佛。</div>
+    <div style="margin-top:6px;font-size:var(--fs-sm);color:#9d9170">一图一局，星图即棋盘：转恶成善、从凡入圣，十法界终归究竟。</div></div>
     <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
       <button class="gbtn primary" id="tiSfp" style="display:flex;flex-direction:column;align-items:center;gap:2px"><b>${act ? '回到局中' : (hasSfp ? '续掷上局' : '开始选佛')}</b><span style="font-size:var(--fs-xs);color:#c8b988;letter-spacing:1px">${act || hasSfp ? `现居「${esc(SFP_BY[(act ? sfpS.pos : save.sfp.pos)          ]?.name || '發始因地')}」 · 第 ${act ? sfpS.n : save.sfp.n} 掷` : '主玩法 · 掷轮行十法界，直至选佛及第'}</span></button>
       ${act || hasSfp ? '<button class="gbtn" id="tiNew">新开一局</button>' : ''}
@@ -2319,15 +2374,28 @@ function enterSky() {
   scene.fog = new THREE.FogExp2(C.bg, 0.0006);
   fogBase = 0.0006;
   skyRelayout(true); // v165：坛城撑开 ×1.7，十八天平铺看清
-  skySel = -1; skyNavSync(); skyNav.classList.add('show'); // v166：禅层签条滑入
+  skySel = skyPosLayer() || -1; // v175 对齐菩萨道场：默认收拢；现居色界位则自动定开其禅层（落位定开）
+  if (skySel > 0) chanRevealT = performance.now();
+  skyNavSync(); skyNav.classList.add('show'); // v166：禅层签条滑入；v174 左侧竖杆
   camera.position.set(108, 238, 118); // 揭幕后缓推入坐：转金散尽镜头自远微推，入场不生硬
   controls.target.set(0, 168, 0);
-  flyTo(new THREE.Vector3(92, 222, 100), new THREE.Vector3(0, 168, 0), 1.6); // v164：仰角略抬；v165：撑开后同步拉远
+  if (skySel > 0) { // 落位定开：俯冲贴该禅层（对齐道场落位镜程），而非全景
+    const RY = [0, 149.4, 158.4, 167.4, 179.3][skySel], RR = [0, 14, 18, 22, 26][skySel];
+    const yw = SKY_YC + (RY - SKY_YC) * SKY_K, rw = RR * SKY_K;
+    flyTo(new THREE.Vector3(0, yw + rw * 1.05, 0).addScaledVector(new THREE.Vector3(0.6, 0, 0.8).normalize(), rw * 2.0), new THREE.Vector3(0, yw, 0), 1.6);
+  } else {
+    flyTo(new THREE.Vector3(92, 222, 100), new THREE.Vector3(0, 168, 0), 1.6); // v164：仰角略抬；v165：撑开后同步拉远
+  }
   controls.maxDistance = 280;
   secWrap.style.display = 'none';
   backBtn.classList.add('show');
   playBell(294, 0.06);
-  showToast('色界诸天 · 四禅十八天坛城全景——点任一星读其天，「全图」钮或 Esc 返回', 3400);
+  showToast(skySel > 0 ? '色界诸天 · 已定开现居禅层——点左杆签换层，点星读其天，「全图」或 Esc 返回' : '色界诸天 · 四禅十八天坛城全景——点左杆签绽开一层、点星读其天，「全图」或 Esc 返回', 3600);
+}
+// v175 现居位所在禅层：场内恒显该层（棋子悬星上不可失依托，同菩萨道场落位定开之例）
+function skyPosLayer()         {
+  if (sfpS.active && sfpS.pos) { const p = SFP_BY[sfpS.pos]; if (p && CHAN_OF[p.anchor]) return CHAN_OF[p.anchor]; }
+  return 0;
 }
 function enterSkyTransit() {
   if (inSky || fadeEl.style.opacity === '1') return;
@@ -2701,6 +2769,27 @@ const pidOf = (s         ) => (s && SFP_ALIAS[s]) || s || '';
 const SFP_ORDER = '那謨阿彌陀佛';
 const SFP_DOOR_BY                      = {};
 (SFP_DOORS         ).forEach(d => SFP_DOOR_BY[d.no] = d);
+// v169/v172 门总说（作者自撰助读，明确标「助讀非原譜原文」不冒充谱文）：原谱门1/2/15 无总说，补此三段
+SFP_DOOR_BY[1].intro = '（第一門總說義，助讀非原譜原文）選佛第一擲不論升降，二十一種輪相組合直定二十一種發始因地——此生從何處起步。廿一因分四類：三品十惡為惡因，多感三塗；見取、戒取、慢心行施、世間福并三品十善為世間雜因，隨業升沉人天；邪定、味禪、根本四禪、四無量心、四無色定為禪定因，多生色無色天；出世福戒定慧四學為出世正因，意見參禪與利名習教則慕道而雜染，最易轉入法道流弊。因地一定，此後每擲皆自此起行。';
+SFP_DOOR_BY[2].intro = '（第二門總說義，助讀非原譜原文）學道而歧，其弊有五：破尸羅（毀戒行）、破軌則（壞威儀僧制）、毀正見（撥無因果）、棄多聞（恃悟輕教）、增上慢（未得謂得）。多自「意見參禪」「利名習教」兩種因地而來——離教參禪易墮暗證，逐名習教易成狂解。譜設此門，正示法門無咎、咎在用心；一念知非，懺悔還淨，仍可轉入生善滅惡與三學正軌。';
+SFP_DOOR_BY[15].intro = '（第十五門總說義，助讀非原譜原文）圓極果位，唯一位而已——圓教究竟妙覺。斷盡四十二品無明，究盡諸法實相，三覺圓、萬德備，是為選佛及第、譜之終局。前十四門諸位，或升或沉、或橫超淨土，究竟同歸此極果；藏通別三教佛果，望圓皆屬因位，唯此一位，更無可進。擲得「佛佛」登此位者，一局功圓。';
+// 廿一因逐位一行义读（从各位谱注与行法去向提炼，作者自撰助读，非原谱引文）
+const SFP_D1_CAPTION                         = {
+  '上品十惡': '惡因熾盛·多墮地獄', '中品十惡': '惡心稍緩·多墮畜生', '下品十惡': '惡業輕微·多墮餓鬼',
+  '見取': '姄執己見·鬥諹所依', '慢心行施': '挾慢行施·脩羅之因', '世間福': '施福利世·障三惡道',
+  '戒取': '非因計因·無利勤苦', '下品十善': '止惡未湛·僅免三塗', '中品十善': '善念湛熟·人道之因', '上品十善': '湛善猛利·欲天之因',
+  '邪定': '邪見習定·外道之類', '味禪': '味著定樂·隨禪受生', '根本四禪': '色界正定·四禪之因',
+  '四無量心': '慈悲喜捨·求作梵王', '四無色定': '滅色緣空·四空之因',
+  '意見參禪': '參禪雜意見·易入流弊', '利名習教': '習教牽利名·易入流弊',
+  '出世福業': '施福求出離·階戒學', '出世戒學': '七眾律儀·戒為道基',
+  '出世定學': '諸禪三昧·因定發慧', '出世慧學': '諦緣度觀·般若正因',
+};
+const SFP_D1_GROUPS                                    = [
+  ['惡因', '多感三塗', ['上品十惡', '中品十惡', '下品十惡']],
+  ['世間雜因', '隨業升沉人天', ['見取', '慢心行施', '世間福', '戒取', '下品十善', '中品十善', '上品十善']],
+  ['禪定因', '多生色無色天', ['邪定', '味禪', '根本四禪', '四無量心', '四無色定']],
+  ['出世因', '入聖道之門，雜染則流弊', ['意見參禪', '利名習教', '出世福業', '出世戒學', '出世定學', '出世慧學']],
+];
 const sfpS = { active: false, pos: null                 , n: 0, rolling: false, seenD: []            , trail: []             };
 
 // —— 谱位上图：220 位以念珠环绕各自锚定的法界节点（同门同色） ——
@@ -2766,9 +2855,17 @@ Object.keys(SFP_AT).forEach(aid => {
     const g = list.filter((p     ) => p.door === dno);
     const n = g.length;
     const isMethod = dno === 7 || dno === 8 || dno === 9; // 三学法梯（v147 用户定案）：行门非处所——莲台阶片形制，与处所金珠一眼区分
+    // v194 二百二十位珠制度（统一规划极简 220 位模型，写实 CG）：处所位＝抛光宝珠 r0.62（高细分），行门位＝莲台阶片；
+    // 材质由平涂改 PBR 清漆宝石（吃主光/轮廓光/RoomEnvironment 反射），门色即判词不变、同门同色，自发光压低保读性
+    const doorHex = SFP_DOOR_COLOR[dno] ?? 0xd7aa45;
     const im = new THREE.InstancedMesh(
-      isMethod ? new THREE.CylinderGeometry(1.0, 1.3, 0.24, 12) : new THREE.SphereGeometry(0.6, 8, 6),
-      new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.92 }), n);
+      isMethod ? new THREE.CylinderGeometry(1.0, 1.3, 0.22, 24) : new THREE.SphereGeometry(0.62, 20, 14),
+      new THREE.MeshPhysicalMaterial({
+        // 位珠即位次坐标标记，可读性优先：自发光提到俯瞰暗处也看得清（清漆质感保留、门色不洗白）
+        transparent: true, opacity: 0.96, roughness: 0.26, metalness: 0.1,
+        clearcoat: 0.7, clearcoatRoughness: 0.3, envMapIntensity: 0.55,
+        emissive: doorHex, emissiveIntensity: 0.85,
+      }), n);
     const pk = new THREE.InstancedMesh(
       new THREE.SphereGeometry(1.7, 6, 4),
       new THREE.MeshBasicMaterial({ visible: false }), n);
@@ -4582,6 +4679,13 @@ function showDoorIntro(doorNo        ) {
   (doorIntroEl.querySelector('b')               ).textContent = zh(`入 ${dd.title} · 第${SFP_CN[doorNo - 1]}門總說`);
   const body = doorIntroEl.querySelector('.dit')               ;
   body.innerHTML = zh(glossify(esc(dd.intro))); // 整段连排，不逐句分行；名相可点
+  if (doorNo === 1) { // v169 因地门总说带廿一因逐位读入口
+    const c = document.createElement('button');
+    c.className = 'sfpChip'; c.style.marginTop = '9px';
+    c.textContent = zh('廿一因逐位读 ›');
+    c.addEventListener('click', (e) => { e.stopPropagation(); hideDoorIntro(); openD1Card(); });
+    body.appendChild(c);
+  }
   body.scrollTop = 0;
   doorIntroEl.classList.add('show'); doorIntroOn = true;
   playVar('wood_light', 0.2, 0.95);
@@ -4890,26 +4994,34 @@ window.addEventListener('pointerup', sfpTossUp);
 window.addEventListener('pointercancel', sfpTossUp);
 // 极简行动栏：左「⋯」谱务 · 中掷轮 · 右「问」问义；谱注走点位名，观星入口已撤
 function openSfpMore() {
-  const item = (id        , t        , sub        ) =>
-    `<button class="gbtn" id="${id}" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 6px"><b>${t}</b><span style="font-size:var(--fs-xs);color:#9d9170">${sub}</span></button>`;
+  const item = (id        , ic        , t        , sub        ) =>
+    `<button class="gbtn smItem" id="${id}"><span class="ic">${ic}</span><b>${t}</b><span class="sub">${sub}</span></button>`;
   const cur = sfpS.pos ? SFP_BY[sfpS.pos] : null;
-  const p = el(`<div class="panel"><h2>谱务</h2><div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-    <div style="grid-column:1/-1;font-size:var(--fs-sm);color:#dccf9f;padding:2px 2px 4px">${cur ? `第 ${sfpS.n} 掷 · 第${SFP_CN[cur.door - 1]}门「${SFP_DOOR_BY[cur.door].title}」 · 现居「${esc(cur.name)}」` : '未定位——先掷發始因地'}</div>
-    ${item('smMap', '全谱', '十五门二百二十位总览')}
-    ${item('smTrail', '行迹', '本局升沉记录')}
-    ${item('smHelp', '玩法', '一分钟看懂')}
-    ${item('smNew', '重开一局', '弃行处从头掷')}</div></div>`);
+  const p = el(`<div class="panel"><div class="grab"></div><h2>谱务</h2><div class="body">
+    <div class="smStat">${cur ? `第 ${sfpS.n} 掷 · 第${SFP_CN[cur.door - 1]}门「${SFP_DOOR_BY[cur.door].title}」 · 现居「${esc(cur.name)}」` : '未定位——先掷發始因地'}</div>
+    <div class="smGrid">
+    ${item('smMap', '❖', '全谱', '十五门二百二十位')}
+    ${item('smD1', '因', '廿一因', '發始因地起点')}
+    ${item('smCanon', '卷', '原文', '六卷譜文逐字')}
+    ${item('smTrail', '迹', '行迹', '本局升沉记录')}
+    ${item('smHelp', '?', '玩法', '一分钟看懂')}
+    ${item('smNew', '↻', '重开一局', '从头掷')}
+    </div></div></div>`);
   (p.querySelector('#smMap')               ).addEventListener('click', () => { closeOverlay(); openSfpMap(); });
+  (p.querySelector('#smD1')               ).addEventListener('click', () => { closeOverlay(); openD1Card(); });
+  (p.querySelector('#smCanon')               ).addEventListener('click', () => { closeOverlay(); openCanon(cur ? cur.door : 1, cur ? cur.name : undefined); });
   (p.querySelector('#smTrail')               ).addEventListener('click', () => { closeOverlay(); openSfpTrail(); });
   (p.querySelector('#smHelp')               ).addEventListener('click', () => { closeOverlay(); openSfpHelp(); });
   (p.querySelector('#smNew')               ).addEventListener('click', function (                 ) {
     if (sfpS.rolling || sfpTransit) { closeOverlay(); showToast('行棋中，稍候再新开'); return; }
     if (this.dataset.arm) { closeOverlay(); cancelVerdict(); startSfp(false); showToast('已新开一局——先掷發始因地'); return; }
     this.dataset.arm = '1'; // 两击确认：误点不至于丢局
-    (this.querySelector('b')               ).textContent = zh('再点一次，确认重开');
-    (this.querySelector('span')               ).textContent = zh('当前行处将弃置（成佛次数保留）');
+    this.classList.add('arm');
+    (this.querySelector('b')               ).textContent = zh('确认重开？');
+    (this.querySelector('.sub')               ).textContent = zh('再点一次·行处弃置');
   });
   openOverlay(p);
+  if (overlayEl) overlayEl.classList.add('ovsheet'); // 手机：底部抽屉呈现
 }
 (sfpBar.querySelector('#sfpMore')               ).addEventListener('click', () => openSfpMore());
 // 同修开关：右上导航坞直达（原谱务菜单项移出）
@@ -5007,13 +5119,26 @@ function openSfpHelp() {
       border:1.5px solid ${good ? '#d7aa45' : '#b0543f'};border-radius:8px;color:${good ? '#f4e6b8' : '#f0af9e'}">${ch}</span>
     <span style="font-size:var(--fs-md);color:#e6d9ab">${SFP_PLAIN[ch]}</span>
     <span style="margin-left:auto;font-size:var(--fs-xs);color:#9d9170">${good ? '善 ↑' : '惡 ↓'}</span></div>`;
-  const p = el(`<div class="panel"><h2>一分钟看懂选佛谱</h2><div class="body">
-    <div style="color:#dccf9f">谱曰：「輪如占察輪相，而作六面，以那謨阿彌陀佛六字順次右旋刻於六面……表從凡入聖、轉惡成善」；「那謨表惡，阿彌陀佛表善」——</div>
+  const h = (t        ) => `<div style="margin:12px 0 5px;font-size:var(--fs-sm);letter-spacing:3px;color:#d7aa45;border-bottom:1px solid rgba(215,170,69,.3);padding-bottom:3px">${t}</div>`;
+  // 依原谱卷首（敘·輪相表法第一·紀事）重述缘起与规则（v193）；引文皆逐字原文，出蕅益大师《選佛譜》公版
+  const p = el(`<div class="panel"><h2>选佛谱 · 谱意与玩法</h2><div class="body">
+    ${h('缘 起 —— 大 师 初 心')}
+    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">蕅益大师见法友耽嗜博弈，思以选佛之图易之；五十五岁单丁行脚至歙浦，十三日成谱。自敘其愿：<b style="color:#f4e6b8">「能使人即遊戲間，頓知六道往還之疲苦，三乘出要之差別，誠為不可思議。」</b>谱中一切升沉去向，「皆本教乘，非出臆見」——这局游戏的每一步，都踏在经论上。</div>
+    ${h('轮 相 —— 为 何 恭 敬 对 待 掷 轮')}
+    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">谱曰：「輪如占察輪相，而作六面，以那謨阿彌陀佛六字，順次右旋，刻於六面。」有人问：何不用一二三四五六？大师答：「幺二三四五六，不過世間數目，是無記法，不能生善滅惡。那謨阿彌陀佛六字，乃是萬德洪名……<b style="color:#f4e6b8">一稱佛名，能滅八十億劫生死重罪。</b>」故此轮非骰子——<b>掷轮即是称名念佛</b>，请如持名般恭敬对待。</div>
     <div style="margin:8px 0">${row('那', false)}${row('謨', false)}${row('阿', true)}${row('彌', true)}${row('陀', true)}${row('佛', true)}</div>
-    <div style="margin:6px 0"><b>怎么玩</b>：依谱「置輪掌心，仰手旁擲」——<b>长按</b>掷钮即置轮掌心，按自己的节奏默念一句「南无阿弥陀佛」，<b>念毕松手</b>即旁掷；两字组合决定你从当前位升、降或安住——善字多则升，惡字多则降。每掷必出判词窗交代去向与谱曰缘由，看够了点「行」或右上 ✕ 才行棋，下滑可收成细签（桌面：空格＝掷轮、回车＝行）；判词里点「现居」一行可读当位原谱原文，掷钮右侧「问」是问义助手；全谱与行迹在最右「⋯」里；星图常开可自由观照——点门星展开该门位次、双击俯冲贴近，☰ 菜单有观照全图与归位。</div>
-    <div style="margin:6px 0">🗺 <b>看图</b>：地图上的小珠是全部 220 个位次（按位序盘升，低位在下高位在上），金光是你现在的位置；点小珠读原谱原文，<b>长按小珠</b>速览谱注，<b>双击</b>则飞临定位；双击空处拉远。</div>
-    <div style="margin:6px 0"><b>没有输</b>：坠入地狱饿鬼也不是失败，只是看清业果，继续掷总能回升；终点是成佛位，谓之「选佛及第」。</div></div>
-    <div style="margin-top:12px"><button class="gbtn primary" id="sfpHelpOk" style="width:100%">知道了，开掷</button></div></div>`);
+    ${h('规 则')}
+    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">
+    · 每掷二轮，得两字组合：<b>善字多则升，恶字多则降</b>；何组合往何处，逐位皆依原谱行法表，判词窗必引「谱曰」交代缘由。<br>
+    · 十五门二百二十位为一局：自發始因地入局，历恶趣、人天、色无色、生善灭恶、戒定慧三学、藏通别圆四教位次、净土横超，至圆极果位<b>「选佛及第」</b>为毕局。<br>
+    · <b>没有输</b>：坠地狱饿鬼非失败，只是看清业果——谱云「逆惡猛心，準觀經而許歸淨土」，原谱本无绝路，续掷总能回升。</div>
+    ${h('一 分 钟 上 手')}
+    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">
+    ① <b>长按掷钮</b>＝谱曰「置輪掌心」——按自己的节奏默念一句「南无阿弥陀佛」；<b>念毕松手</b>＝「仰手旁擲」。<br>
+    ② 判词窗读「谱曰」，点<b>「行」</b>落子；下滑可收成细签（桌面：空格＝掷、回车＝行）。<br>
+    ③ 判词里点「现居」读当位原谱原文；掷钮右侧「问」是问义助手；最右「⋯」有全谱与行迹。<br>
+    ④ 星图常开可自由观照：单击门星／门签入门，位珠位名点之读谱注，长按速览、双击飞临；Esc／「全图」返回，☰ 菜单可观照全图与归位。</div></div>
+    <div style="margin-top:12px"><button class="gbtn primary" id="sfpHelpOk" style="width:100%">敬领谱意 · 恭敬开掷</button></div></div>`);
   (p.querySelector('#sfpHelpOk')               ).addEventListener('click', () => {
     closeOverlay();
     if (sfpS.active && sfpS.n === 0) showToast('第一掷定「发始因地」：长按掷钮，默念一句佛号，念毕松手旁掷', 4800);
@@ -5272,6 +5397,70 @@ function openFourLands() {
   (inner.querySelector('#tuOk')               ).addEventListener('click', closeOverlay);
   openOverlay(inner);
 }
+// v177 六卷原文整卷阅读器（CBETA 補編 B0136 逐字）：原文按门分挂——卷首敘/表法/升降见门1，卷末紀事见门15
+function openCanon(doorNo        , jumpName         ) {
+  const d = (SFP_CANON_DOORS       )[doorNo]                                                                                                 ;
+  if (!d) return;
+  const door = SFP_DOOR_BY[doorNo];
+  const frontHtml = doorNo === 1 ? (SFP_CANON_FRONT         ).filter(f => f.juan === 1).map(f =>
+    `<details class="sec"><summary>卷首 · ${esc(f.title)}</summary><div class="verse" style="margin-top:6px">${verseHtml(f.text)}</div></details>`).join('') : '';
+  const jiHtml = doorNo === 15 ? (SFP_CANON_FRONT         ).filter(f => f.juan === 6).map(f =>
+    `<details class="sec" open><summary>卷末 · ${esc(f.title)}</summary><div class="verse" style="margin-top:6px">${verseHtml(f.text)}</div></details>`).join('') : '';
+  const introHtml = d.intro ? `<div class="verse" style="margin-top:8px"><i>${doorNo === 15 ? '圖注' : '本門總說'}</i>${verseHtml(d.intro)}</div>`
+    : `<div style="margin-top:8px;font-size:var(--fs-xs);color:#9d9170">原譜本門無總說（門內浮文所呈為助讀總說義，非原譜原文）</div>`;
+  const posHtml = d.positions.map((cp                                , ci        ) =>
+    `<div data-ci="${ci}" style="margin-top:12px;border-top:1px solid rgba(215,170,69,.18);padding-top:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <b style="color:#f0dfa8;font-size:var(--fs-md);letter-spacing:2px">${esc(cp.name)}</b>
+        <button class="gbtn cnCard" data-ci="${ci}" style="font-size:var(--fs-xs);padding:3px 10px;min-height:28px">譜注卡 ›</button>
+      </div>
+      <div class="verse" style="margin-top:4px">${verseHtml(cp.text.replace(/^譜曰。/, ''))}</div>
+    </div>`).join('');
+  const inner = el(`<div class="panel" style="max-width:min(680px,94vw)"><h2>選佛譜 · 卷第${SFP_CN[d.juan - 1]} · ${esc(door.title)}</h2><div class="body">
+    <div style="font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px">第${SFP_CN[doorNo - 1]}門 · 原文譜曰（CBETA 大藏經補編 B0136 逐字轉寫）</div>
+    ${frontHtml}${introHtml}${posHtml}${jiHtml}
+    <div style="margin-top:10px;font-size:var(--fs-xs);color:#9d9170">六卷原文按門分挂：卷首三篇見第一門，卷末紀事見第十五門；原刻缺字依《靈峰宗論》及文内互证定字。</div>
+    <div class="cardNav"><button class="gbtn${doorNo > 1 ? '' : ' dis'}" id="cnPrev">‹ 上一門</button><button class="gbtn${doorNo < 15 ? '' : ' dis'}" id="cnNext">下一門 ›</button></div>
+    <button class="gbtn primary" style="margin-top:10px;width:100%" id="cnOk">关闭</button></div></div>`);
+  inner.querySelectorAll('.cnCard').forEach(b => b.addEventListener('click', () => {
+    playSfx('sfx-tap', 0.25);
+    const cp = d.positions[Number((b               ).dataset.ci)];
+    const sp = cp && (SFP_POS         ).find(x => x.name === cp.name);
+    if (sp) openSfpNote(sp.id);
+  }));
+  const pv = inner.querySelector('#cnPrev')                      ;
+  if (pv && doorNo > 1) pv.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(doorNo - 1); });
+  const nx = inner.querySelector('#cnNext')                      ;
+  if (nx && doorNo < 15) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(doorNo + 1); });
+  (inner.querySelector('#cnOk')               ).addEventListener('click', closeOverlay);
+  openOverlay(inner);
+  if (jumpName) {
+    const ji = d.positions.findIndex(x => x.name === jumpName);
+    const t = ji >= 0 ? inner.querySelector(`[data-ci="${ji}"]`)                       : null;
+    if (t) setTimeout(() => t.scrollIntoView({ block: 'start' }), 80);
+  }
+}
+// v169 發始因地廿一因总览（作者自撰助读，非原谱原文）：四类分组、逐位互链谱注——入口在门1总说浮文
+function openD1Card() {
+  const ids           = [];
+  const html = SFP_D1_GROUPS.map(([gn, gd, gids]) => {
+    const rows = gids.map(pid => {
+      ids.push(pid);
+      const p = SFP_BY[pid];
+      return `<button class="gbtn d1Btn" style="display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;box-sizing:border-box;padding:7px 12px;min-height:36px"><span><b>${esc(p.name)}</b><span style="margin-left:8px;font-size:var(--fs-xs);color:#9d9170">${esc(SFP_D1_CAPTION[pid] || '')}</span></span><span style="color:#d7aa45;font-size:var(--fs-xs);white-space:nowrap">谱注 ›</span></button>`;
+    }).join('');
+    return `<div style="margin-top:10px;font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px">${gn} <span style="color:#9d9170;font-size:var(--fs-xs);letter-spacing:0">${gd}</span></div><div style="display:flex;flex-direction:column;gap:6px;margin-top:6px">${rows}</div>`;
+  }).join('');
+  const inner = el(`<div class="panel"><h2>發始因地 · 廿一因</h2><div class="body">
+    <div style="font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px">第一门 · 發始因地门 · 总说义</div>
+    <div style="margin-top:7px">第一掷不论升降，廿一种轮相组合定廿一种起点业因——此生从何处起步。下列分类与义读为助读，点各位入谱注原文。</div>
+    ${html}
+    <div style="margin-top:8px;font-size:var(--fs-xs);color:#9d9170">义读从各位谱注与行法去向提炼；原文依 CBETA 繁体本。</div>
+    <button class="gbtn primary" style="margin-top:10px;width:100%" id="d1Ok">关闭</button></div></div>`);
+  inner.querySelectorAll('.d1Btn').forEach((b, i) => b.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpNote(ids[i]); }));
+  (inner.querySelector('#d1Ok')               ).addEventListener('click', closeOverlay);
+  openOverlay(inner);
+}
 function openSfpNote(pid         ) {
   const p = pid ? SFP_BY[pid] : (sfpS.pos ? SFP_BY[sfpS.pos] : null);
   const door = p ? SFP_DOOR_BY[p.door] : null;
@@ -5279,7 +5468,7 @@ function openSfpNote(pid         ) {
   const prev = idx > 0 ? (SFP_POS         )[idx - 1] : null;
   const next = idx >= 0 && idx < (SFP_POS         ).length - 1 ? (SFP_POS         )[idx + 1] : null;
   const inner = el(`<div class="panel"><h2>${p ? esc(p.name) : '發始因地'} · 谱注</h2><div class="body">
-    ${door ? `<div style="font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px">${esc(door.title)}${p.pure ? ' · 净土' : ''}${idx >= 0 ? ` · 第${idx + 1}/220位` : ''}</div>` : ''}
+    ${door ? `<div style="font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px">${esc(door.title)}${p.pure ? ' · 净土' : ''}${idx >= 0 ? ` · 第${idx + 1}/220位` : ''} <span id="spCanon" style="color:#efe0b4;border-bottom:1px dotted #9d9170;cursor:pointer">卷第${SFP_CN[(((SFP_CANON_DOORS       )[p.door]?.juan) || 1) - 1]} · 本門譜文 ›</span></div>` : ''}
     ${p && byId[p.anchor] ? `<div style="margin-top:5px;font-size:var(--fs-sm);color:#9d9170">所在法界：<span id="spAnchor" style="color:#efe0b4;border-bottom:1px dotted #9d9170;cursor:pointer">${esc(byId[p.anchor].d.name)}</span> <span style="font-size:var(--fs-xs)">点法界名观其界相·众相·出处</span></div>` : ''}
     ${p ? `<div class="verse"><i>譜曰</i>${verseHtml(p.note)}</div>` : `<div style="margin-top:6px">${esc(SFP_META.dice)}</div>`}
     ${p && !p.terminal ? `<details class="sec"${sfpS.active && sfpS.pos === p.id ? ' open' : ''}><summary>升降行法 · 二十一组轮相</summary>${sfpMovesHtml(p)}</details>` : ''}
@@ -5293,6 +5482,8 @@ function openSfpNote(pid         ) {
   if (nx && next) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpNote(next.id); });
   const loc = inner.querySelector('#sfpNoteLoc')                      ;
   if (loc && p) loc.addEventListener('click', () => { closeOverlay(); sfpLocate(p.id); });
+  const cnBtn = inner.querySelector('#spCanon')                      ;
+  if (cnBtn) cnBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(p ? p.door : (sfpS.pos ? SFP_BY[sfpS.pos].door : 1), p ? p.name : undefined); });
   const anc = inner.querySelector('#spAnchor')                      ;
   if (anc && p) anc.addEventListener('click', () => { // 互链：谱位→所在法界卡片（卡内又有「选佛谱位」段链回诸位）
     closeOverlay();
