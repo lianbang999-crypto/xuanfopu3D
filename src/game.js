@@ -13,6 +13,7 @@ import { SFP_GLOSS } from './sfp-gloss.js';
 import { SFP_WHY_PLAIN } from './sfp-why-plain.js';
 import { ZH_T2S, ZH_S2T } from './zh-conv.js';
 import { Net } from './net.js'; // 联机同修：房间/轮次/聊天（渲染在本文件「联机同修珠」段）
+import { quickShare } from './share.js'; // 分享卡：荐游戏/邀莲友（二维码+一键转发）
 
 const C = {
   bg: 0x201b2f, ink: 0x173d52, mala: 0x246b66, cinn: 0x8b3f32,
@@ -145,7 +146,8 @@ function playBell(base = 196, vol = 0.05) {
 // ---------------- 渲染基础 ----------------
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(app.clientWidth, app.clientHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, save.settings.lowPerf ? 1 : 2));
+const isCoarse = matchMedia('(pointer:coarse)').matches; // v221 功耗治理：触屏机（手机/平板）默认省电档
+renderer.setPixelRatio(Math.min(devicePixelRatio, save.settings.lowPerf ? 1 : isCoarse ? 1.6 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -194,10 +196,27 @@ function setupComposer() {
   composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
   bloomPass = new UnrealBloomPass(new THREE.Vector2(app.clientWidth, app.clientHeight), 0.34, 0.38, 0.86); // 光噪减负：强度砍四成、阈值抬高——只最亮处泛光，余皆干净
+  if (isCoarse) { // v221：手机泛光缓冲减半——全屏模糊链是发热大头，半分辨率视觉近无差
+    const bs = bloomPass.setSize.bind(bloomPass);
+    bloomPass.setSize = (w, h) => bs(Math.ceil(w / 2), Math.ceil(h / 2));
+    bloomPass.setSize(app.clientWidth, app.clientHeight);
+  }
   composer.addPass(bloomPass);
   composer.addPass(new OutputPass());
 }
 setupComposer();
+// v221 DPR 统一入口：省电档/触屏档/自适应降档三者合流（降档不回升，防振荡）
+let dprScale = 1;
+function applyDpr() {
+  renderer.setPixelRatio(Math.min(devicePixelRatio, (save.settings.lowPerf ? 1 : isCoarse ? 1.6 : 2) * dprScale));
+  if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(app.clientWidth, app.clientHeight); }
+}
+// 交互瞬时提帧：触摸/滚轮后 1s 内全帧率，静观期 30fps（见主循环节流）
+let perfBoostUntil = 0;
+const perfBump = () => { perfBoostUntil = performance.now() + 1000; };
+renderer.domElement.addEventListener('pointerdown', perfBump);
+renderer.domElement.addEventListener('pointermove', (e) => { if (e.buttons) perfBump(); });
+renderer.domElement.addEventListener('wheel', perfBump, { passive: true });
 
 const texLoader = new THREE.TextureLoader();
 function loadTex(url        , repeat = 1) {
@@ -1581,7 +1600,6 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
   background:linear-gradient(rgba(22,18,38,.85),transparent);pointer-events:none}
 #topbar>*{pointer-events:auto}
 #title{font-size:var(--fs-xl);letter-spacing:4px;color:#f0dfa8;font-weight:600;text-shadow:0 1px 6px #000}
-#menuBtn{margin-left:auto;width:42px;height:42px;font-size:var(--fs-xl)}
 #compass{top:58px;right:12px;width:74px;height:74px;border-radius:50%;pointer-events:none;
   border:1px solid rgba(215,170,69,.5);background:rgba(23,20,38,.5)}
 #compass span{position:absolute;left:50%;top:50%;font-size:var(--fs-xs);color:#e9dcae;transform:translate(-50%,-50%)}
@@ -1724,13 +1742,6 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .lbRow .nm{flex:1;font-size:var(--fs-md);color:#efe0b4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lbRow .sc{font-size:var(--fs-sm);color:#dccf9f;flex:none}
 .lbRow.me{background:rgba(215,170,69,.14);border-radius:8px}
-#menuPanel{top:56px;right:12px;display:none;flex-direction:column;gap:8px;padding:12px;min-width:216px;max-width:min(300px,calc(100vw - 24px))}
-#menuPanel.show{display:flex}
-#menuPanel .stat{font-size:var(--fs-sm);color:#cbbb8d;text-align:center}
-#menuPanel .mrow{display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:10px 13px;text-align:left}
-#menuPanel .mrow b{font-weight:600;font-size:var(--fs-md);letter-spacing:1px}
-#menuPanel .mrow span{font-size:var(--fs-xs);color:#9d9170;letter-spacing:.3px;line-height:1.5}
-#menuPanel .mrow.on{border-color:#d7aa45;background:rgba(215,170,69,.16)}
 #backBtn{position:static;display:none;font-size:var(--fs-sm);padding:5px 12px;min-height:0;letter-spacing:2px;border-radius:16px;flex:none}
 #backBtn.show{display:block}
 #sfpBar{bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(540px,96vw);padding:9px 12px;display:none;text-align:center}
@@ -1756,7 +1767,6 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #sfpBtns .gbtn{padding:8px 14px;font-size:var(--fs-md);min-height:38px}
 #sfpBtns .gbtn.primary{min-height:46px;font-size:var(--fs-lg);letter-spacing:3px}
 #modeChip{display:none}
-#menuBtn{margin-left:auto}
 #sfpDice{top:24%;left:50%;transform:translate(-50%,-50%);display:none;gap:14px;z-index:25;flex-wrap:wrap;justify-content:center}
 #sfpVeil{position:absolute;inset:0;pointer-events:none;z-index:24;opacity:0;transition:opacity .5s;
   background:radial-gradient(ellipse 66% 60% at 50% 46%,rgba(32,27,47,0) 0%,rgba(32,27,47,.05) 34%,rgba(32,27,47,.62) 72%,rgba(24,20,36,.88) 100%)}
@@ -1913,8 +1923,7 @@ function el(html        )              {
   return t.firstElementChild               ;
 }
 const topbar = el(`<div id="topbar" class="ui">
-  <div id="title">选佛谱 <span style="font-size:var(--fs-xs);color:#d7aa45;opacity:.85">⌄</span></div>
-  <button id="menuBtn" class="gbtn">☰</button></div>`);
+  <div id="title">选佛谱 <span style="font-size:var(--fs-xs);color:#d7aa45;opacity:.85">⌄</span></div></div>`);
 app.appendChild(topbar);
 // 题字即总入口：点按回题屏（原「🗺 观照」模式钮删除，职能合并于此；局中门/掷数底栏 sfpTop 已显）
 const titleEl = topbar.querySelector('#title')               ;
@@ -1930,6 +1939,10 @@ app.appendChild(freeDock);
 const quickSfp = el('<button class="gbtn primary" style="border-radius:24px;padding:13px 30px;font-size:var(--fs-lg);letter-spacing:3px">选佛</button>');
 quickSfp.addEventListener('click', () => openSfpIntro());
 freeDock.appendChild(quickSfp);
+// 单菜单原则：自由观照期底坞也带「⋯」，谱务抽屉全程可达（局中入口在 sfpBar）
+const quickMore = el('<button class="gbtn" style="border-radius:24px;padding:13px 18px;font-size:var(--fs-xl)" title="谱务菜单">⋯</button>');
+quickMore.addEventListener('click', () => openSfpMore());
+freeDock.appendChild(quickMore);
 
 // 神足飞行（依「神足通飞行自在」义）：默认常开——摇杆已撤不上屏（极简屏）：移动端以双击飞临/双击空处拉远/双指缩放代步，WASD 桌面巡游保留
 const joyEl = el('<div id="joy" class="ui"><div id="joyKnob"></div></div>');
@@ -1978,16 +1991,8 @@ const secZero = secWrap.querySelector('#secZero')               ;
 
 const backBtn = el('<button id="backBtn" class="ui gbtn">娑婆</button>')                     ;
 // 顶栏题字旁小钱（用户点单）：门观中显「全图」、极乐显「娑婆」，不再悬浮突兀
-topbar.insertBefore(backBtn, topbar.querySelector('#menuBtn'));
-
-const menuPanel = el(`<div id="menuPanel" class="ui panel">
-  <div class="stat" id="menuStat"></div>
-  <button class="gbtn mrow" data-a="map"><b>观照全图</b><span>拉远览十五门全景 · 收拢展开的位次</span></button>
-  <button class="gbtn mrow" data-a="home"><b>归位</b><span>飞回现居位，接着掷</span></button>
-  <button class="gbtn mrow" data-a="ai"><b>2人同修</b><span id="menuAiSub"></span></button>
-  <button class="gbtn mrow" data-a="cites"><b>参考经典</b><span>本图所据经论与参照，按经典分列</span></button>
-  <button class="gbtn mrow" data-a="settings"><b>设置</b><span>音效 · 简繁 · 行棋特效 · 大字</span></button></div>`);
-app.appendChild(menuPanel);
+backBtn.style.marginLeft = 'auto'; // 右上☰已撤（单菜单原则），小钱右靠
+topbar.appendChild(backBtn);
 
 const card = el(`<div id="card" class="panel">
   <div id="cardHead">
@@ -2170,7 +2175,7 @@ function selectNode(id        , fly = true) {
   if (selectedId && byId[selectedId]) byId[selectedId].label.classList.remove('sel');
   selectedId = id;
   nv.label.classList.add('sel');
-  if (!readSet.has(id)) { readSet.add(id); syncSave(); updateMenuStat(); }
+  if (!readSet.has(id)) { readSet.add(id); syncSave(); }
   nv.label.classList.add('read');
   // 统一弹窗体系：节点卡与谱注同走 overlay 抽屉；关卡（蒙层/✕）即取消选中
   overlayOnClose = null;
@@ -2208,7 +2213,7 @@ function closeCard() {
 function toggleFav(id        ) {
   if (favSet.has(id)) favSet.delete(id);
   else { favSet.add(id); playSfx('sfx-fav', 0.4); showToast('已收藏 · ' + byId[id].d.name); }
-  syncSave(); updateMenuStat(); updateLabelBadges();
+  syncSave(); updateLabelBadges();
   if (selectedId === id) renderCard();
 }
 function updateLabelBadges() {
@@ -2349,7 +2354,8 @@ function openSettings() {
     <div class="setRow"><span>低性能模式（关闭辉光）</span><button class="gbtn" data-k="lowPerf"></button></div>
     <div class="setRow"><span>行棋特效（乘光飞行动画；关＝直达落位）</span><button class="gbtn" data-k="moveFx"></button></div>
     <div class="setRow"><span>大字（卡片正文加大）</span><button class="gbtn" data-k="bigFont"></button></div>
-    <div class="setRow"><span>简繁显示（OpenCC）</span><button class="gbtn" id="zhSet"></button></div></div></div>`);
+    <div class="setRow"><span>简繁显示（OpenCC）</span><button class="gbtn" id="zhSet"></button></div>
+    <div class="setRow"><span>AI同修（您掷一轮它接一轮，先及第者胜）</span><button class="gbtn" id="aiSet"></button></div></div></div>`);
   const sync = () => p.querySelectorAll('button[data-k]').forEach(b => {
     const k = (b               ).dataset.k                                                        ;
     b.textContent = zh(save.settings[k] ? '开' : '关');
@@ -2359,7 +2365,7 @@ function openSettings() {
     const k = (b               ).dataset.k                                                        ;
     save.settings[k] = !save.settings[k]; persist(); sync();
     if (k === 'ambient' && ambientNodes) ambientNodes.gain.gain.value = save.settings.ambient ? 0.026 : 0;
-    if (k === 'lowPerf') renderer.setPixelRatio(Math.min(devicePixelRatio, save.settings.lowPerf ? 1 : 2));
+    if (k === 'lowPerf') applyDpr();
     if (k === 'bigFont') document.documentElement.classList.toggle('bigfont', save.settings.bigFont);
   }));
   const zhBtn = p.querySelector('#zhSet')               ;
@@ -2367,10 +2373,14 @@ function openSettings() {
   zhBtn.addEventListener('click', () => {
     save.zh = save.zh === 't' ? 's' : 't'; persist();
     zhDom(document.body);
-    sfpStatus(); updateModeChip(); updateMenuStat(); zhSync(); refreshPureNames();
+    sfpStatus(); updateModeChip(); zhSync(); refreshPureNames();
     if (selectedId && card.isConnected) renderCard();
   });
-  zhSync(); sync(); openOverlay(p);
+  // AI同修开关并入设置（原右上☰「2人同修」条目，单菜单原则）
+  const aiBtn = p.querySelector('#aiSet')               ;
+  const aiSync = () => { aiBtn.textContent = zh(save.sfpAiOn ? '开' : '关'); aiBtn.classList.toggle('primary', !!save.sfpAiOn); };
+  aiBtn.addEventListener('click', () => { toggleAi(); aiSync(); });
+  aiSync(); zhSync(); sync(); openOverlay(p);
 }
 
 function openTitle() {
@@ -2388,7 +2398,8 @@ function openTitle() {
       ${act || hasSfp ? '<span class="tlink" id="tiNew">新开一局</span>' : ''}
       <span class="tlink" id="tiHow">玩法</span>
       <span class="tlink" id="tiNet">${Net.active ? `联机 · ${esc(Net.code)}` : '联机同修'}</span>
-      <span class="tlink" id="tiLb">选佛榜</span></div></div>`);
+      <span class="tlink" id="tiLb">选佛榜</span>
+      <span class="tlink" id="tiShare">分享</span></div></div>`);
   (p.querySelector('#tiSfp')               ).addEventListener('click', () => {
     closeOverlay();
     if (!act) startSfp(hasSfp);
@@ -2402,6 +2413,7 @@ function openTitle() {
     if (Net.active) Net.openPanel(); else Net.openJoin();
   });
   (p.querySelector('#tiLb')               ).addEventListener('click', () => openLeaderboard());
+  (p.querySelector('#tiShare')               ).addEventListener('click', () => quickShare({ code: Net.active ? Net.code : '', zh, toast: showToast })); // 荐游戏；已在房则荐的即邀请
   openOverlay(p);
   if (overlayEl) overlayEl.classList.add('ovc'); // 题屏：手机居中呈现
   controls.autoRotate = true; controls.autoRotateSpeed = -0.42; // 题屏环拍：山景缓旋作活背景，任意操作即停
@@ -2409,42 +2421,16 @@ function openTitle() {
 
 // 手势教学已撤（用户点单）：操作要领折进玩法卡
 
-// 菜单
-const menuBtn = topbar.querySelector('#menuBtn')               ;
-menuBtn.addEventListener('click', (e) => { e.stopPropagation(); menuPanel.classList.toggle('show'); updateMenuStat(); });
-function updateMenuStat() {
-  const s = menuPanel.querySelector('#menuStat')               ;
-  s.textContent = zh(`已观照 ${readSet.size}/${NODES.length} · 收藏 ${favSet.size}`);
-  const aiSub = menuPanel.querySelector('#menuAiSub')               ;
-  aiSub.textContent = zh(save.sfpAiOn ? '已入局 · 您掷一轮它接一轮，点击退届' : '未入局 · AI 同局竞掷，点击邀入');
-  (menuPanel.querySelector('[data-a="ai"]')               ).classList.toggle('on', !!save.sfpAiOn);
+// 右上☰菜单已撤（单菜单原则）：观全图抽成函数，供谱务抽屉与题屏复用
+function goMapView() { // 观全图＝存局退出入自由观照（用户定案，旧「不收局只拉远」废止）
+  setBrowseDoor(0);
+  if (inDoor) exitDoor(false);
+  const was = sfpS.active;
+  if (was) endSfp('行处已存，入自由观照——点顶栏题字可续掷');
+  if (inPure) returnSaha();
+  flyTo(new THREE.Vector3(175, 125, 235), new THREE.Vector3(0, 42, 0), 1.4);
+  if (!was) showToast('十五门三段安位：下环世间流转、中阶三学转身、上轨四教入圣——点门展开，双击入场：极乐星径入净土、余门俯冲贴近', 4200);
 }
-menuPanel.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-  menuPanel.classList.remove('show');
-  const a = (b               ).dataset.a;
-  if (a === 'cites') openLibrary();
-  if (a === 'settings') openSettings();
-  if (a === 'ai') toggleAi();
-  if (a === 'map') { // 观全图＝存局退出入自由观照（用户定案，旧「不收局只拉远」废止）
-    setBrowseDoor(0);
-    if (inDoor) exitDoor(false);
-    const was = sfpS.active;
-    if (was) endSfp('行处已存，入自由观照——点顶栏题字可续掷');
-    if (inPure) returnSaha();
-    flyTo(new THREE.Vector3(175, 125, 235), new THREE.Vector3(0, 42, 0), 1.4);
-    if (!was) showToast('十五门三段安位：下环世间流转、中阶三学转身、上轨四教入圣——点门展开，双击入场：极乐星径入净土、余门俯冲贴近', 4200);
-  }
-  if (a === 'home') {
-    if (!sfpS.active || !sfpS.pos) {
-      if (sfpS.active) setConMin(false); // 尚未起手时归位：至少把收起的控制台还回来（否则无处可掷）
-      showToast(sfpS.active ? '尚未起手——长按掷轮定發始因地' : '尚未开局——点顶栏题字开始选佛'); return;
-    }
-    goHome();
-  }
-}));
-window.addEventListener('pointerdown', (e) => {
-  if (!menuPanel.contains(e.target       ) && e.target !== menuBtn) menuPanel.classList.remove('show');
-});
 
 // ---------------- 空间/心性切换 ----------------
 // setMode（渐变切换）已删：模式钮撤后无调用点，仅留 setModeInstant 供开局/收谱复位
@@ -4104,6 +4090,10 @@ function netSyncBeads() {
   }
 }
 const _nb = new THREE.Vector3();
+function netBusy() { // v221 节流的动势判定：远端莲友珠滑行期间放行全帧率（上游无联机，本地补）
+  for (const id of Object.keys(netBeads)) if (netBeads[id].glide) return true;
+  return false;
+}
 function netFrame(dt        ) {
   for (const id of Object.keys(netBeads)) {
     const b = netBeads[id];
@@ -5152,31 +5142,47 @@ window.addEventListener('pointerup', sfpTossUp);
 window.addEventListener('pointercancel', sfpTossUp);
 // 极简行动栏：左「⋯」谱务 · 中掷轮 · 右「问」问义；谱注走点位名，观星入口已撤
 function openSfpMore() {
+  // 单菜单原则（2026-07-20）：全站唯一菜单——原右上☰五项并入本抽屉，八项收齐
   const item = (id        , ic        , t        , sub        ) =>
     `<button class="gbtn smItem" id="${id}"><span class="ic">${ic}</span><b>${t}</b><span class="sub">${sub}</span></button>`;
   const cur = sfpS.pos ? SFP_BY[sfpS.pos] : null;
+  const hasSaved = !sfpS.active && !!(save.sfp && SFP_BY[save.sfp.pos]);
   const p = el(`<div class="panel"><div class="grab"></div><h2>谱务</h2><div class="body">
-    <div class="smStat">${cur ? `第 ${sfpS.n} 掷 · 第${SFP_CN[cur.door - 1]}门「${SFP_DOOR_BY[cur.door].title}」 · 现居「${esc(cur.name)}」` : '未定位——先掷發始因地'}</div>
+    <div class="smStat">${cur ? `第 ${sfpS.n} 掷 · 第${SFP_CN[cur.door - 1]}门「${SFP_DOOR_BY[cur.door].title}」 · 现居「${esc(cur.name)}」` : (hasSaved ? `行处已存 · 现居「${esc(SFP_BY[save.sfp.pos].name)}」` : '未定位——先掷發始因地')}</div>
     <div class="smGrid">
     ${item('smMap', '❖', '全谱', '十五门二百二十位')}
-    ${item('smD1', '因', '廿一因', '發始因地起点')}
-    ${item('smCanon', '卷', '原文', '六卷譜文逐字')}
     ${item('smTrail', '迹', '行迹', '本局升沉记录')}
+    ${hasSaved ? item('smView', '⌂', '归位续掷', '飞回现居接着掷') : item('smView', '☴', '观全图', '存局入自由观照')}
+    ${item('smCanon', '卷', '原文', '六卷譜文逐字')}
+    ${item('smNet', '侶', '联机同修', Net.active ? `房 ${esc(Net.code)}` : '邀莲友同局')}
     ${item('smHelp', '?', '玩法', '一分钟看懂')}
-    ${item('smNew', '↻', '重开一局', '从头掷')}
+    ${item('smSet', '⚙', '设置', '音效·简繁·AI同修')}
+    ${item('smNew', '↻', Net.active && Net.started ? '再来一局' : '重开一局', Net.active && Net.started ? '全房回等候室' : '从头掷')}
     </div></div></div>`);
   (p.querySelector('#smMap')               ).addEventListener('click', () => { closeOverlay(); openSfpMap(); });
-  (p.querySelector('#smD1')               ).addEventListener('click', () => { closeOverlay(); openD1Card(); });
-  (p.querySelector('#smCanon')               ).addEventListener('click', () => { closeOverlay(); openCanon(cur ? cur.door : 1, cur ? cur.name : undefined); });
   (p.querySelector('#smTrail')               ).addEventListener('click', () => { closeOverlay(); openSfpTrail(); });
+  (p.querySelector('#smView')               ).addEventListener('click', () => {
+    closeOverlay();
+    if (hasSaved) startSfp(true); else goMapView();
+  });
+  (p.querySelector('#smCanon')               ).addEventListener('click', () => { closeOverlay(); openCanon(cur ? cur.door : 1, cur ? cur.name : undefined); });
+  (p.querySelector('#smNet')               ).addEventListener('click', () => {
+    closeOverlay();
+    if (!sfpS.active) startSfp(hasSaved); // 入房前先入局：联机行棋要有自己的谱局
+    if (Net.active) { if (Net.started) Net.openPanel(); else Net.openWait(); } else Net.openJoin();
+  });
   (p.querySelector('#smHelp')               ).addEventListener('click', () => { closeOverlay(); openSfpHelp(); });
+  (p.querySelector('#smSet')               ).addEventListener('click', () => { closeOverlay(); openSettings(); });
   (p.querySelector('#smNew')               ).addEventListener('click', function (                 ) {
     if (sfpS.rolling || sfpTransit) { closeOverlay(); showToast('行棋中，稍候再新开'); return; }
-    if (this.dataset.arm) { closeOverlay(); cancelVerdict(); startSfp(false); showToast('已新开一局——先掷發始因地'); return; }
+    if (Net.active && Net.started) { // 联机局中：重开＝全房回等候室（座次保留，可再邀可再开）
+      if (Net.mySeat !== 0) { closeOverlay(); showToast('联机局中重开须房主发起'); return; }
+      if (this.dataset.arm) { closeOverlay(); Net.restart(); return; }
+    } else if (this.dataset.arm) { closeOverlay(); cancelVerdict(); startSfp(false); showToast('已新开一局——先掷發始因地'); return; }
     this.dataset.arm = '1'; // 两击确认：误点不至于丢局
     this.classList.add('arm');
     (this.querySelector('b')               ).textContent = zh('确认重开？');
-    (this.querySelector('.sub')               ).textContent = zh('再点一次·行处弃置');
+    (this.querySelector('.sub')               ).textContent = zh(Net.active && Net.started ? '再点一次·全房重开' : '再点一次·行处弃置');
   });
   openOverlay(p);
   if (overlayEl) overlayEl.classList.add('ovsheet'); // 手机：底部抽屉呈现
@@ -5192,7 +5198,7 @@ function toggleAi() {
     clearTimeout(aiTimer); aiBead.visible = false; aiGlide = null;
     showToast('同修已退届，独行本谱');
   }
-  updateLadder(); updateMenuStat();
+  updateLadder();
 }
 (sfpBar.querySelector('#sfpDoors')               ).addEventListener('click', () => { if (sfpS.active && !sfpS.rolling && !sfpTransit) openSfpMap(); });
 (sfpBar.querySelector('#sfpDoors')               ).title = '十五门进度 · 点开全谱';
@@ -5295,7 +5301,7 @@ function openSfpHelp() {
     ① <b>长按掷钮</b>＝谱曰「置輪掌心」——按自己的节奏默念一句「南无阿弥陀佛」；<b>念毕松手</b>＝「仰手旁擲」。<br>
     ② 判词窗读「谱曰」，点<b>「行」</b>落子；下滑可收成细签（桌面：空格＝掷、回车＝行）。<br>
     ③ 判词里点「现居」读当位原谱原文；掷钮右侧「问」是问义助手；最右「⋯」有全谱与行迹。<br>
-    ④ 星图常开可自由观照：单击门星／门签入门，位珠位名点之读谱注，长按速览、双击飞临；Esc／「全图」返回，☰ 菜单可观照全图与归位。</div></div>
+    ④ 星图常开可自由观照：单击门星／门签入门，位珠位名点之读谱注，长按速览、双击飞临；Esc／「全图」返回；「⋯」谱务有全谱、观全图与归位。</div></div>
     <div style="margin-top:12px"><button class="gbtn primary" id="sfpHelpOk" style="width:100%">敬领谱意 · 恭敬开掷</button></div></div>`);
   (p.querySelector('#sfpHelpOk')               ).addEventListener('click', () => {
     closeOverlay();
@@ -5444,9 +5450,18 @@ function sfpVictory() {
     <div style="margin-top:8px;font-size:var(--fs-sm);color:#9d9170">已选佛 ${save.sfpWins} 次 · ${SFP_META.source}</div>
     <div id="lbLine" style="margin-top:6px;font-size:var(--fs-sm);color:#dccf9f"></div></div>
     <div style="display:flex;gap:8px;margin-top:14px">
-      <button class="gbtn primary" id="sfpAgain" style="flex:1">再入选佛场</button>
+      ${Net.active && Net.started
+        ? (Net.mySeat === 0 ? '<button class="gbtn primary" id="sfpAgain" style="flex:1">再来一局 · 全房</button>' : '')
+        : '<button class="gbtn primary" id="sfpAgain" style="flex:1">再入选佛场</button>'}
       <button class="gbtn" id="sfpFree" style="flex:1">观照星图</button></div></div>`);
-  (p.querySelector('#sfpAgain')               ).addEventListener('click', () => { closeOverlay(); startSfp(false); });
+  const againBtn = p.querySelector('#sfpAgain')                      ;
+  if (againBtn) againBtn.addEventListener('click', () => {
+    if (Net.active && Net.started) { // 联机：全房回等候室（其余同修行处一并归零，须房主确认）
+      if (confirm(zh('全房重开一局？各位同修行处将一并归零，回等候室。'))) { closeOverlay(); Net.restart(); }
+      return;
+    }
+    closeOverlay(); startSfp(false);
+  });
   (p.querySelector('#sfpFree')               ).addEventListener('click', () => { // v212 修复：毕局后避免残留「活局在终点」僵尸态（归位钮反复钻回门15，全图回不去）
     closeOverlay();
     endSfp('一局功圓——已入自由观照，点顶栏题字可再入选佛场');
@@ -5581,7 +5596,7 @@ function openCanon(doorNo        , jumpName         ) {
       <div class="verse" style="margin-top:4px">${verseHtml(cp.text.replace(/^譜曰。/, ''))}</div>
     </div>`).join('');
   const inner = el(`<div class="panel" style="max-width:min(680px,94vw)"><h2>選佛譜 · 卷第${SFP_CN[d.juan - 1]} · ${esc(door.title)}</h2><div class="body">
-    <div style="font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px">第${SFP_CN[doorNo - 1]}門 · 原文譜曰（CBETA 大藏經補編 B0136 逐字轉寫）</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="font-size:var(--fs-sm);color:#d7aa45;letter-spacing:2px">第${SFP_CN[doorNo - 1]}門 · 原文譜曰（CBETA 大藏經補編 B0136 逐字轉寫）</span><button class="gbtn" id="cnLib" style="font-size:var(--fs-xs);padding:3px 10px;min-height:28px;flex:none">所据经论 ›</button></div>
     ${frontHtml}${introHtml}${posHtml}${jiHtml}
     <div style="margin-top:10px;font-size:var(--fs-xs);color:#9d9170">六卷原文按門分挂：卷首三篇見第一門，卷末紀事見第十五門；原刻缺字依《靈峰宗論》及文内互证定字。</div>
     <div class="cardNav"><button class="gbtn${doorNo > 1 ? '' : ' dis'}" id="cnPrev">‹ 上一門</button><button class="gbtn${doorNo < 15 ? '' : ' dis'}" id="cnNext">下一門 ›</button></div>
@@ -5597,6 +5612,8 @@ function openCanon(doorNo        , jumpName         ) {
   const nx = inner.querySelector('#cnNext')                      ;
   if (nx && doorNo < 15) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(doorNo + 1); });
   (inner.querySelector('#cnOk')               ).addEventListener('click', closeOverlay);
+  // 参考经典并为原文顶签（单菜单原则：原☰「参考经典」条目迁此）
+  (inner.querySelector('#cnLib')               ).addEventListener('click', () => { closeOverlay(); openLibrary(); });
   openOverlay(inner);
   if (jumpName) {
     const ji = d.positions.findIndex(x => x.name === jumpName);
@@ -6137,9 +6154,22 @@ function updateCompass() {
 const ease = (t        ) => t * t * t * (t * (6 * t - 15) + 10);
 let last = performance.now();
 let elapsed = 0;
+let lastDraw = 0, perfAcc = 0, perfN = 0;
 function frame(now        ) {
   requestAnimationFrame(frame);
+  // v221 功耗治理（手机发热）：触屏机静观期 30fps；飞行/转场/掷轮/触控等动势期放行全帧率
+  if (isCoarse) {
+    const busy = flyAnim || sfpTransit || comet || aiGlide || hitStopT > 0 || sfpS.rolling || starView
+      || (flightOn && (flyKeys.size > 0 || joyVec.x !== 0 || joyVec.y !== 0)) // 神足默认常开：只在真有输入时才算动势
+      || secAnimTo !== null || Math.abs(modeTarget - modeT) > 0.0005 || now < perfBoostUntil || netBusy();
+    if (!busy && now - lastDraw < 31) return;
+  }
+  lastDraw = now;
   let dt = Math.min((now - last) / 1000, 0.05); last = now;
+  if (isCoarse && dprScale > 0.7) { // 自适应：连 30fps 都撑不住（帧距>45ms 持续约 7 秒）则分辨率降一档
+    perfAcc += dt; perfN++;
+    if (perfN >= 210) { if (perfAcc / perfN > 0.045) { dprScale -= 0.15; applyDpr(); } perfAcc = 0; perfN = 0; }
+  }
   if (hitStopT > 0) { hitStopT = Math.max(0, hitStopT - dt); dt *= 0.06; } // ③ 顿帧：全世界凝一口气
   elapsed += dt;
 
@@ -6355,11 +6385,11 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   try { await (window       ).gp?.player?.ready; } catch (e) {}
   loadSave();
   if (save.zh === 't') { zhDom(document.body); sfpStatus(); updateModeChip(); refreshPureNames(); }
-  renderer.setPixelRatio(Math.min(devicePixelRatio, save.settings.lowPerf ? 1 : 2));
+  applyDpr();
   document.documentElement.classList.toggle('bigfont', !!save.settings.bigFont);
   if (ambientNodes) (ambientNodes       ).gain.gain.value = save.settings.ambient ? 0.035 : 0;
-  updateLabelBadges(); updateMenuStat();
-  (window       ).__dbg = { camera, controls, renderer, get inPure() { return inPure; }, get modeT() { return modeT; } };
+  updateLabelBadges();
+  (window       ).__dbg = { camera, controls, renderer, get inPure() { return inPure; }, get modeT() { return modeT; }, get perf() { return { isCoarse, dprScale, pr: renderer.getPixelRatio() }; } };
   // 首帧着色器编译很重（软渲染环境可达数秒），推迟到 load 之后启动以免阻塞页面 load 事件
   const startLoop = () => requestAnimationFrame(frame);
   if (document.readyState === 'complete') startLoop();
@@ -6371,6 +6401,14 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   Net.onJoined = () => { if (!sfpS.active) startSfp(!!(save.sfp && SFP_BY[save.sfp.pos])); }; // 深链入房即入局，免再点开始
   Net.onRoster = () => { netSyncBeads(); };
   Net.onStarted = () => { showToast(zh('开局——按座次轮掷，轮到谁其名亮起'), 3600); playSfx('sfx-done', 0.4); };
+  Net.onRestarted = () => { // 房主重开：本地谱局归零（候行棋动效收尾再动手，防转场赛跑）
+    const go = () => {
+      if (sfpS.rolling || sfpTransit) { window.setTimeout(go, 400); return; }
+      closeOverlay(); cancelVerdict(); startSfp(false);
+      showToast(zh('全房已重开——回等候室，房主再开局'), 3600);
+    };
+    go();
+  };
   Net.onTurnChange = (mine) => {
     syncRollGlow();
     if (!Net.started || !sfpS.active) return;

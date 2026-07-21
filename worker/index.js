@@ -4,7 +4,7 @@
 
 const ROOM_MAX = 4;                 // 原谱多人局：至多四位同修
 const CHAT_KEEP = 120;              // 聊天留存条数（重连可回看）
-const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 去易混字符的房号字母表
+const CODE_ALPHABET = '0123456789'; // 房号＝4位数字（口头可报、微信可传；旧字母房号入口仍兼容）
 const PLAYER_COLORS = ['#e8c766', '#96e1d6', '#d98873', '#b9a7e0']; // 金·青·赭·藕——四位同修珠色
 const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
 
@@ -266,6 +266,20 @@ export class RoomDO {
           if (q && !q.done) { this.meta.turnIdx = idx; break; }
         }
         await this.save();
+        this.broadcast(this.syncMsg());
+        break;
+      }
+
+      case 'restart': {
+        // 再来一局：房主发起——全房清棋况回等候室（座次保留、started 归零、可再邀新莲友）
+        const me = this.players[att.playerId];
+        if (!me || me.seat !== 0 || !this.meta.started) return;
+        this.meta.started = false;
+        this.meta.order = [];
+        this.meta.turnIdx = 0;
+        for (const q of Object.values(this.players)) { q.pos = null; q.n = 0; q.done = false; }
+        await this.save();
+        this.broadcast({ type: 'restarted', by: me.name });
         this.broadcast(this.syncMsg());
         break;
       }

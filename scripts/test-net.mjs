@@ -1,5 +1,5 @@
 // 联机协议测试：对 wrangler dev（localhost:8787）跑四人房全流程
-// 覆盖：开房/入房/满员谢客/开局轮次/行棋公报/交轮/及第跳轮/聊天广播/离房
+// 覆盖：开房/入房/满员谢客/开局轮次/行棋公报/交轮/及第跳轮/聊天广播/离房/再来一局（restart）
 // 用法：先 `npm run server`，再 `node scripts/test-net.mjs`
 
 const BASE = process.env.NET_BASE || 'http://localhost:8787';
@@ -104,6 +104,25 @@ ok(jb.playerId === cs[0].playerId, '断线重连回原座');
 const syb = await c0b.next(m => m.type === 'sync');
 const me = syb.players.find(p => p.id === jb.playerId);
 ok(me && me.pos === 'g1-01', '重连后棋况保留');
+
+// 再来一局：非房主发起应被拒；房主发起→全房回等候室（started=false、棋况清零、可再开局）
+cs[2].send({ type: 'restart' });
+let nonHostRejected = true;
+try { await cs[3].next(m => m.type === 'restarted', 700); nonHostRejected = false; } catch (e) { /* 超时即未广播＝正确 */ }
+ok(nonHostRejected, '非房主重开被拒');
+cs[2].inbox.length = 0; cs[3].inbox.length = 0; // 清残留旧 sync：入座阶段的 !started sync 会与重开后的混淆
+c0b.send({ type: 'restart' });
+const rs = await cs[3].next(m => m.type === 'restarted');
+ok(!!rs, '房主重开广播到达全房');
+const syr = await cs[2].next(m => m.type === 'sync' && !m.started);
+ok(syr.players.every(p => !p.pos && !p.done && p.n === 0), '重开后全房棋况清零（座次保留）');
+ok(syr.players.length === 4, '重开不散房');
+// 重开后可再开局，轮次从首座起
+c0b.send({ type: 'start' });
+const st2 = await cs[1].next(m => m.type === 'started');
+ok(!!st2, '重开后房主可再开局');
+const syf = await cs[1].next(m => m.type === 'sync' && m.started);
+ok(syf.turn === cs[0].playerId, '再开局轮到首座');
 
 console.log(`\n通过 ${passed} · 失败 ${failed}`);
 process.exit(failed ? 1 : 0);

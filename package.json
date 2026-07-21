@@ -14,6 +14,7 @@
     "check:grant": "node scripts/check-grant-policy.mjs"
   },
   "dependencies": {
+    "qrcode-generator": "^2.0.4",
     "three": "^0.169.0"
   },
   "devDependencies": {
