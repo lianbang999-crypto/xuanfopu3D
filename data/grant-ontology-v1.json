@@ -17,6 +17,15 @@
     "ruleFacts": "xuanfupu_rule",
     "originalExplanation": "xuanfupu_direct",
     "operationPolicy": "operational_interpretation",
+    "uiEvidenceTypes": {
+      "sourceQuote": "source_quote",
+      "sourceSubtypes": [
+        "rule_fact",
+        "pu_explanation"
+      ],
+      "interpretation": "interpretation",
+      "operationRule": "operational_interpretation"
+    },
     "prohibitedProductionModes": [
       "gift_to_other_player",
       "virtual_throw_without_recipient"

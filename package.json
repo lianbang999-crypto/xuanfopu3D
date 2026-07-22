@@ -12,7 +12,8 @@
     "test:leaderboard": "node scripts/test-leaderboard.mjs",
     "deploy": "npm run build && npx wrangler deploy",
     "gen:docs": "node scripts/gen-worldmodel.mjs",
-    "check:grant": "node scripts/check-grant-policy.mjs"
+    "check:grant": "node scripts/check-grant-policy.mjs",
+    "check:evidence": "node scripts/check-evidence-types.mjs"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4",
