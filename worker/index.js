@@ -7,6 +7,7 @@ const CHAT_KEEP = 120;              // 聊天留存条数（重连可回看）
 const CODE_ALPHABET = '0123456789'; // 房号＝4位数字（口头可报、微信可传；旧字母房号入口仍兼容）
 const PLAYER_COLORS = ['#e8c766', '#96e1d6', '#d98873', '#b9a7e0']; // 金·青·赭·藕——四位同修珠色
 const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
+const LEADERBOARD_OBJECT = '__xuanfopu_global_leaderboard__';
 
 function newCode(len = 4) {
   let s = '';
@@ -62,6 +63,14 @@ async function proxyAsk(request, env) {
   return new Response(upstream.body, { status: upstream.status, headers });
 }
 
+function leaderboardRequest(request, env, url) {
+  if (!['GET', 'POST'].includes(request.method)) return json({ error: 'method not allowed' }, 405);
+  const stub = env.ROOM.get(env.ROOM.idFromName(LEADERBOARD_OBJECT));
+  const target = new URL('https://leaderboard.internal/leaderboard');
+  target.search = url.search;
+  return stub.fetch(new Request(target, request));
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -69,6 +78,9 @@ export default {
 
     // ---- 问义 API：同域入口 → Cloudflare Service Binding → 经据智能体 ----
     if (path === '/api/ask') return proxyAsk(request, env);
+
+    // ---- 公共选佛榜：复用现有 SQLite-backed DO 命名空间，以固定对象汇总全站参与者 ----
+    if (path === '/api/leaderboard') return leaderboardRequest(request, env, url);
 
     // ---- 联机 API ----
     if (path === '/api/room/new') {
@@ -114,6 +126,84 @@ export class RoomDO {
     this.players = null;   // 惰性从 storage 恢复
     this.meta = null;      // { started, order:[id...], turnIdx, createdAt }
     this.chat = null;      // [{ id, name, text, ts }]
+    this.leaderboardReady = false;
+  }
+
+  leaderboardInit() {
+    if (this.leaderboardReady) return;
+    this.state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS leaderboard_players (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        joined_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS leaderboard_last_seen
+        ON leaderboard_players(last_seen_at DESC, seq DESC);
+    `);
+    this.leaderboardReady = true;
+  }
+
+  leaderboardName(value) {
+    return Array.from(String(value || '')
+      .replace(/[\u0000-\u001f\u007f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()).slice(0, 12).join('');
+  }
+
+  leaderboardRow(row) {
+    return {
+      seq: Number(row.seq), id: String(row.id), name: String(row.name),
+      joinedAt: Number(row.joined_at), lastSeenAt: Number(row.last_seen_at),
+    };
+  }
+
+  leaderboardList(url) {
+    this.leaderboardInit();
+    const limit = Math.min(50, Math.max(1, Number(url.searchParams.get('limit')) || 30));
+    const offset = Math.max(0, Number(url.searchParams.get('offset')) || 0);
+    const id = String(url.searchParams.get('id') || '').slice(0, 64);
+    const rows = [...this.state.storage.sql.exec(
+      'SELECT seq,id,name,joined_at,last_seen_at FROM leaderboard_players ORDER BY last_seen_at DESC,seq DESC LIMIT ? OFFSET ?',
+      limit, offset,
+    )].map(row => this.leaderboardRow(row));
+    const countRow = [...this.state.storage.sql.exec('SELECT COUNT(*) AS n FROM leaderboard_players')][0];
+    const meRow = id
+      ? [...this.state.storage.sql.exec(
+          'SELECT seq,id,name,joined_at,last_seen_at FROM leaderboard_players WHERE id = ? LIMIT 1', id,
+        )][0]
+      : null;
+    return json({
+      players: rows,
+      total: Number(countRow?.n || 0),
+      me: meRow ? this.leaderboardRow(meRow) : null,
+      offset,
+      hasMore: offset + rows.length < Number(countRow?.n || 0),
+    });
+  }
+
+  async leaderboardJoin(request) {
+    this.leaderboardInit();
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: 'invalid json' }, 400); }
+    const id = String(body?.id || '').trim();
+    const name = this.leaderboardName(body?.name);
+    if (!/^[a-zA-Z0-9_-]{8,64}$/.test(id)) return json({ error: 'invalid player id' }, 400);
+    if (!name) return json({ error: 'nickname required' }, 400);
+    const now = Date.now();
+    const exists = [...this.state.storage.sql.exec('SELECT seq FROM leaderboard_players WHERE id = ? LIMIT 1', id)][0];
+    if (exists) {
+      this.state.storage.sql.exec(
+        'UPDATE leaderboard_players SET name = ?, last_seen_at = ? WHERE id = ?', name, now, id,
+      );
+    } else {
+      this.state.storage.sql.exec(
+        'INSERT INTO leaderboard_players (id,name,joined_at,last_seen_at) VALUES (?,?,?,?)', id, name, now, now,
+      );
+    }
+    return this.leaderboardList(new URL(`https://leaderboard.internal/leaderboard?id=${encodeURIComponent(id)}&limit=30`));
   }
 
   async load() {
@@ -163,8 +253,15 @@ export class RoomDO {
   }
 
   async fetch(request) {
-    await this.load();
     const url = new URL(request.url);
+
+    if (url.pathname === '/leaderboard') {
+      if (request.method === 'GET') return this.leaderboardList(url);
+      if (request.method === 'POST') return this.leaderboardJoin(request);
+      return json({ error: 'method not allowed' }, 405);
+    }
+
+    await this.load();
 
     if (url.pathname === '/probe') {
       return json({
