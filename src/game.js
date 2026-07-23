@@ -3893,7 +3893,7 @@ function enterDoor(dno        , pid         , cam                          = 'ju
       }
     }
     // 入门总说待呈：行棋初入本门，落定后稍驻再呈浮文（白光正散、位名已报）
-    if (introComing) {
+    if (pendingDoorIntro) {
       const pd = pendingDoorIntro ; pendingDoorIntro = null;
       window.setTimeout(() => {
         if (sfpS.active && sfpS.pos === pd.pid && inDoor === pd.door) { markDoorSeen(pd.door); showDoorIntro(pd.door); }
