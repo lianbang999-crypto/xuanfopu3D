@@ -3745,11 +3745,26 @@ function sfpGlowUpdate(t        ) {
 }
 
 // 升降判定通用：入净土=横超；入流弊/恶趣门=降；门序递进=升；同门比谱序（判词用）
-function sfpDirOf(p     , dest     )         {
+const SFP_RETREAT_DEST = new Set(['作法懺', '取相懺', '無生懺', '五停心']); // 退修忏法/助道之目标（谱曰「須修/退修/借用」）
+function sfpDirOf(p     , dest     , combo         )         {
   if (dest.pure && !p.pure) return 'pure';
-  if (dest.door === 2 || dest.door === 3) return 'down';
-  if (dest.door > p.door) return 'up';
-  if (dest.door < p.door) return (p.door === 2 || p.door === 3) ? 'up' : 'down';
+  if (p.pure && !dest.pure) return 'up'; // 净土出位皆「登」：莲开见佛证入圣位（谱曰登/证/成），永離退緣无退堕（v298 勘误：原走门序兑底误判 门14→10..13 为降，误伤 90 组）
+  const pd = p.door === 2 || p.door === 3, dd = dest.door === 2 || dest.door === 3;
+  if (dd && !pd) return 'down';
+  if (pd && dd && p.door !== dest.door) return dest.door === 2 ? 'up' : 'down'; // 门2（人道流弊）高于门3（恶趣）
+  if (!pd || !dd) { // 圈外常规：门序定升降；自恶趣出圈皆升
+    if (dest.door > p.door) return 'up';
+    if (dest.door < p.door) {
+      if (pd) return 'up';
+      // v299 跨门后退细分（对齐谱文，原门序兑底一律判降误伤 60 余组）：
+      if (dest.door === 1) return /十惡$/.test(dest.id) ? 'down' : 'up'; // 回门1：堕十惡因＝降；入出世四学＝闻法发心起修（谱曰「得遵修出世施戒禪慧」）
+      if (p.door === 5) return 'down'; // 色无色诸天报尽下生（降德贬坠/穷空轮转之殃）
+      if (SFP_RETREAT_DEST.has(dest.id)) return 'down'; // 修行/圣位退修忏法助道＝降
+      if (dest.id === '南贍部洲') return combo && /[那謨]/.test(combo) && !combo.includes('佛') ? 'down' : 'up'; // 還生人道依组定：引業所牵＝降；罪滅福生/感樂報＝升
+      return 'up'; // 生天/净居/轮王/内院/护法/梵王/三昧皆胜报进修（谱曰「得升初天」「生五淨居」「得上四天」）
+    }
+  }
+  // 同门依谱序（v271 勘误：无间→畜生是「仗佛性威力」渐出转轻，属升非堕——原判「凡入恶趣门皆堕」误伤狱内渐出）
   const ord = (x     ) => (SFP_POS         ).findIndex(q => q.id === x.id);
   return ord(dest) >= ord(p) ? 'up' : 'down';
 }
@@ -3893,7 +3908,8 @@ function enterDoor(dno        , pid         , cam                          = 'ju
       }
     }
     // 入门总说待呈：行棋初入本门，落定后稍驻再呈浮文（白光正散、位名已报）
-    if (pendingDoorIntro) {
+    // v80 对齐 makeplay：仅当待呈的入门总说正属本位（pid 匹配）才呈，免呈错/呈陈
+    if (pendingDoorIntro && pid && pendingDoorIntro.pid === pid) {
       const pd = pendingDoorIntro ; pendingDoorIntro = null;
       window.setTimeout(() => {
         if (sfpS.active && sfpS.pos === pd.pid && inDoor === pd.door) { markDoorSeen(pd.door); showDoorIntro(pd.door); }
@@ -5561,7 +5577,7 @@ function sfpApply(combo        , chain = false) {
   let w = why(p.id, combo); // 原文、释义与操作规则只呈于判词卡，消息栏不复述（v151 静场）
   if (mv.bonus) w = mergeSfpEvidence(w, makeSfpOperationalEvidence('先移至目的位，再由当前操作者从目的位立即续掷。'));
   // 升降判定（通例）
-  const dir = sfpDirOf(p, dest);
+  const dir = sfpDirOf(p, dest, combo);
   vib(dir === 'down' ? 110 : dir === 'pure' ? [20, 50, 20, 50, 80] : [15, 45, 15]); // 降一记长振，升短双振，横超一串
   showVerdict(`${SFP_DIR_BADGE[dir] || ''}往<b class="vdst">「${dest.name}」</b>${mv.bonus ? `<span class="vbn">贈${'一二三四'[mv.bonus - 1]}掷</span>` : ''}`, w || '', '行 ▸', () => {
     if (mv.bonus) sfpBonusLeft += mv.bonus;
@@ -6492,7 +6508,7 @@ function sfpTossAnswerHtml(ctx                                                  
   if (!F && T) paras.push(`第一掷不论升降——二十一种轮相组合各定一种「發始因地」（此生起点的业因）。「${ctx.c}」所定因地为「${T.name}」：${(SFP_POS_PLAIN       )[T.id] || ''}`);
   else if (stay && F) { const fSeen = sfpS.trail.filter(x => x === F.id).length; paras.push(`现居「${F.name}」——${fSeen > 1 ? '' : (SFP_POS_PLAIN       )[F.id] || ''}依本位行法，「${ctx.c}」于此位无行处，故安住不动。`); }
   else if (F && T) {
-    const dir = sfpDirOf(F, T);
+    const dir = sfpDirOf(F, T, ctx.c);
     const fSeen = sfpS.trail.filter(x => x === F.id).length;
     const tSeen = sfpS.trail.filter(x => x === T.id).length;
     paras.push(`现居「${F.name}」——${fSeen > 1 ? '' : (SFP_POS_PLAIN       )[F.id] || ''}依本位行法，「${ctx.c}」${RD_DIR_VERB[dir] || '往'}「${T.name}」${tSeen >= 1 ? `——本局第 ${tSeen + 1} 次到此位，位义前已读过（下方原文可回看），这次不同的只在来路与轮相。` : `——${(SFP_POS_PLAIN       )[T.id] || ''}`}`);
@@ -6564,7 +6580,7 @@ function sfpUpwardAnswerHtml(p     , rescue          )         {
     const dest = m.to ? SFP_BY[m.to] : null;
     if (!dest) { (m.bonus ? bonuses : stays).push(line(m)); continue; }
     if (dest.id === p.id) { stays.push(line(m)); continue; }
-    const d = sfpDirOf(p, dest);
+    const d = sfpDirOf(p, dest, m.c[0]);
     (d === 'pure' ? pures : d === 'up' ? ups : downs).push(line(m));
   }
   const paras           = [];
@@ -6777,7 +6793,7 @@ function openSfpReading(ctx                                                     
   const seedToss = (c        , f         , to         ) => {
     const F = f ? SFP_BY[f] : null; const T = to ? SFP_BY[to] : null;
     const stay = !!(F && T && F.id === T.id);
-    const dir = !F ? 'start' : stay ? 'stay' : (T ? sfpDirOf(F, T) : 'bonus');
+    const dir = !F ? 'start' : stay ? 'stay' : (T ? sfpDirOf(F, T, c) : 'bonus');
     const evidence = f && c ? sfpWhyEvidence(f, c) : null;
     const q = askQFor(c, dir === 'bonus' ? '' : dir, f, to);
     if (sfpChat.length && sfpChat[sfpChat.length - 1].u === q) return;
