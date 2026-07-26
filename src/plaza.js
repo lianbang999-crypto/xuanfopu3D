@@ -1,7 +1,7 @@
 // 共修大厅 · 前端
-// 职责：广场数据取用（掷轮攒批上报／每日功课榜／及第局录）＋ 大厅面板渲染（12 室·动态广播）
+// 职责：广场数据取用（掷轮攒批上报／每日功课榜）＋ 大厅面板渲染（12 室·动态广播）
 // 规则判定与谱义一律不在此处；本模块只做展示与上报。
-// 名字口径：进大厅／看广播／一人行谱皆不问名；入座与及第才问，且及第可不填（作「无名同修」）。
+// 名字口径：进大厅／看广播／一人行谱皆不问名；真人入座才问，功课榜沿用该名或稳定匿名莲号。
 
 const PENDING_KEY = 'sm10.plaza.pending'; // 未送达的掷数（关页面也不丢）
 const NAME_KEY = 'sm10.net.name';         // 与联机名号共用，免重复填写
@@ -79,7 +79,7 @@ export function flushOnExit() {
   } catch (e) {}
 }
 
-// 及第局录：名字选填，不填即「无名同修」
+// 及第结算动态只用于今日及第统计与大厅公报；前台不把它渲染成第二套榜单。
 export async function record(run) {
   try {
     const r = await fetch('/api/plaza/record', {
@@ -174,7 +174,7 @@ function rankingHtml(data, esc) {
       <div><b>${num(data.tosses)}</b><span>累计称念</span></div>
     </div>
     <div class="pzRankList">${leaderRows(today, esc)}</div>
-    <div class="pzRankNote">随喜记录，不作修证高下；榜单每日零时（北京时间）重新开始</div>`;
+    <div class="pzRankNote">每一掷记一声「南无阿弥陀佛」；只作随喜记录，不作修证高下；榜单每日零时（北京时间）重新开始</div>`;
 }
 
 function openRanking(p, ui) {
@@ -307,28 +307,82 @@ export function renderPlaza(data, ui) {
 }
 
 // 入座前问名（只在没有存名时出现一次；留空即「莲友」，此后自动带上）
-// 版式与密码卡同一路数：一句话、一个大字输入、一个主钮——不设 label 与补充说明，
-// 该说的写进 placeholder 与那一句话里，少一层视觉噪音。
 export function renderSitName(code, ui) {
   const { el } = ui;
   const ord = TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
-  const p = el(`<div class="panel pzAsk"><h2>入座 · 共修室${ord}</h2>
-    <form class="body" id="pzNameForm">
-      <div class="lead">同座莲友要认得您</div>
-      <input id="pzName" class="bigIn" maxlength="12" autocomplete="nickname" placeholder="莲友">
-      <div class="hint" id="pzNameNote">留空即称「莲友」· 至多十二字 · 只问这一次</div>
-      <button class="gbtn primary big" type="submit">入座</button>
-      <button class="gbtn ghost" id="pzNameBack" type="button">返回大厅</button>
+  const p = el(`<div class="panel pzAsk pzAskName center" role="dialog" aria-modal="true" aria-labelledby="pzNameTitle">
+    <div class="askEyebrow">共修室${ord} · 入座前一步</div>
+    <h2 id="pzNameTitle">留下共修名号</h2>
+    <form class="body" id="pzNameForm" novalidate>
+      <p class="lead">方便同座莲友认得您</p>
+      <div class="nameField">
+        <label for="pzName">名号 <span>选填</span></label>
+        <input id="pzName" class="bigIn" maxlength="24" autocomplete="nickname" enterkeyhint="go"
+          spellcheck="false" aria-describedby="pzNameNote pzNameScope" placeholder="例如：慧明">
+        <div class="fieldMeta">
+          <span id="pzNameNote">留空则显示「莲友」</span>
+          <span id="pzNameCount">0 / 12</span>
+        </div>
+      </div>
+      <p class="scope" id="pzNameScope">将显示在本室名单与念佛功课榜，并保存在本机。</p>
+      <button class="gbtn primary big" id="pzNameSubmit" type="submit">
+        <span id="pzNameGo">以「莲友」入座</span>
+      </button>
+      <button class="pzAskBack" id="pzNameBack" type="button">返回大厅</button>
     </form></div>`);
   const input = p.querySelector('#pzName');
-  p.querySelector('#pzNameForm').addEventListener('submit', (e) => {
+  const form = p.querySelector('#pzNameForm');
+  const note = p.querySelector('#pzNameNote');
+  const count = p.querySelector('#pzNameCount');
+  const submit = p.querySelector('#pzNameSubmit');
+  const go = p.querySelector('#pzNameGo');
+  const back = p.querySelector('#pzNameBack');
+  let submitting = false;
+  const syncName = () => {
+    const chars = Array.from(input.value);
+    if (chars.length > 12) input.value = chars.slice(0, 12).join('');
+    const value = Array.from(input.value);
+    count.textContent = `${value.length} / 12`;
+    const name = input.value.replace(/\s+/g, ' ').trim() || '莲友';
+    go.textContent = `以「${name}」入座`;
+    note.classList.remove('err');
+    note.textContent = '留空则显示「莲友」';
+  };
+  input.addEventListener('input', syncName);
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (submitting) return;
     const name = Array.from(input.value.replace(/\s+/g, ' ').trim()).slice(0, 12).join('') || '莲友';
     saveName(name);
-    ui.onSit(code, name);
+    submitting = true;
+    form.setAttribute('aria-busy', 'true');
+    input.disabled = true;
+    submit.disabled = true;
+    back.disabled = true;
+    go.textContent = '正在入座…';
+    let failed = false;
+    try {
+      await ui.onSit(code, name);
+    } catch {
+      failed = true;
+      if (p.isConnected) {
+        note.textContent = '暂时无法入座，请稍后再试';
+        note.classList.add('err');
+      }
+    } finally {
+      if (p.isConnected) {
+        submitting = false;
+        form.setAttribute('aria-busy', 'false');
+        input.disabled = false;
+        submit.disabled = false;
+        back.disabled = false;
+        if (failed) go.textContent = `以「${name}」入座`;
+        else syncName();
+      }
+    }
   });
-  p.querySelector('#pzNameBack').addEventListener('click', () => ui.onBack());
-  setTimeout(() => input.focus(), 80);
+  back.addEventListener('click', () => { if (!submitting) ui.onBack(); });
+  if (!matchMedia('(max-width:640px)').matches) setTimeout(() => input.focus(), 80);
   return p;
 }
 
@@ -491,7 +545,7 @@ export const PLAZA_CSS = `
   .pzRankStats{grid-template-columns:1fr 1fr}.pzRankRow{grid-template-columns:26px minmax(70px,1fr) auto}
 }
 @media (max-width:370px){.pzGrid{grid-template-columns:repeat(2,1fr)}.pzSectionHead p{display:none}}
-/* 问名／问密码卡：一句话、一个大字输入、一个主钮——与密码卡同一路数 */
+/* 问名／问密码卡 */
 .pzAsk .body{display:grid;gap:12px;text-align:center}
 .pzAsk .lead{color:#dccf9f;font-size:var(--fs-md,14px);letter-spacing:2px}
 .pzAsk .bigIn{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);
@@ -505,6 +559,30 @@ export const PLAZA_CSS = `
 .pzAsk .hint.err{color:#d98873}
 .pzAsk .gbtn.big{width:100%;padding:13px 0;font-size:var(--fs-md,14px);letter-spacing:3px}
 .pzAsk .gbtn.ghost{width:100%;background:none;border-color:rgba(216,197,139,.22);color:#9d9170}
+.pzAskName{width:min(420px,92vw);padding:23px 22px 18px!important}
+.pzAskName .askEyebrow{margin:0 46px 8px 0;color:#a99560;font-size:var(--fs-xs,11px);letter-spacing:2px}
+.pzAskName h2{margin:0 46px 5px 0;font-size:clamp(22px,4.6vw,28px);letter-spacing:3px}
+.pzAskName .body{gap:14px;text-align:left}
+.pzAskName .lead{margin:0 0 2px;color:#c7bd9d;font-size:var(--fs-sm,12.5px);letter-spacing:1px}
+.pzAskName .nameField{display:grid;gap:7px}
+.pzAskName label{display:flex;align-items:baseline;gap:8px;color:#f0dfaa;font-size:var(--fs-md,14px);letter-spacing:2px}
+.pzAskName label span{color:#8e856e;font-size:var(--fs-xs,11px);letter-spacing:1px}
+.pzAskName .bigIn{min-height:52px;padding:13px 14px;font-size:18px;letter-spacing:1.5px;text-indent:0;text-align:left}
+.pzAskName .bigIn::placeholder{letter-spacing:1px}
+.pzAskName .fieldMeta{display:flex;justify-content:space-between;gap:12px;min-height:17px;color:#92886d;font-size:var(--fs-xs,11px);letter-spacing:.5px}
+.pzAskName .fieldMeta span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.pzAskName .fieldMeta .err{color:#d98873}
+.pzAskName .scope{margin:0;padding:11px 0;border-top:1px solid rgba(216,197,139,.13);border-bottom:1px solid rgba(216,197,139,.13);
+  color:#a69c7d;font-size:var(--fs-xs,11px);line-height:1.65;letter-spacing:.5px}
+.pzAskName .gbtn.big{min-height:50px;margin-top:1px}
+.pzAskName .pzAskBack{min-height:44px;border:0;background:none;color:#a69c7d;font-family:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
+.pzAskName .pzAskBack:hover{color:#e6d8aa}
+.pzAskName .pzAskBack:focus-visible{outline:2px solid rgba(232,199,102,.72);outline-offset:2px;border-radius:9px}
+.pzAskName button:disabled,.pzAskName input:disabled{cursor:wait;opacity:.62}
+@media(max-width:640px){
+  .pzAskName{width:min(92vw,420px);padding:21px 18px 16px!important}
+  .pzAskName h2{font-size:24px}
+}
 `;
 
 /* 同修及第横幅：不弹窗不打断 */

@@ -16,7 +16,7 @@ import { SFP_POS_PLAIN } from './sfp-pos-plain.js'; // v225 二百二十位白�
 import { ZH_T2S, ZH_S2T } from './zh-conv.js';
 import { Net } from './net.js'; // 联机同修：房间/轮次/聊天（渲染在本文件「联机同修珠」段）
 import { quickShare } from './share.js'; // 分享卡：荐游戏/邀莲友（二维码+一键转发）
-import * as Plaza from './plaza.js'; // 共修大厅：12 桌网格·动态广播·及第录·掷轮上报
+import * as Plaza from './plaza.js'; // 共修大厅：12 桌网格·动态广播·念佛功课榜
 import { sfpDirOf as sfpDirOfRule } from './sfp-rules.js'; // 行棋升降判定（与 check-dir 核证脚本同源）
 import { SFP_FACE_ORDER, canonicalSfpCombo } from './sfp-engine.js'; // 单机/联机共用轮面与组合归一化
 
@@ -2235,6 +2235,7 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .netEntry .netDots{display:flex;gap:4px}
 .netEntry .netDots .pd{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;transition:opacity .3s}
 .netEntry .netDots .pd.off{opacity:.3}
+.netEntry .chatLabel{margin-left:6px;font-size:var(--fs-sm);color:#dccf9f}
 .netEntry .netUnread{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;
   background:#d98873;color:#14161d;font-size:10px;font-style:normal;line-height:16px;text-align:center;display:none}
 .netEntry .netUnread.on{display:block}
@@ -2814,17 +2815,19 @@ function openOverlay(inner             ) {
   closeOverlay();
   overlayEl = el('<div class="overlay ui"></div>');
   const isSheet = inner.classList.contains('sheet');
+  const isCenter = inner.classList.contains('center');
   if (isSheet) overlayEl.classList.add('ovb');
+  if (isCenter) overlayEl.classList.add('ovc');
   overlayEl.appendChild(inner);
   // 统一右上角✕，移动端不依赖点外部空白
   if (inner.classList.contains('panel') && !inner.querySelector('.ovClose')) {
-    const x = el('<button class="gbtn ovClose">✕</button>');
+    const x = el('<button class="gbtn ovClose" aria-label="关闭" title="关闭">✕</button>');
     x.addEventListener('click', closeOverlay);
     inner.appendChild(x);
   }
   overlayEl.addEventListener('click', (e) => { if (e.target === overlayEl) closeOverlay(); });
   // 手机抽屉：右滑关闭（底部抽屉改下滑关）——位移主导才接管，不干扰滚动与点按
-  if (matchMedia('(max-width:640px)').matches) {
+  if (matchMedia('(max-width:640px)').matches && !isCenter) {
     let x0 = -1, y0 = 0, dx = 0, dy = 0, drag = false;
     inner.addEventListener('pointerdown', (e              ) => { x0 = e.clientX; y0 = e.clientY; dx = 0; dy = 0; drag = false; });
     inner.addEventListener('pointermove', (e              ) => {
@@ -3948,7 +3951,7 @@ const SFP_D1_GROUPS                                    = [
   ['禪定因', '多生色無色天', ['邪定', '味禪', '根本四禪', '四無量心', '四無色定']],
   ['出世因', '入聖道之門，雜染則流弊', ['意見參禪', '利名習教', '出世福業', '出世戒學', '出世定學', '出世慧學']],
 ];
-const sfpS = { active: false, pos: null                 , n: 0, rolling: false, seenD: []            , trail: []             };
+const sfpS = { active: false, pos: null                 , n: 0, rolling: false, finished: false, seenD: []            , trail: []             };
 let sfpBonusLeft = 0; // 贈掷余数前置，供掷轮状态与徽标共同读取。
 
 // —— 谱位上图：220 位以念珠环绕各自锚定的法界节点（同门同色） ——
@@ -4837,7 +4840,8 @@ function setTransit(v         ) {
   syncRollGlow();
 }
 function syncRollGlow() {
-  const localReady = sfpS.active && !sfpS.rolling && !sfpTransit && !verdictFn;
+  const terminal = sfpS.finished || !!(sfpS.pos && SFP_BY[sfpS.pos]?.terminal);
+  const localReady = sfpS.active && !terminal && !sfpS.rolling && !sfpTransit && !verdictFn;
   const canRoll = localReady && (!Net.active || Net.canToss());
   const waiting = localReady && Net.active && !canRoll;
   const button = sfpBar.querySelector('#sfpRoll')               ;
@@ -4845,7 +4849,11 @@ function syncRollGlow() {
   button.classList.toggle('wait', waiting);
   button.classList.toggle('dis', !canRoll && !sfpS.rolling);
   const txt = button.querySelector('#rollTxt')               ;
-  if (!sfpS.rolling && !sfpTransit) txt.textContent = zh(waiting ? Net.turnHint() : '长按掷轮');
+  if (!sfpS.rolling && !sfpTransit) {
+    txt.textContent = zh(terminal
+      ? (Net.active && !Net.isFinished() ? '本座已及第 · 等待结算' : '本局已结束')
+      : (waiting ? Net.turnHint() : '长按掷轮'));
+  }
   const bn = sfpBar.querySelector('#rollBn')               ;
   const on = sfpS.active && sfpBonusLeft > 0;
   bn.style.display = on ? '' : 'none';
@@ -5663,7 +5671,7 @@ const sfpBar = el(`<div id="sfpBar" class="ui panel">
   <div id="sfpBtns">
     <div id="sfpFaces" title="上一掷轮相 · 点看本局行迹" style="display:none"><i class="fcap">上一掷</i><b></b><b></b></div>
     <button class="gbtn primary" id="sfpRoll" style="flex:1;min-height:52px;font-size:var(--fs-lg);font-weight:700;letter-spacing:2px;position:relative"><span id="rollTxt">长按掷轮</span><span id="rollBn"></span><span id="rollRing"></span></button>
-    <button class="gbtn netEntry" id="sfpChat" style="min-height:52px;padding:8px 11px" title="同修 · 名单与聊天"><span class="netDots"></span><i class="netUnread"></i></button>
+    <button class="gbtn netEntry" id="sfpChat" style="min-height:52px;padding:8px 11px" title="同修 · 名单与聊天" aria-label="打开共修聊天与成员"><span class="netDots"></span><span class="chatLabel">聊</span><i class="netUnread"></i></button>
     <button class="gbtn" id="sfpAsk" style="min-height:52px;padding:8px 15px;font-size:var(--fs-lg)" title="问 · 与本谱对话（本地检证）">问</button>
     <button class="gbtn" id="sfpMore" style="min-height:52px;padding:8px 15px;font-size:var(--fs-xl)" title="谱务菜单">⋯</button></div>
   <div id="conMinBtn" title="收起控制台（缩为右下角掷轮钮）">—</div></div>`);
@@ -6228,6 +6236,12 @@ function sfpGoto(id        , msg        , dir         , combo         ) {
     }, 380);
   };
   sfpS.pos = id;
+  if (p.terminal) {
+    sfpS.finished = true;
+    sfpBonusLeft = 0;
+    palmHeld = false;
+    sfpRollBtn.classList.add('dis');
+  }
   lgMark(id, dir);
   sfpTrailPush(id); // 足迹星座：记实际行迹（落定时才重建可见层）
   if (save.sfpFocus) setSfpFocus(p.door, prev ? prev.door : 0); // 跨门行棋：新旧两门短暂同显
@@ -6326,7 +6340,7 @@ function sfpApply(combo        , chain = false) {
   (sfpFaceEls[0].parentElement               ).style.display = '';
   const done = (moreAutomatic = false) => { // 判词已行：解锁掷轮（行棋中仍禁）
     sfpS.rolling = false;
-    sfpRollBtn.classList.toggle('dis', sfpTransit);
+    sfpRollBtn.classList.toggle('dis', sfpTransit || sfpS.finished);
     syncRollGlow();
     if (moreAutomatic || sfpBonusLeft > 0) return;
     if (Net.active) Net.finishTurn();
@@ -6427,6 +6441,13 @@ function sfpQuiet(on         ) { // 掷轮静场：暗纱罩景、星名隐去�
 // 依「置輪掌心，仰手旁擲」：按住→置輪掌心至心称念；松手→旁掷
 function sfpPalmDown() {
   if (!sfpS.active || sfpS.rolling || sfpTransit) return;
+  if (sfpS.finished) {
+    showToast(zh(Net.active && !Net.isFinished()
+      ? '本座已经及第，正等待本轮补齐并共同结算'
+      : '本局已经结束，请从结算面板开始下一局'), 3000);
+    syncRollGlow();
+    return;
+  }
   if (Net.active && !Net.canToss()) {
     showToast(zh(Net.turnHint()), 2600);
     syncRollGlow();
@@ -6826,7 +6847,8 @@ function startSfp(resume         ) {
   };
   if (tourStep >= 0) { tourStep = -1; }
   setModeInstant(0);
-  sfpS.active = true; sfpS.rolling = false;
+  sfpS.active = true; sfpS.rolling = false; sfpS.finished = false;
+  sfpVictoryHandled = false;
   sfpBonusLeft = 0;
   sfpMsgLog = [];
   sfpFaceEls.forEach(f => { f.textContent = ''; });
@@ -6870,9 +6892,10 @@ function startSfp(resume         ) {
   if (!(save       ).sfpHelp) { (save       ).sfpHelp = true; persist(); openSfpHelp(); }
 }
 function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续掷') {
-  if (!sfpS.active) return;
+  if (!sfpS.active && !sfpS.finished) return;
   document.body.classList.remove('sfpOn');
   sfpS.active = false;
+  sfpS.finished = false;
   pendingDoorIntro = null;
   hideDoorIntro();
   sfpBar.classList.remove('show'); conPill.classList.remove('show'); sfpDice.classList.remove('on');
@@ -6896,24 +6919,27 @@ function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续
   sfpSave();
   showToast(msg);
 }
-function sfpVictory() {
-  if (!sfpS.active) return;
-  if (Net.active) {
+let sfpVictoryHandled = false;
+function sfpVictory(settled = false) {
+  if (!sfpS.active || sfpVictoryHandled) return;
+  if (Net.active && !settled && !Net.isFinished()) {
     vib([30, 60, 30, 60, 140]);
     playBell(524, 0.06);
     sfpS.rolling = false;
+    sfpS.finished = true;
     syncRollGlow();
     showToast(Net.room.finishing
       ? '本座已选佛及第——正补齐本轮，随后共同结算'
       : '本座已选佛及第——等待共同结算', 5200);
     return;
   }
+  sfpVictoryHandled = true;
   vib([30, 60, 30, 60, 140]); // 及第庆祝振
   save.sfpWins = (save.sfpWins || 0) + 1;
   save.sfp = null; persist();
   const n = sfpS.n;
-  const trailSnapshot = sfpS.trail.slice(); // 先留副本：再开一局会清足迹，而及第录要按钮点了才上报
-  sfpS.active = false; sfpS.pos = null;
+  const trailSnapshot = sfpS.trail.slice();
+  sfpS.active = false; sfpS.finished = true; sfpS.pos = null;
   document.body.classList.remove('sfpOn');
   sfpBar.classList.remove('show'); conPill.classList.remove('show');
   setSfpFocus(0);
@@ -6944,7 +6970,11 @@ function sfpVictory() {
     </div>
     <div class="verse" style="margin-top:10px"><i class="duL">紀事</i>願以此功德。普施法界有情。同開妙解。深知法界事理性相。同發大願速生西方極樂世界。<span class="cSrc" style="display:block">《選佛譜》卷末 · 紀事（卷第六後）</span></div>
     ${Net.active ? '<div class="cNote">及第后本座留十分钟；久不再掷则自动让座给候着的莲友。</div>' : ''}
-    <div id="lbLine" style="margin-top:6px;font-size:var(--fs-sm);color:#dccf9f"></div>
+    <div id="lbLine" style="margin-top:10px;font-size:var(--fs-sm);color:#dccf9f">
+      <div style="margin-bottom:5px"><b>${zh('本局已经结束')}</b> · ${zh(`本机已选佛 ${save.sfpWins} 次`)}</div>
+      <div class="cNote" style="margin-bottom:7px">${zh(`本局共 ${n} 掷；每一掷记一声「南无阿弥陀佛」，共 ${n} 声。已自动汇入今日念佛功课榜，无需另行上榜。`)}</div>
+      <button class="gbtn" id="lbView" style="width:100%">${zh('查看念佛功课榜')}</button>
+    </div>
     ${(() => { // 同座现况：只陈述各人行处，不排名次——本谱纯由掷相所至，比快慢无义
       if (!Net.active) return '';
       const o = Net.players.filter(q => q.id !== Net.myId);
@@ -6954,7 +6984,7 @@ function sfpVictory() {
         `</div>`;
     })()}</div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-      <button class="gbtn primary" id="sfpAgain" style="flex:1;min-width:110px">再入选佛场${Net.active ? '<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">留座重开</i>' : ''}</button>
+      <button class="gbtn primary" id="sfpAgain" style="flex:1;min-width:110px">${Net.active ? '准备下一局<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">等莲友共同准备</i>' : '再入选佛场'}</button>
       <button class="gbtn" id="sfpLg" style="flex:1;min-width:110px">见闻录</button>
       ${Net.active ? '<button class="gbtn" id="sfpLeave" style="flex:1;min-width:110px">离席回大厅<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">让座给莲友</i></button>' : ''}
       <button class="gbtn" id="sfpFree" style="flex:1;min-width:110px">观照星图${Net.active ? '<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">留座旁观</i>' : ''}</button></div></div>`);
@@ -6967,10 +6997,15 @@ function sfpVictory() {
   });
   const againBtn = p.querySelector('#sfpAgain')                      ;
   if (againBtn) againBtn.addEventListener('click', () => {
-    // 再入选佛场：只重开自己这一局。同桌莲友的行处各自独立，不该被他人一键归零。
-    closeOverlay(); startSfp(false);
+    closeOverlay();
+    if (Net.active) {
+      Net.setReady(true);
+      Net.openPanel();
+      showToast('已准备下一局——待至少两位准备后由房主共同开局', 4200);
+    } else startSfp(false);
   });
   (p.querySelector('#sfpLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
+  (p.querySelector('#lbView')               ).addEventListener('click', () => { closeOverlay(); openPlaza(); });
   (p.querySelector('#sfpFree')               ).addEventListener('click', () => { // v212 修复：毕局后避免残留「活局在终点」僵尸态（归位钮反复钻回门15，全图回不去）
     closeOverlay();
     endSfp('一局功圓——已入自由观照，点「选佛」可再入选佛场');
@@ -6979,38 +7014,19 @@ function sfpVictory() {
   // v220：等落位俯冲收尾再弹（原定时与门观转场赛跑，慢机上面板会被转场收窗吞掉）
   const openV = () => { if (sfpTransit) { window.setTimeout(openV, 400); return; } openOverlay(p); };
   window.setTimeout(openV, 2300);
-  // 及第录：名字选填——不填即「无名同修」。名号的代价该在得着之后收，不该拦在门口。
-  {
-    const seat = Net.active
-      ? (/^H\d+T\d+$/i.test(Net.code) ? `table:${String(Net.code).split(/[Tt]/)[1]}` : 'private')
-      : 'solo';
-    // 深浅取所依法界的世界 Y（地狱在最下），非门号——门号是章次
-    const depthOf = (pid) => {
-      const a = SFP_BY[pid] && byId[SFP_BY[pid].anchor];
-      return a ? a.d.pos[1] : NaN;
-    };
-    const run = Plaza.runSummary(trailSnapshot, SFP_BY, n, seat, depthOf);
-    const line = p.querySelector('#lbLine')               ;
-    const nm0 = Plaza.savedName();
-    line.innerHTML = `<div style="margin-bottom:5px">${zh(`本机已选佛 ${save.sfpWins} 次`)}</div>
-      <div class="lbJoin" style="display:flex;gap:6px;align-items:center">
-        <input id="wnName" maxlength="12" placeholder="${zh('名号（可不填）')}" style="flex:1" value="${esc(nm0)}">
-        <button class="gbtn" id="wnGo" style="flex:none;padding:0 14px">${zh('录入及第录')}</button>
-      </div>
-      <div class="cNote" style="margin-top:4px">${zh('录入后，这一局的行处会出现在共修大厅的及第录与动态里；不录入则只留本机。')}</div>`;
-    const go = line.querySelector('#wnGo')               ;
-    const inp = line.querySelector('#wnName')               ;
-    ;[inp].forEach(i => { i.addEventListener('pointerdown', (e) => e.stopPropagation()); i.addEventListener('keydown', (e) => e.stopPropagation()); });
-    go.addEventListener('click', async () => {
-      const nm = Array.from(inp.value.replace(/\s+/g, ' ').trim()).slice(0, 12).join('');
-      go.disabled = true; go.textContent = zh('录入中…');
-      if (nm) Plaza.saveName(nm);
-      await Plaza.flush();                       // 先把余下掷数送走，免总数落后于榜
-      const okRec = await Plaza.record({ ...run, name: nm || '无名同修' });
-      go.textContent = zh(okRec ? '已入及第录' : '暂时录不上');
-      if (!okRec) go.disabled = false;
-    });
-  }
+  void Plaza.flush(); // 终局即补送不足十掷的尾数；上榜无需用户再操作
+  // 及第只自动登记为大厅结算动态与“今日及第”统计，不形成第二套榜单或手动上榜步骤。
+  const seat = Net.active
+    ? (/^H\d+T\d+$/i.test(Net.code) ? `table:${String(Net.code).split(/[Tt]/)[1]}` : 'private')
+    : 'solo';
+  const depthOf = (pid) => {
+    const anchor = SFP_BY[pid] && byId[SFP_BY[pid].anchor];
+    return anchor ? anchor.d.pos[1] : NaN;
+  };
+  void Plaza.record({
+    ...Plaza.runSummary(trailSnapshot, SFP_BY, n, seat, depthOf),
+    name: Plaza.practiceName(),
+  });
 }
 // 同修及第：金色横幅一记磬声，不弹窗不打断——您可能正握着轮，及第是可随喜之事，不是要处理之事
 let peerWinT = 0;
@@ -7071,12 +7087,21 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
 
 function openPlazaSitName(code, keyArg = '') {
   plazaStop();
+  const returnToPlaza = () => {
+    overlayOnClose = null;
+    openPlaza();
+  };
   const p = Plaza.renderSitName(code, {
     el, esc,
-    onSit: (c, name) => plazaSit(c, name, false, keyArg),
-    onBack: () => openPlaza(),
+    onSit: (c, name) => {
+      overlayOnClose = null;
+      return plazaSit(c, name, false, keyArg);
+    },
+    onBack: returnToPlaza,
   });
-  openOverlay(p); zhDom(p);
+  openOverlay(p);
+  overlayOnClose = returnToPlaza;
+  zhDom(p);
 }
 
 function openPlazaSitKey(code, errText = '') {
@@ -8578,7 +8603,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   let netTurnWake = 0;
   const hydrateNetGame = (force = false) => {
     const me = Net.me();
-    if (!me || !Net.isPlaying()) return;
+    if (!me || (!Net.isPlaying() && !(Net.isFinished() && me.done))) return;
     const serverPos = me.pos && SFP_BY[me.pos] ? me.pos : null;
     const serverN = Number(me.n) || 0;
     if (!force && sfpS.active && sfpS.pos === serverPos && sfpS.n === serverN) return;
@@ -8597,6 +8622,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     }
     sfpS.pos = serverPos;
     sfpS.n = serverN;
+    sfpS.finished = !!me.done;
     sfpBonusLeft = Number(me.bonus) || 0;
     sfpS.trail = sfpS.pos ? [sfpS.pos] : [];
     sfpS.seenD = sfpS.pos ? [SFP_BY[sfpS.pos].door] : [];
@@ -8644,7 +8670,10 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
       wasHost = false;
     }
   };
-  Net.onState = scheduleNetTurnUi;
+  Net.onState = () => {
+    scheduleNetTurnUi();
+    if (Net.isFinished() && Net.me()?.done && sfpS.active) sfpVictory(true);
+  };
   Net.onMatchStarted = () => {
     closeOverlay();
     Net.closePanel();
@@ -8666,6 +8695,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   };
   Net.onMatchFinished = (message) => {
     sfpS.rolling = false;
+    sfpS.finished = !!Net.me()?.done;
     syncRollGlow();
     const winners = (message.winners || [])
       .map(id => Net.players.find(p => p.id === id)?.name)
@@ -8673,6 +8703,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     sfpShowMsg(message.reason === 'not_enough_players'
       ? '有效同修不足两位，本局已中止'
       : (winners.length ? `${winners.join('、')}本局及第——已共同结算` : '本局已共同结算'));
+    if (Net.me()?.done) sfpVictory(true);
   };
   Net.onCommandError = () => {
     if (!palmHeld && sfpS.rolling && !verdictFn && !sfpTransit) {

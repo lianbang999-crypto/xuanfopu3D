@@ -17,6 +17,8 @@
     "test:room": "node scripts/test-room-state.mjs",
     "test:net": "node scripts/test-net.mjs",
     "test:ui": "node scripts/test-ui-e2e.mjs",
+    "test:name-ready": "node scripts/test-name-ready-flow.mjs",
+    "test:finish": "node scripts/test-finish-flow.mjs",
     "test:v90": "node scripts/test-v90-port.mjs",
     "test:plaza": "node scripts/test-plaza.mjs",
     "test:plaza-client": "node scripts/test-plaza-client.mjs",

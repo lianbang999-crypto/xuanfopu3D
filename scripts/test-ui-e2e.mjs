@@ -205,6 +205,8 @@ try {
     && !/[东南西北]·主/.test(await page.locator('#netRoster').innerText()), '房间只显示房主，不再显示方位座次');
   ok((await page.locator('#netRoomState').innerText()).includes('准备室'), '入座后进入准备室而非直接开局');
   ok((await page.locator('#netRoomState').innerText()).includes('2 人即可开局'), '房内明确两人即可开局，不要求四人到齐');
+  ok((await page.locator('#netGuide').innerText()).includes('先准备，再共同开局')
+    && (await page.locator('#netGuide').innerText()).includes('准备后仍可取消'), '准备室用两步说明准备与开局，不再让用户猜流程');
   await page.setViewportSize({ width: 375, height: 667 });
   ok(await page.locator('#netReadyBtn').isVisible()
     && await page.locator('#netStartBtn').isVisible()
@@ -221,6 +223,15 @@ try {
   const peerC = await openPeer(tableA, '丙同修'); peers.push(peerC);
   await page.waitForFunction(() => document.querySelectorAll('#netRoster .netP').length === 3);
   ok(await page.locator('#netRoster .netP').count() === 3, '前台名单显示三位真人同修');
+  const desktopRoomBox = await page.locator('#netPanel').boundingBox();
+  const desktopToolButtons = page.locator('#netBtns button:visible');
+  let desktopToolsFit = !!desktopRoomBox && await desktopToolButtons.count() >= 2;
+  for (let index = 0; index < await desktopToolButtons.count(); index++) {
+    const box = await desktopToolButtons.nth(index).boundingBox();
+    if (!box || box.height < 43
+      || box.y + box.height > desktopRoomBox.y + desktopRoomBox.height + 1) desktopToolsFit = false;
+  }
+  ok(desktopToolsFit, '桌面准备室的密码、邀请和大厅工具完整留在面板内');
   await capture(page, '01-waiting-room-desktop');
 
   await page.locator('#netReadyBtn').evaluate((button) => button.click());
@@ -235,6 +246,7 @@ try {
   console.log('\n【聊天与即时收起】');
   await page.locator('#sfpChat').click({ force: true });
   await page.locator('#netPanel.on').waitFor({ state: 'visible' });
+  ok(await page.locator('#netGuide').isHidden() && await page.locator('#netRoundActions').isHidden(), '开局后自动切换为聊天视图，不再保留准备操作');
   let remoteChatSeen = false;
   for (let attempt = 0; attempt < 3 && !remoteChatSeen; attempt++) {
     peerB.send({ type: 'chat', text: '乙同修已到', requestId: `ui:b-chat:${attempt}` });
@@ -254,6 +266,8 @@ try {
   await page.getByRole('button', { name: '发送聊天', exact: true }).click({ force: true });
   const browserChat = await peerB.next((message) => message.type === 'chat' && message.text === '甲同修回应');
   ok(browserChat.name === '甲同修', '前台发送聊天可被其他玩家收到');
+  await page.waitForFunction(() => document.querySelectorAll('#netMsgs .netM.mine').length > 0);
+  ok(await page.locator('#netMsgs .netM.mine .bubble').last().innerText() === '甲同修回应', '自己的消息右对齐成独立气泡，收发更易辨认');
   await capture(page, '02-chat-desktop');
 
   await page.locator('#netDismiss').click({ position: { x: 1200, y: 50 }, force: true });
