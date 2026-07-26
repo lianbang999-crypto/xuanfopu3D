@@ -1,12 +1,13 @@
 // 共修广场协议测试：对 wrangler dev 跑固定桌 + 广场汇总全流程
 // 覆盖：12 张固定桌快照/桌态流转/分厅/掷轮计数/上报上限/及第局录/公报流/
-//       共修室中途入座/个人重开只清自己/共修室拒绝全桌重开/座次推送
+//       共同准备开局/中途入座转旁观/断线保座/共同状态与座次推送
 // 用法：先 `npx wrangler dev --port 8788`，再 `node scripts/test-plaza.mjs`
-// 注：桌是全站固定对象，本测试会占用 H1T12（跑前请确保该桌无人）
+// 注：桌是全站固定对象，默认占用 H1T12；可用 PLAZA_TEST_TABLE 指定一张空桌。
 
 const BASE = process.env.NET_BASE || 'http://localhost:8788';
 const WS_BASE = BASE.replace(/^http/, 'ws');
-const TABLE = 'H1T12';
+const TABLE = String(process.env.PLAZA_TEST_TABLE || 'H1T12').toUpperCase();
+const TEST_HALL = Number(/^H(\d+)T/.exec(TABLE)?.[1] || 1);
 
 let passed = 0, failed = 0;
 function ok(cond, name) {
@@ -34,7 +35,7 @@ function connect(code) {
   return { ws, next, send: (o) => ws.send(JSON.stringify(o)), opened: new Promise(r => ws.addEventListener('open', r)), inbox };
 }
 
-const plaza = () => fetch(`${BASE}/api/plaza`).then(r => r.json());
+const plaza = () => fetch(`${BASE}/api/plaza?hall=${TEST_HALL}`).then(r => r.json());
 const table12 = (p) => p.tables.find(t => t.code === TABLE);
 
 // ── 一、广场快照：桌数固定 ──
@@ -89,83 +90,92 @@ const p2b = await plaza();
 ok(JSON.stringify(p2b.runs[0].doors) === JSON.stringify([7]), '越界门号被剔除');
 ok(p2b.runs[0].path === 'rise' && p2b.runs[0].seat === 'solo', '非法 path/seat 落回缺省值');
 
-// ── 四、共修室：坐下即行、中途可入 ──
-console.log('\n【共修室 · 自由掷】');
+// ── 四、共修室：共同准备后才开局 ──
+console.log('\n【共修室 · 共同开局】');
 const a = connect(TABLE); await a.opened;
-a.send({ type: 'join', name: '甲同修' });
+a.send({ type: 'join', protocolVersion: 2, name: '甲同修' });
 const ja = await a.next(m => m.type === 'joined');
+await a.next(m => m.type === 'sync');
 ok(ja.seat === 0, '首位入座 seat=0');
 
-const pT = await plaza();
-ok(table12(pT).state === 'waiting' && table12(pT).live === 1, '有人未起行＝候莲友');
-
-a.send({ type: 'move', combo: '阿彌', txt: '起行', dir: 'up', pos: 'g1-01', n: 1 });
-await new Promise(r => setTimeout(r, 200));
-const pP = await plaza();
-ok(table12(pP).state === 'playing', '有人已掷＝行谱中');
-ok(table12(pP).seats[0].n === 1 && table12(pP).seats[0].name === '甲同修', '桌上可见在座者名号与掷数');
-
-// 关键：共修室不设开局闸——即便发过 start，后来者仍可入座
-a.send({ type: 'start' });
-await new Promise(r => setTimeout(r, 200));
 const b = connect(TABLE); await b.opened;
-b.send({ type: 'join', name: '乙同修' });
-const jb = await b.next(m => m.type === 'joined' || m.type === 'error');
-ok(jb.type === 'joined', '共修室中途可入座（不再谢客）');
-ok(jb.seat === 1, '后来者落次座');
+b.send({ type: 'join', protocolVersion: 2, name: '乙同修' });
+const jb = await b.next(m => m.type === 'joined');
+await b.next(m => m.type === 'sync');
+ok(jb.seat === 1, '第二位落南座');
 
-// ── 五、个人重开只清自己 ──
-console.log('\n【个人重开】');
-b.send({ type: 'move', combo: '那謨', txt: '下堕', dir: 'down', pos: 'g3-04', n: 1 });
-await a.next(m => m.type === 'move' && m.name === '乙同修');
-b.send({ type: 'restart_self' });
-const syR = await a.next(m => m.type === 'sync' && m.players.some(q => q.name === '乙同修' && q.n === 0));
-const meA = syR.players.find(q => q.name === '甲同修');
-const meB = syR.players.find(q => q.name === '乙同修');
-ok(meB.n === 0 && !meB.pos, '乙重开后自己归零');
-ok(meA.n === 1 && meA.pos === 'g1-01', '甲的行处不受影响（同桌不互清）');
+await new Promise(r => setTimeout(r, 250));
+const pT = await plaza();
+ok(table12(pT).state === 'waiting' && table12(pT).live === 2, '未准备/未开局显示候莲友');
 
-// 共修室拒绝全桌重开
-b.inbox.length = 0;
-b.send({ type: 'restart' });
-let refused = true;
-try { await b.next(m => m.type === 'restarted', 700); refused = false; } catch (e) { /* 超时即未广播＝正确 */ }
-ok(refused, '共修室拒绝全桌重开（陌生人行处不可被他人一键归零）');
+a.send({ type: 'ready_set', ready: true, requestId: 'pa-ready' });
+b.send({ type: 'ready_set', ready: true, requestId: 'pb-ready' });
+await a.next(m => m.type === 'sync' && m.players.filter(q => q.ready).length === 2);
+a.send({ type: 'start_match', requestId: 'pa-start' });
+const ms = await a.next(m => m.type === 'match_started');
+ok(ms.room.status === 'playing' && ms.room.order.length === 2, '准备后由东位共同开局');
+await new Promise(r => setTimeout(r, 250));
+const pP = await plaza();
+ok(table12(pP).state === 'playing', '服务器房态开局后广场显示行谱中');
+
+// ── 五、对局中后来者只旁观 ──
+console.log('\n【中途旁观】');
+const c = connect(TABLE); await c.opened;
+c.send({ type: 'join', protocolVersion: 2, name: '丙同修' });
+await c.next(m => m.type === 'joined');
+const sc = await c.next(m => m.type === 'sync');
+ok(sc.players.find(q => q.name === '丙同修').spectator, '对局中后来者标记为候下局');
+ok(!sc.room.order.includes(sc.players.find(q => q.name === '丙同修').id), '后来者不插入当前行动顺序');
 
 // ── 六、满座 ──
 console.log('\n【满座】');
-const c = connect(TABLE); await c.opened; c.send({ type: 'join', name: '丙同修' }); await c.next(m => m.type === 'joined');
-const d = connect(TABLE); await d.opened; d.send({ type: 'join', name: '丁同修' }); await d.next(m => m.type === 'joined');
-await new Promise(r => setTimeout(r, 200));
+const d = connect(TABLE); await d.opened;
+d.send({ type: 'join', protocolVersion: 2, name: '丁同修' });
+const jd = await d.next(m => m.type === 'joined'); d.playerId = jd.playerId;
+await d.next(m => m.type === 'sync');
+await new Promise(r => setTimeout(r, 250));
 const pF = await plaza();
-ok(table12(pF).state === 'full' && table12(pF).live === 4, '四座坐满＝满座');
-const e = connect(TABLE); await e.opened; e.send({ type: 'join', name: '戊同修' });
+ok(table12(pF).state === 'full' && table12(pF).live === 4, '四个真人座位坐满');
+const e = connect(TABLE); await e.opened;
+e.send({ type: 'join', protocolVersion: 2, name: '戊同修' });
 const je = await e.next(m => m.type === 'joined' || m.type === 'error');
 ok(je.type === 'error' && je.code === 'full', '第五人满座谢客');
 
-// ── 七、断线即释放座位（不留僵尸座）──
-console.log('\n【断线释放】');
-for (const cli of [a, b, c]) { cli.send({ type: 'leave' }); }
-await new Promise(r => setTimeout(r, 400));
-try { d.ws.close(); } catch {}                       // 丁不发 leave，直接断线
-await new Promise(r => setTimeout(r, 600));
+// ── 七、断线保座而广场不算在线 ──
+console.log('\n【断线保座】');
+const dId = d.playerId;
+try { d.ws.close(); } catch {}
+await new Promise(r => setTimeout(r, 450));
 const pDrop = await plaza();
-ok(table12(pDrop).live === 0, '直接断线（未发 leave）也释放座位，不留僵尸座');
+ok(table12(pDrop).live === 3, '直接断线立即从广场在线数移除');
+const probe = await fetch(`${BASE}/api/room/${TABLE}`).then(r => r.json());
+ok(probe.count === 4 && probe.online === 3, '意外断线九十秒内保留原座供重连');
 
+for (const cli of [a, b, c]) cli.send({ type: 'leave' });
+await new Promise(r => setTimeout(r, 300));
+if (dId) {
+  const dr = connect(TABLE); await dr.opened;
+  dr.send({ type: 'join', protocolVersion: 2, name: '丁同修', playerId: dId });
+  const jr = await dr.next(m => m.type === 'joined' || m.type === 'error');
+  if (jr.type === 'joined') {
+    await dr.next(m => m.type === 'sync');
+    dr.send({ type: 'leave' });
+  }
+  await new Promise(r => setTimeout(r, 150));
+  try { dr.ws.close(); } catch {}
+}
 for (const cli of [a, b, c, d, e]) { try { cli.ws.close(); } catch {} }
 await new Promise(r => setTimeout(r, 300));
-const pEnd = await plaza();
-ok(table12(pEnd).live === 0, '全员离席后桌位释放');
-ok(pEnd.tables.every(t => t.state === 'empty'), '本厅无人时全部归空室（快照已清）');
 
 // ── 八、非广场房号不上广场 ──
 console.log('\n【非广场房号】');
-const pv = connect('9042'); await pv.opened;   // 旧式 4 位房号：仍连得上，但不属任何厅
-pv.send({ type: 'join', name: '房内同修' });
+const pv = connect('9042'); await pv.opened;
+pv.send({ type: 'join', protocolVersion: 2, name: '房内同修' });
 await pv.next(m => m.type === 'joined');
+await pv.next(m => m.type === 'sync');
 await new Promise(r => setTimeout(r, 300));
 const pPriv = await plaza();
-ok(pPriv.tables.every(t => t.live === 0), '非广场房号的在座者不会漏进广场桌位');
+ok(pPriv.tables.every(t => t.code !== TABLE || t.live === 0), '非广场房号的在座者不会漏进广场桌位');
 pv.send({ type: 'leave' });
 await new Promise(r => setTimeout(r, 200));
 try { pv.ws.close(); } catch {}

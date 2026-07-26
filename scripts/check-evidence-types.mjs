@@ -59,10 +59,11 @@ for (const [position, combos] of Object.entries(SFP_WHY)) {
 }
 
 assert.equal(evidenceCells, legacyCells);
-assert.equal(legacyCells, 1417);
+// V78 起按二百二十位完整行法表生成，现有 2,210 个「位 × 轮相」证据单元。
+assert.equal(legacyCells, 2210);
 assert.equal(SFP_POS.length, 220);
 assert.deepEqual(SFP_POS.filter((position) => !SFP_POS_PLAIN[position.id]), []);
-assert.equal(SFP_WHY_EVIDENCE['五停心']['謨佛'].items[0].text, '謨佛。則[A1]已得發真。猶存思惑');
+assert.equal(SFP_WHY_EVIDENCE['五停心']['謨佛'].items[0].text, '謨佛。則已得發真。猶存思惑。');
 
 // V74 交叉核验确认的三处谱曰边界：不得带入上一格括注、下一问或后文通则。
 assert.equal(SFP_WHY['邪定']['謨佛'], '謨佛愛習尚重雖聞佛法須習停心。');
@@ -72,17 +73,17 @@ assert.ok(!SFP_WHY['邪定']['謨佛'].includes('即非非想處天'));
 assert.ok(!SFP_WHY['出世戒學']['佛佛'].includes('問。出世福業'));
 assert.ok(!SFP_WHY['初發心住']['佛佛'].includes('從淨土來者'));
 
-// 逐字层保留原刻「囘」；规范字释义仍能以稳定证据对象命中。
-assert.equal(SFP_WHY['彌勒內院']['陀陀'], '陀陀。則有功用行已極。故為第十囘向。');
+// V78 校正层统一规范字「迴」；白话释义仍能以稳定证据对象命中。
+assert.equal(SFP_WHY['彌勒內院']['陀陀'], '陀陀。則有功用行已極。故為第十迴向。');
 assert.equal(
   sfpWhyPlainText(SFP_WHY['彌勒內院']['陀陀']),
   '陀陀则有功用之行已至其极，故进为第十回向。',
 );
 
-// 逐字原文层不得被 V74 的规范化阅读文本覆盖。
-assert.equal(SFP_CANON_FRONT[0].title, '選佛譜敘');
-assert.ok(SFP_CANON_FRONT[0].text.includes('𭡠麻僧'));
-assert.ok(SFP_CANON_FRONT.some((item) => item.title.startsWith('輪相表法第一(占察云。')));
+// V78 校正原本的篇名与缺字标记须完整保留。
+assert.equal(SFP_CANON_FRONT[0].title, '敘選佛譜敘');
+assert.ok(SFP_CANON_FRONT[0].text.includes('捺麻僧'));
+assert.ok(SFP_CANON_FRONT.some((item) => item.title === '輪相表法第一'));
 assert.equal(SFP_CANON_DOORS[15].positions[0].name, '佛');
 
 // V74 世界数据及补充白话必须与谱文明确因行一致。
@@ -97,8 +98,8 @@ assert.ok(SFP_POS_PLAIN['中品十善'].includes('是人道因'));
 assert.ok(SFP_POS_PLAIN['四無量心'].includes('四禪天王'));
 assert.ok(SFP_POS_PLAIN['有間地獄'].includes('九情一想'));
 assert.ok(SFP_POS_PLAIN['無想天'].includes('五百大劫'));
-assert.ok(SFP_DOOR_PLAIN[3].includes('上品感地狱、中品感畜生、下品感饿鬼'));
-assert.ok(SFP_DOOR_PLAIN[5].includes('乐定钝根阿那含生无色界'));
+assert.ok(SFP_DOOR_PLAIN[3].includes('上品感地狱、中品畜生、下品饿鬼'));
+assert.ok(SFP_DOOR_PLAIN[5].includes('五净居是三果圣者所居'));
 const glossByName = Object.fromEntries(SFP_GLOSS.map(([name, plain]) => [name, plain]));
 assert.ok(glossByName['寂光'].includes('下下至上中八品'));
 assert.ok(glossByName['四無量心'].includes('四禅天王'));
@@ -125,11 +126,11 @@ assert.deepEqual({
   出世福業: SFP_POS_PLAIN['出世福業'],
   常寂光淨土: SFP_POS_PLAIN['常寂光淨土'],
 }, {
-  中品十惡: '十恶中品——杂从见爱烦恼所发，原谱判为畜生因。',
-  下品十惡: '十恶下品——从任运烦恼而起，原谱判为饿鬼因。',
-  下品十善: '十善下品——或夹杂烦恼，且不广大、不久积；本位又杂属爱烦恼，原谱判为阿修罗道因。',
-  出世福業: '以布施作福而求出生死——于三宝门中广行施福，由布施进阶戒品，名出世福业。',
-  常寂光淨土: '约修德所显的真实法性而言；本位总摄下下至上中八品，唯究竟妙觉所证上上品归入圆极果位。',
+  中品十惡: '十恶中品之因——谱明「是畜生因」，感畜生之报。',
+  下品十惡: '十恶轻品之因——谱明「是餓鬼因」，感饿鬼之报。',
+  下品十善: '十善下品之因——谱明「是阿脩羅道因」：善杂烦恼，多感修罗。',
+  出世福業: '布施作福，求出生死——于三宝门中广行施福，由施而阶戒品。',
+  常寂光淨土: '修德所显的真实法性之土——本位总摄下下至上中八品；上上品至圆至顿，归入圆教究竟妙觉极果位。',
 });
 
 console.log(`证据类型校验通过：${evidenceCells} 格、${sourceQuotes} 条逐字原文、${interpretations} 条释义；操作规则独立为 ${SFP_EVIDENCE_TYPE.operation}`);

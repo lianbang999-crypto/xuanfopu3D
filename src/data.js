@@ -814,7 +814,7 @@ export const NODES = [
     id: 'arupa', name: '无色界', sub: '四空处 · 无方所',
     cause: { v: '厌色依空、修四空定所感：空无边处乃至非想非非想处。定寿虽长至八万大劫，报尽还堕——谱以此明有漏禅定非究竟处。', src: '选佛谱卷三义 · 楞严经义' },
     group: '六凡', sphere: '无色界', coordKind: 'nonspatial',
-    pos: [0, 192, 0], tier: 1,
+    pos: [0, 206, 0], tier: 1,
     bear: '无方所（图示悬置于上，仅为教学）', elev: '不可以由旬计',
     line: '空无边处、识无边处、无所有处、非想非非想处：唯定心相续，无有处所。',
     profile: [
@@ -837,7 +837,7 @@ export const NODES = [
     id: 'akasa', name: '空无边处', sub: '四空初处', 
     cause: { v: '厌色如牢狱，超一切色想、灭有对想，思「空无边」而入——修空无边处定感之。《选佛谱》本门「空无邊處天」位即此。', src: '选佛谱卷三义 · 俱舍论义' },
     group: '六凡', sphere: '无色界', coordKind: 'nonspatial',
-    pos: [4.7, 188.4, 5.2], tier: 2,
+    pos: [4.7, 202, 5.2], tier: 2,
     bear: '无方所（图位仅为教学惯例）', elev: '四空第一',
     line: '出色牢笼的第一步，只是换了个更细的执处——缘无边虚空而住。',
     profile: [
@@ -853,7 +853,7 @@ export const NODES = [
     id: 'vijnana', name: '识无边处', sub: '四空第二处',
     cause: { v: '舍外空而缘内识，思「识无边」而入——空尚是外境，转缘能缘之识，执又细一层。', src: '选佛谱卷三义 · 俱舍论义' },
     group: '六凡', sphere: '无色界', coordKind: 'nonspatial',
-    pos: [-5.2, 194.4, 4.7], tier: 2,
+    pos: [-5.2, 209, 4.7], tier: 2,
     bear: '无方所（图位仅为教学惯例）', elev: '四空第二',
     line: '外空既舍，转缘内识——能观之心成了新的所住。',
     profile: [
@@ -869,7 +869,7 @@ export const NODES = [
     id: 'akimcanya', name: '无所有处', sub: '四空第三处',
     cause: { v: '观识亦非安隐，舍识观「无所有」而入——能所俱泯，而定心犹存。', src: '选佛谱卷三义 · 俱舍论义' },
     group: '六凡', sphere: '无色界', coordKind: 'nonspatial',
-    pos: [-4.7, 200.4, -5.2], tier: 2,
+    pos: [-4.7, 216, -5.2], tier: 2,
     bear: '无方所（图位仅为教学惯例）', elev: '四空第三',
     line: '空与识俱遣，观无所有——佛未成道前参学至此，知其非道而舍。',
     profile: [
@@ -889,7 +889,7 @@ export const NODES = [
     id: 'naiva', name: '非想非非想处', sub: '三界之顶 · 有顶天',
     cause: { v: '舍无所有想，住非想非非想——想昧劣故非想，想犹存故非非想；三界定力之极而我执未断。', src: '选佛谱卷三义 · 俱舍论义' },
     group: '六凡', sphere: '无色界', coordKind: 'nonspatial',
-    pos: [5.2, 206.4, -4.7], tier: 2,
+    pos: [5.2, 223, -4.7], tier: 2,
     bear: '无方所 · 三界之顶（图位仅为教学惯例）', elev: '有顶',
     line: '寿八万大劫，三界最高处——而报尽还堕，高处不是出处。',
     profile: [

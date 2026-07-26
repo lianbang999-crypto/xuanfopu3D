@@ -118,7 +118,9 @@ function tableCell(t, esc, here) {
     `<i style="color:${esc(s.color || '#dccf9f')}">${esc(s.name)}</i>`).join(' ');
   // 上锁的室照样列出（藏起来反而让人纳闷"为什么这桌空着没人坐"），点了再问密码
   const mine = t.code === here;
-  return `<button class="pzT s-${t.state}${t.locked ? ' locked' : ''}${mine ? ' mine' : ''}" data-code="${esc(t.code)}"${t.state === 'full' && !mine ? ' disabled' : ''}>
+  const state = mine ? '您在此' : (t.locked ? '凭密码入座' : (STATE_TEXT[t.state] || ''));
+  return `<button class="pzT s-${t.state}${t.locked ? ' locked' : ''}${mine ? ' mine' : ''}" data-code="${esc(t.code)}"
+    aria-label="共修室${TABLE_ORD[t.no - 1]}，${state}，${t.live}/${t.max}位在线"${t.state === 'full' && !mine ? ' disabled' : ''}>
     <span class="ord">${TABLE_ORD[t.no - 1]}${t.locked ? '<em>🔒</em>' : ''}</span>
     <span class="dots">${dots}</span>
     <span class="st">${mine ? '您在此' : (t.locked ? '凭密码' : (STATE_TEXT[t.state] || ''))}</span>
@@ -150,10 +152,10 @@ export function renderPlaza(data, ui) {
     <div class="pzGrid">${tables.map(t => tableCell(t, esc, ui.seatedAt)).join('')}</div>
 
     <div class="pzActs">
-      <button class="gbtn primary" id="pzSolo">一人行谱</button>
-      <button class="gbtn" id="pzQuick">随喜入座</button>
+      <button class="gbtn primary" id="pzQuick">随喜入座</button>
+      <button class="gbtn" id="pzSolo">一人行谱</button>
     </div>
-    <div class="cNote" style="text-align:center">点空位即坐即掷。入座后可设四位数密码，邀请链接发给莲友即成熟人局；一人行谱不占座。</div>
+    <div class="cNote pzFlow">点空位进入准备室；至少两位同修准备后，由东位共同开局。入座后可设四位数密码并邀请莲友。</div>
 
     ${feed.length ? `<div class="pzHead">动态</div><div class="pzFeed">${feed.map(f =>
       `<div class="pzF"><span>${esc(f.text)}</span><i>${when(f.ts)}</i></div>`).join('')}</div>` : ''}
@@ -262,7 +264,8 @@ export const PLAZA_CSS = `
 .pzT.s-waiting{border-color:rgba(232,199,102,.5)}
 .pzT.s-waiting .st{color:#e8c766}
 .pzActs{display:flex;gap:8px;margin:4px 0 6px}
-.pzActs .gbtn{flex:1}
+.pzActs .gbtn{flex:1;min-height:44px}
+.pzFlow{text-align:center;line-height:1.65}
 .pzHead{margin-top:14px;font-size:var(--fs-sm,12.5px);color:#dccf9f;letter-spacing:2px}
 .pzFeed{margin-top:5px}
 .pzF{display:flex;justify-content:space-between;gap:8px;padding:4px 0;font-size:var(--fs-sm,12.5px);

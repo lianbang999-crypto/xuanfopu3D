@@ -13,6 +13,11 @@
     "gen:docs": "node scripts/gen-worldmodel.mjs",
     "check:grant": "node scripts/check-grant-policy.mjs",
     "check:evidence": "node scripts/check-evidence-types.mjs",
+    "test:engine": "node scripts/test-sfp-engine.mjs",
+    "test:room": "node scripts/test-room-state.mjs",
+    "test:net": "node scripts/test-net.mjs",
+    "test:ui": "node scripts/test-ui-e2e.mjs",
+    "test:v90": "node scripts/test-v90-port.mjs",
     "test:plaza": "node scripts/test-plaza.mjs",
     "test:plaza-client": "node scripts/test-plaza-client.mjs",
     "check:dir": "node scripts/check-dir.mjs"
@@ -22,6 +27,7 @@
     "three": "^0.169.0"
   },
   "devDependencies": {
+    "playwright-core": "^1.55.0",
     "vite": "^5.4.0"
   }
 }

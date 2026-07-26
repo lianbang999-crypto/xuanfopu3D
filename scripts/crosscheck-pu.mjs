@@ -81,6 +81,13 @@ for (const hp of h5.positions) {
     if (g && !h) { posDiffs.push(`  组合「${c}」：游戏【${g.to || ''}${g.bonus ? ` 贈${g.bonus}掷` : ''}${g.act ? ` 依${g.act}行` : ''}】 vs h5【不行】`); continue; }
     if (!g && !h) continue;
     const gTo = g.to ? (gameNameOfId[g.to] || g.to) : '', hTo = h.to || '';
+    // V78 将「先到彌勒內院，再依某轮相行」折叠为最终有效落点；核对时沿 h5 的依字续行一步再比。
+    if (!g.act && h.act && h.to) {
+      const relay = SFP_POS.find((position) => position.name === h.to || position.id === h.to);
+      const follow = relay?.moves?.find((move) => (move.c || []).includes(h.act));
+      const finalTo = follow?.to ? (gameNameOfId[follow.to] || follow.to) : '';
+      if (finalTo && gTo === finalTo && g.bonus === h.bonus + (follow.bonus || 0)) continue;
+    }
     // 目的地按显示名比（游戏 to 是位 id，先换算显示名；h5 已换算规范名）
     if (gTo !== hTo || g.bonus !== h.bonus || (g.act || '') !== (h.act || '')) {
       posDiffs.push(`  组合「${c}」：游戏【→${gTo || '（原地）'}${g.bonus ? ` 贈${g.bonus}` : ''}${g.act ? ` 依${g.act}` : ''}】 vs h5【→${hTo || '（原地）'}${h.bonus ? ` 贈${h.bonus}` : ''}${h.act ? ` 依${h.act}` : ''}】`);

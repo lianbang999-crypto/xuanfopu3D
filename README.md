@@ -12,7 +12,7 @@
 - **掷轮**：依谱「置輪掌心，仰手旁擲」——长按掷轮钮默念一句「南无阿弥陀佛」，念毕松手旁掷。
 - **行位**：两轮得字组合（那/謨表恶，阿/彌/陀/佛表善）决定从当前位升、降或安住；每掷出判词窗，交代去向与谱曰缘由（可读原谱原文）。
 - **世界即棋盘**：须弥山、四洲、诸天、净土是可遨游的 3D 星图；行棋之余随时拖动观照，点门星展位次。
-- **联机同修**：开房得四位房号，发给莲友即可入房（至多四人）；开局后按座次轮掷，轮到谁其名亮起；聊天随时可用；断线重连回原座、棋况保留。
+- **真人共修**：2–4 位真人入座准备后共同开局；按东南西北座次轮掷，贈掷由当前操作者续完；轮相与棋况由服务器裁定；聊天随时可用，断线重连回原座。
 
 ## 本地开发
 
@@ -26,7 +26,12 @@ npm run server     # 另开终端：联机后端 wrangler dev :8787（/api 已�
 
 ```bash
 node scripts/simulate.mjs 500   # 无头整局模拟：数据闭环 + 整局可玩性（500 局全部圆满，中位约 24 掷）
-node scripts/test-net.mjs       # 联机协议测试：四人房全流程 16 项（需先 npm run server）
+npm run test:engine             # 浏览器/服务端共用的纯规则引擎
+npm run test:room               # 开局、赠掷续手、补齐本轮与共同结算
+npm run test:net                # 真人共同对局协议（需先 npm run server）
+UI_ARTIFACT_DIR=/tmp/xuanfopu-ui npm run test:ui  # 真人前台交互（需同时启动 server 与 dev）
+UI_ARTIFACT_DIR=/tmp/xuanfopu-v90 npm run test:v90 # V90 内容校正及场景、光影、左侧档位、须弥山环缝回归（需先 npm run dev）
+NET_BASE=http://127.0.0.1:8787 npm run test:plaza
 npm run gen:docs                # 重新生成世界模型经证总表
 ```
 
@@ -54,10 +59,11 @@ npm run deploy     # = vite build + npx wrangler deploy（首次会引导登录 
 ```
 index.html            入口
 src/game.js           游戏本体（Three.js 须弥山世界 + 选佛谱行棋 + 联机接线）
-src/net.js            联机客户端（房间/轮次/聊天/重连）
+src/net.js            真人联机客户端（准备/轮次/结算/聊天/重连）
 src/data.js           世界模型：55 节点 · 102 条经证（CBETA 结构化）
 src/sfp-data.js       选佛谱：15 门 220 位 · 组合行位表（依原谱逐字结构化）
-worker/index.js       Cloudflare Worker + RoomDO（房间制 WebSocket + 问义同域代理）
+src/sfp-engine.js     单机与服务端共用的纯行棋规则引擎
+worker/index.js       Cloudflare Worker + RoomDO（服务器权威对局 + 问义同域代理）
 scripts/              无头模拟 · 联机测试 · 文档生成
 docs/                 世界模型经证总表 + 设计文档
 wrangler.jsonc        Cloudflare 部署配置（静态资源 + Durable Objects + 问义 Service Binding）
@@ -65,9 +71,11 @@ wrangler.jsonc        Cloudflare 部署配置（静态资源 + Durable Objects +
 
 ## 联机架构
 
-- 规则判定全部在客户端依原谱数据进行；服务端只做名单、轮次、转发与留存，**不改动任何谱义**。
+- 浏览器与 Worker 共用 `src/sfp-engine.js`；服务器生成轮相并提交权威棋况，客户端只负责动画与经据呈现。
+- 共同生命周期：`waiting → playing(waiting_toss/resolving) → finished → 再准备`；个人不能重开或覆盖他人棋况。
+- 每条掷轮命令携带 `requestId`，重复发送只返回原结果；非当前操作者和旧版 `move` 上报均被拒绝。
 - 每房一个 Durable Object（休眠式 WebSocket，空闲不计费）；房号即 DO 名。
-- 消息协议：`join / start / move / end_turn / chat / sync / leave`，详见 `worker/index.js` 注释。
+- 消息协议：`join / ready_set / start_match / toss_request / turn_done / chat / sync / leave`，详见 `worker/index.js`。
 
 ## 版权与依据
 
