@@ -85,11 +85,14 @@ try {
     scene: window.__lightDbg?.(),
     sky: window.__skyDbg?.(),
     wheels: window.__wheelDbg?.(),
+    background: window.__backgroundDbg?.(),
   }));
   ok(lighting.scene?.fog === 0.0016 && lighting.scene?.base === 0.0016, '娑婆光境与雾参数由统一预设接管');
   ok(lighting.sky?.sunE > lighting.sky?.moonE && lighting.sky?.moonE > lighting.sky?.starE, '天体亮度保持日大于月、月大于星');
   ok(lighting.sky?.sunGlow?.[0] === 10 && lighting.sky?.moonGlow?.[0] === 7, '日月光晕沿用 V89 的收束参数');
   ok(lighting.wheels?.length === 3 && lighting.wheels.every((wheel) => wheel.env === 0), '三轮均已关闭错误环境反光');
+  ok(lighting.background?.starLayers === 4, '背景仅保留 V90 的四层程序星点');
+  ok(lighting.background?.backdropMeshes === 0 && lighting.background?.horizonGlows === 0, '背景没有渐变天穹与地平加色光污染');
 
   console.log('\n【V90 保留：欲界附位】');
   const beadInfo = await page.evaluate(() => ({

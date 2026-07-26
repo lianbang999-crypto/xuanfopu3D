@@ -306,8 +306,9 @@ const rippleN = loadLin('assets/lib/ambientcg-materials/textures/ground/Ground09
 const rippleNS = new THREE.Vector2(0.55, 0.55);
 let windWheelM            ; // v211 风轮缓旋句柄（俱舍：业风持世——以缓旋表其恒转不息）
 
-// 星空：程序星辰——分层锐利点星 + 淡银河带（矿彩色温；星群随相机平移，任何观照场都有同一片天）
+// 星空：对齐 V90，只保留分层锐利点星 + 淡银河带；不叠加天穹渐变或地平加色光晕
 const starGroup = new THREE.Group();
+starGroup.name = 'programStars';
 scene.add(starGroup);
 const starLayers                                                                              = [];
 {
@@ -359,39 +360,12 @@ const starLayers                                                                
   mkLayer(380, 1340, 9, 0.7, false, 0.8);     // 中层
   mkLayer(130, 1120, 14, 0.8, false, 1.3);    // 近层亮星（呼吸最明显）
   mkLayer(700, 1500, 4.5, 0.3, true, 0.35);    // 银河带：密而淡
-  // 天穹渐变（敦煌矿彩天）：顶部石青深空 → 中际青灰 → 地平微暖；随相机走，叠在星层之下
-  {
-    const cv2 = document.createElement('canvas'); cv2.width = 4; cv2.height = 256;
-    const g3 = cv2.getContext('2d') ;
-    const grad = g3.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, '#191430');   // 天顶：石青深空
-    grad.addColorStop(0.45, '#221d33'); // 中际：与底色 C.bg 相接
-    grad.addColorStop(0.72, '#2a2338'); // 近地平：微微透暖
-    grad.addColorStop(0.86, '#332a35'); // 地平线暖带（暗金气息）
-    grad.addColorStop(1, '#16121f');    // 地平之下沉暗
-    g3.fillStyle = grad; g3.fillRect(0, 0, 4, 256);
-    const domeTex = new THREE.CanvasTexture(cv2); domeTex.colorSpace = THREE.SRGBColorSpace;
-    const domeMat = new THREE.MeshBasicMaterial({ map: domeTex, side: THREE.BackSide, depthWrite: false });
-    (domeMat       ).fog = false;
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(1750, 32, 24), domeMat);
-    dome.renderOrder = -2; starGroup.add(dome);
-  }
 }
-// 地平暖晕：须弥山背后极淡金气（两片十字竖立辉光面片——侧视衬山剪影，俯视边缘近隐不罩景）
-{
-  const hm = () => {
-    const m = new THREE.MeshBasicMaterial({
-      map: makeGlow('215,170,69', 256), transparent: true, opacity: 0.07,
-      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
-    });
-    (m       ).fog = false; return m;
-  };
-  [0, Math.PI / 2].forEach(ry => {
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(520, 290), hm());
-    p.position.set(0, 26, 0); p.rotation.y = ry; p.renderOrder = -1;
-    scene.add(p);
-  });
-}
+(window       ).__backgroundDbg = () => ({
+  starLayers: starLayers.length,
+  backdropMeshes: starGroup.children.filter(o => (o       ).isMesh).length,
+  horizonGlows: scene.children.filter(o => o.name === 'horizonGlow').length,
+}); // 自测钩子（只读）：V90 背景仅有四层程序星点，不含天穹面与地平加色面
 
 // ---------------- 剖面 ----------------
 const SECTION_MAX = 232, SECTION_MIN = -50; // 上限罩住无色界新高（v325 四空抬升至 223）；下限留在地底面（-52）之上：免剪平面与地底盖共面 z-fight
