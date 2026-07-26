@@ -273,7 +273,7 @@ export function renderPlaza(data, ui) {
           </div>
           <div class="pzGuide">
             <b>入座后</b>
-            <p>先在准备室等候莲友。东位可邀请莲友或设置四位数密码。</p>
+            <p>两位准备即可开局，不必等满四人。最先入室者为房主，可邀请莲友或设置密码。</p>
             <button type="button" id="pzPriv">邀请说明</button>
           </div>
           <button class="pzBack" id="pzClose" type="button">${ui.backText || '返回'}</button>
@@ -409,6 +409,8 @@ export const PLAZA_CSS = `
 .pzMode b{color:#f0dfa8;font-size:var(--fs-lg,16px);letter-spacing:3px;font-weight:600}
 .pzMode i{font-style:normal;color:#8f8774;font-size:var(--fs-sm,12.5px);letter-spacing:1px}
 .pzMode em{font-style:normal;color:#c8b988;font-size:var(--fs-sm,12.5px);letter-spacing:2px}
+.pzPanel.joining .pzMode,.pzPanel.joining .pzT{pointer-events:none;opacity:.56}
+.pzPanel.joining #pzQuick{border-color:rgba(232,199,102,.7);opacity:1}
 .pzMain{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;min-height:0}
 .pzRooms{min-height:0;display:flex;flex-direction:column;padding:18px;border:1px solid rgba(216,197,139,.13);
   border-radius:16px;background:rgba(255,255,255,.018);overflow:auto}

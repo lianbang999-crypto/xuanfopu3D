@@ -6,6 +6,22 @@ import { SFP_PROTOCOL_VERSION } from './sfp-engine.js';
 
 const NET_KEY = 'sm10.net.v2';
 const OLD_NET_KEY = 'sm10.net.v1';
+const CLIENT_KEY = 'sm10.net.client.v1';
+const TAB_KEY = 'sm10.net.tab.v1';
+const ACTIVE_KEY = 'sm10.net.active.v1';
+const ACTIVE_LEASE_MS = 120_000; // 后台标签页计时会被节流；两分钟租约仍可可靠阻止跨页重复占房
+
+function stableId(storage, key, prefix) {
+  try {
+    const current = storage.getItem(key);
+    if (current) return current;
+    const value = `${prefix}:${globalThis.crypto?.randomUUID?.() || `${Date.now()}:${Math.random().toString(36).slice(2)}`}`;
+    storage.setItem(key, value);
+    return value;
+  } catch (e) {
+    return `${prefix}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+  }
+}
 
 function esc(value) {
   return String(value)
@@ -46,7 +62,6 @@ export const Net = {
   active: false,
   myId: null,
   mySeat: -1,
-  myDir: '',
   myColor: '#e8c766',
   myName: '',
   code: '',
@@ -62,6 +77,12 @@ export const Net = {
   _pendingToss: '',
   _connState: 'ok',
   _lastFocused: null,
+  _joinPromise: null,
+  _joinCode: '',
+  _joinSeq: 0,
+  _leaseTimer: 0,
+  clientToken: '',
+  tabToken: '',
 
   onRoster: null,
   onJoined: null,
@@ -112,26 +133,72 @@ export const Net = {
     return `${proto}//${location.host}/api/room/${code}/ws`;
   },
 
+  _claimLocalRoom(code) {
+    const now = Date.now();
+    try {
+      const lease = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
+      if (lease?.tab && lease.tab !== this.tabToken && now - Number(lease.ts || 0) < ACTIVE_LEASE_MS) {
+        return false;
+      }
+      localStorage.setItem(ACTIVE_KEY, JSON.stringify({ code, tab: this.tabToken, ts: now }));
+    } catch (e) {}
+    return true;
+  },
+  _touchLocalRoom() {
+    if (!this.code && !this._joinCode) return;
+    try {
+      localStorage.setItem(ACTIVE_KEY, JSON.stringify({
+        code: this.code || this._joinCode,
+        tab: this.tabToken,
+        ts: Date.now(),
+      }));
+    } catch (e) {}
+  },
+  _releaseLocalRoom() {
+    try {
+      const lease = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
+      if (!lease?.tab || lease.tab === this.tabToken) localStorage.removeItem(ACTIVE_KEY);
+    } catch (e) {}
+  },
+
   joinRoom(code, name, playerId = null, key = '') {
     code = String(code || '').toUpperCase();
-    return new Promise((resolve, reject) => {
+    const reconnecting = this.active && !!playerId && this.code === code;
+    if (this.active && !reconnecting) {
+      return Promise.reject(new Error(
+        this.code === code ? '您已经在这个共修室' : `您已在共修室 ${this.code}，请先离开再换房`,
+      ));
+    }
+    if (this._joinPromise) {
+      if (this._joinCode === code) return this._joinPromise;
+      return Promise.reject(new Error(`正在进入共修室 ${this._joinCode}，请稍候`));
+    }
+    if (!this._claimLocalRoom(code)) {
+      return Promise.reject(new Error('您已在另一个页面进入共修室；一个人同一时间只能进入一个房间'));
+    }
+
+    const attempt = ++this._joinSeq;
+    this._joinCode = code;
+    const pending = new Promise((resolve, reject) => {
       let settled = false;
-      const reconnecting = this.active && !!playerId;
       const ws = new WebSocket(this._wsUrl(code));
       this.ws = ws;
       this._manualLeave = false;
 
       ws.onopen = () => {
+        if (attempt !== this._joinSeq) { try { ws.close(); } catch (e) {} return; }
         ws.send(JSON.stringify({
           type: 'join',
           protocolVersion: SFP_PROTOCOL_VERSION,
           name,
           playerId,
           key,
+          clientToken: this.clientToken,
         }));
       };
 
       ws.onmessage = (event) => {
+        if (attempt !== this._joinSeq) { try { ws.close(); } catch (e) {} return; }
         let message;
         try { message = JSON.parse(event.data); } catch (e) { return; }
         if (message.type === 'joined') {
@@ -147,12 +214,12 @@ export const Net = {
           this.myId = message.playerId;
           this.mySeat = message.seat;
           this.myColor = message.color;
-          this.myDir = message.dir || '';
           this.myName = name;
           this.code = code;
           this.key = key || '';
           this._retry = 0;
           this._setConnState('ok');
+          this._touchLocalRoom();
           try {
             localStorage.setItem(NET_KEY, JSON.stringify({ code, playerId: message.playerId, name, key }));
             localStorage.removeItem(OLD_NET_KEY);
@@ -166,12 +233,17 @@ export const Net = {
         if (message.type === 'error') {
           if (!settled) { settled = true; reject(new Error(message.text || message.code)); }
           this._toastCb?.(message.text || message.code);
+          try { ws.close(); } catch (e) {}
           return;
         }
         this._handle(message);
       };
 
       ws.onclose = () => {
+        if (attempt !== this._joinSeq) {
+          if (!settled) { settled = true; reject(new Error('入座已取消')); }
+          return;
+        }
         if (this._manualLeave) return;
         if (!this.active) {
           if (!settled) {
@@ -195,10 +267,20 @@ export const Net = {
       };
       ws.onerror = () => { try { ws.close(); } catch (e) {} };
     });
+    this._joinPromise = pending.finally(() => {
+      if (attempt !== this._joinSeq) return;
+      this._joinPromise = null;
+      this._joinCode = '';
+      if (!this.active) this._releaseLocalRoom();
+    });
+    return this._joinPromise;
   },
 
   leave({ notify = true } = {}) {
     this._manualLeave = true;
+    this._joinSeq++;
+    this._joinPromise = null;
+    this._joinCode = '';
     this._send({ type: 'leave', requestId: requestId('leave') }, false);
     const old = this.ws;
     // 换室需要确认旧连接已经由服务器关闭，不能再猜一个固定的 260ms。
@@ -217,7 +299,6 @@ export const Net = {
     this.active = false;
     this.myId = null;
     this.mySeat = -1;
-    this.myDir = '';
     this.players = [];
     this.room = { ...EMPTY_ROOM };
     this.code = '';
@@ -228,6 +309,7 @@ export const Net = {
       localStorage.removeItem(NET_KEY);
       localStorage.removeItem(OLD_NET_KEY);
     } catch (e) {}
+    this._releaseLocalRoom();
     this.closePanel();
     this._uiRoomSync();
     this.onRoster?.([]);
@@ -291,7 +373,6 @@ export const Net = {
     const me = this.me();
     if (me) {
       this.mySeat = me.seat;
-      this.myDir = me.dir || '';
       this.myColor = me.color || this.myColor;
     }
     this._uiRoomSync();
@@ -360,6 +441,11 @@ export const Net = {
   init({ toast, zh }) {
     if (toast) this._toastCb = toast;
     if (zh) this.zh = zh;
+    this.clientToken = stableId(localStorage, CLIENT_KEY, 'person');
+    this.tabToken = stableId(sessionStorage, TAB_KEY, 'tab');
+    clearInterval(this._leaseTimer);
+    this._leaseTimer = window.setInterval(() => this._touchLocalRoom(), 5000);
+    window.addEventListener('pagehide', () => this._releaseLocalRoom());
     this._buildUi();
     const match = location.hash.match(/^#r=([A-Za-z0-9]{4,8})(?:\.(\d{4}))?$/);
     this.invited = match ? { code: match[1].toUpperCase(), key: match[2] || '' } : null;
@@ -394,34 +480,35 @@ export const Net = {
   max-height:min(620px,calc(100dvh - 164px));display:none;flex-direction:column;background:rgba(16,19,28,.97);border:1px solid rgba(216,197,139,.42);
   border-radius:16px;overflow:hidden;overscroll-behavior:contain;backdrop-filter:blur(12px);font-size:var(--fs-md);color:#e8e2d0;box-shadow:0 18px 50px rgba(0,0,0,.38)}
 #netPanel.on{display:flex}
-#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid rgba(216,197,139,.18);cursor:pointer;min-height:36px}
+#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid rgba(216,197,139,.18);cursor:pointer;min-height:40px;flex:none}
 #netHead b{letter-spacing:2px;color:#d8c58b}
 #netHead .code{margin-left:auto;color:#96e1d6;letter-spacing:1px;cursor:pointer}
+#netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(217,136,115,.3);background:rgba(217,136,115,.08);color:#d9a08f;border-radius:10px;cursor:pointer}
 #netMinBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:#9aa3b5;border-radius:10px;cursor:pointer;font-size:20px}
 #netMinBtn:hover{background:rgba(255,255,255,.06);color:#e8e2d0}
-#netRoomState{padding:9px 12px;border-bottom:1px solid rgba(216,197,139,.14);color:#cfc7ad;line-height:1.5}
+#netRoomState{flex:none;padding:9px 12px;border-bottom:1px solid rgba(216,197,139,.14);color:#cfc7ad;line-height:1.5}
 #netRoomState b{color:#e8c766}
-#netRoster{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(216,197,139,.14)}
+#netRoster{display:flex;flex:none;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(216,197,139,.14);max-height:104px;overflow-y:auto}
 .netP{display:flex;align-items:center;gap:5px;padding:6px 9px;min-height:30px;border-radius:15px;background:rgba(255,255,255,.05);border:1px solid transparent;max-width:100%}
 .netP.turn{border-color:rgba(232,199,102,.8);box-shadow:0 0 10px rgba(232,199,102,.22)}
 .netP.off{opacity:.48}.netP.away{opacity:.62}
 .netP .dot{width:9px;height:9px;border-radius:50%;flex:none}
-.netP .dir{flex:none;font-size:var(--fs-xs);color:#9d9170;letter-spacing:1px}
+.netP .role{flex:none;font-size:var(--fs-xs);color:#e8c766;letter-spacing:1px}
 .netP .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px}
 .netP .st{color:#9aa3b5;font-size:var(--fs-xs);white-space:nowrap}
-#netRoundActions{display:flex;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(216,197,139,.14)}
-#netRoundActions button,#netBtns button{min-height:44px;border-radius:10px;cursor:pointer;border:1px solid rgba(216,197,139,.32);background:rgba(255,255,255,.05);color:#cfc7ad}
+#netRoundActions{display:flex;flex:none;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(216,197,139,.14)}
+#netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid rgba(216,197,139,.32);background:rgba(255,255,255,.05);color:#cfc7ad}
 #netRoundActions button{flex:1}
 #netRoundActions button.pri,#netBtns button.pri{background:rgba(232,199,102,.2);color:#e8c766;border-color:rgba(232,199,102,.58)}
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
-#netMsgs{flex:1;min-height:100px;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:7px;-webkit-overflow-scrolling:touch}
+#netMsgs{flex:1;min-height:0;overflow-y:auto;padding:8px 12px;display:flex;flex-direction:column;gap:7px;-webkit-overflow-scrolling:touch}
 .netM{line-height:1.45;word-break:break-word}.netM b{font-weight:600;margin-right:5px}.netM.sys{color:#9aa3b5;font-size:var(--fs-sm)}
-#netQuick{display:flex;gap:8px;padding:7px 12px 0}
+#netQuick{display:flex;flex:none;gap:8px;padding:7px 12px 0}
 #netQuick button{min-height:36px;border:1px solid rgba(216,197,139,.28);background:rgba(255,255,255,.04);color:#cfc7ad;border-radius:12px;padding:5px 11px;cursor:pointer}
-#netInput{display:flex;gap:8px;padding:9px 10px;border-top:1px solid rgba(216,197,139,.18)}
+#netInput{display:flex;flex:none;gap:8px;padding:9px 10px;border-top:1px solid rgba(216,197,139,.18)}
 #netInput input{flex:1;min-width:0;background:rgba(255,255,255,.06);border:1px solid rgba(216,197,139,.28);border-radius:9px;color:#efe9d8;padding:9px 10px;font-size:16px;outline:none}
 #netInput button{min-width:48px;border:1px solid rgba(216,197,139,.4);background:rgba(216,197,139,.16);color:#d8c58b;border-radius:9px;cursor:pointer}
-#netBtns{display:flex;gap:8px;padding:0 12px 10px}#netBtns button{flex:1;font-size:var(--fs-sm)}
+#netBtns{display:flex;flex:none;gap:8px;padding:0 12px 10px}#netBtns button{flex:1;font-size:var(--fs-sm)}
 #netGrab{display:none;height:22px;flex:none;cursor:grab;position:relative;touch-action:none}
 #netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(216,197,139,.45);transform:translateX(-50%)}
 #netKey{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(8,10,15,.72);backdrop-filter:blur(4px)}
@@ -437,16 +524,19 @@ export const Net = {
 .netDots .pd.turn{animation:pdPulse 1.6s ease-in-out infinite}@keyframes pdPulse{0%,100%{box-shadow:0 0 3px currentColor}50%{box-shadow:0 0 10px currentColor,0 0 16px currentColor}}
 @media (prefers-reduced-motion:reduce){.netDots .pd.turn{animation:none}}
 @media (max-width:520px){
-  #netPanel{left:0;right:0;bottom:var(--kb,0px);width:100%;max-height:64dvh;border-radius:16px 16px 0 0;border-left:none;border-right:none;border-bottom:none}
-  body.sfpOn #netPanel{bottom:calc(var(--kb,0px) + 92px);max-height:min(64dvh,calc(100dvh - 112px))}
+  #netPanel{left:0;right:0;bottom:var(--kb,0px);width:100%;height:min(70dvh,560px);max-height:calc(100dvh - 18px);border-radius:16px 16px 0 0;border-left:none;border-right:none;border-bottom:none}
+  body.sfpOn #netPanel{bottom:calc(var(--kb,0px) + 92px);height:min(70dvh,520px);max-height:calc(100dvh - 112px)}
   body.sfpOn #netPanel.full{bottom:var(--kb,0px)}
   #netPanel.full{max-height:calc(100dvh - 28px);height:calc(100dvh - 28px)}
-  #netGrab{display:block}#netInput{padding-bottom:calc(9px + env(safe-area-inset-bottom))}
+  #netGrab{display:block}#netInput{padding-bottom:9px}
+  #netQuick{display:none}
+  #netRoster{max-height:74px}
+  #netBtns{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
 }
 @media (max-width:520px) and (max-height:700px){
   #netQuick{display:none}
-  #netMsgs{min-height:72px}
-  #netRoster{max-height:72px;overflow-y:auto}
+  #netMsgs{min-height:0}
+  #netRoster{max-height:58px;overflow-y:auto}
 }`;
     document.head.appendChild(css);
 
@@ -464,14 +554,14 @@ export const Net = {
 
     this.$panel = el(`<section id="netPanel" role="dialog" aria-modal="false" aria-label="真人共修室">
       <div id="netGrab" title="上滑全屏 · 下滑收起"></div>
-      <div id="netHead"><b>真人共修</b><span class="code" title="点按复制房号"></span><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
+      <div id="netHead"><b>真人共修</b><span class="code" title="点按复制房号"></span><button id="netLeaveBtn" aria-label="离开共修室">离开</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
       <div id="netRoomState" aria-live="polite"></div>
       <div id="netRoster"></div>
       <div id="netRoundActions"><button id="netReadyBtn"></button><button id="netStartBtn" class="pri"></button></div>
       <div id="netMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天消息"></div>
       <div id="netQuick"><button>南無阿彌陀佛</button><button>隨喜讚歎 🙏</button></div>
       <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="与同修讨论…（回车发送）"><button aria-label="发送聊天">发</button></div>
-      <div id="netBtns"><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请</button><button id="netHallBtn">大厅</button><button id="netLeaveBtn">离席</button></div>
+      <div id="netBtns"><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请</button><button id="netHallBtn">大厅</button></div>
     </section>`);
     document.body.appendChild(this.$panel);
     this.$msgs = this.$panel.querySelector('#netMsgs');
@@ -486,7 +576,7 @@ export const Net = {
         .catch(() => this._toastCb?.(this.zh(`桌号：${this.code}`)));
     });
     this.$panel.querySelector('#netHead').addEventListener('pointerdown', (event) => {
-      if (event.target === this.$code || event.target.closest?.('#netMinBtn')) return;
+      if (event.target === this.$code || event.target.closest?.('button')) return;
       event.preventDefault();
       event.stopPropagation();
       this.closePanel();
@@ -678,7 +768,7 @@ export const Net = {
     if (this._connState === 'lost') return '<b>连接已断</b> · 请重新进入共修室';
     if (this.room.status === 'waiting') {
       const ready = this.players.filter((p) => p.ready && p.online).length;
-      return `<b>准备室</b> · ${ready}/${this.players.filter((p) => p.online).length} 位已准备`;
+      return `<b>准备室</b> · ${ready} 人已准备 · 2 人即可开局`;
     }
     if (this.room.status === 'finished') {
       const winners = this.players.filter((p) => p.done).map((p) => p.name);
@@ -717,7 +807,7 @@ export const Net = {
       else if (player.ready) status = '已准备';
       const chip = el(`<div class="netP${player.online ? '' : ' off'}${player.away ? ' away' : ''}${this.room.turnId === player.id ? ' turn' : ''}">
         <span class="dot" style="background:${player.color}"></span>
-        <span class="dir">${this.zh(player.dir || '')}${player.host ? this.zh('·主') : ''}</span>
+        ${player.host ? `<span class="role">${this.zh('房主')}</span>` : ''}
         <span class="nm">${esc(player.name)}${player.id === this.myId ? '（我）' : ''}</span>
         <span class="st">${this.zh(status)}</span>
       </div>`);
@@ -732,9 +822,17 @@ export const Net = {
     readyButton.style.display = waiting ? '' : 'none';
     readyButton.textContent = this.zh(me?.ready ? '取消准备' : (this.room.status === 'finished' ? '准备下一局' : '我已准备'));
     readyButton.classList.toggle('pri', !me?.ready);
-    startButton.style.display = waiting && this.isHost() ? '' : 'none';
-    startButton.textContent = this.zh(readyCount >= 2 ? '共同开局' : '等候两人准备');
-    startButton.disabled = !me?.ready || readyCount < 2 || this._connState !== 'ok';
+    startButton.style.display = waiting ? '' : 'none';
+    if (this.isHost()) {
+      startButton.textContent = this.zh(readyCount >= 2
+        ? `共同开局 · ${readyCount} 人`
+        : (!me?.ready ? '请先点「我已准备」' : '再等 1 人准备'));
+    } else {
+      startButton.textContent = this.zh(readyCount >= 2
+        ? '等待房主开始'
+        : (!me?.ready ? '请先点「我已准备」' : '再等 1 人准备'));
+    }
+    startButton.disabled = !this.isHost() || !me?.ready || readyCount < 2 || this._connState !== 'ok';
 
     const keyButton = this.$panel.querySelector('#netKeyBtn');
     keyButton.style.display = this.isHost() ? '' : 'none';

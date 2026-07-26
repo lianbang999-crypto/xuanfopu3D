@@ -48,10 +48,10 @@ function connect(code) {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const rid = (prefix) => `${prefix}:${crypto.randomUUID()}`;
-async function join(code, name, playerId = null, key = '') {
+async function join(code, name, playerId = null, key = '', clientToken = '') {
   const client = connect(code);
   await client.opened;
-  client.send({ type: 'join', protocolVersion: 2, name, playerId, key });
+  client.send({ type: 'join', protocolVersion: 2, name, playerId, key, clientToken });
   const joined = await client.next((message) => message.type === 'joined' || message.type === 'error');
   if (joined.type === 'joined') {
     client.playerId = joined.playerId;
@@ -69,7 +69,7 @@ for (const name of ['慧明', '慧安', '慧净', '慧觉']) {
   clients.push(client);
 }
 const [east, south, west, north] = clients;
-ok(east.joined.seat === 0 && east.joined.host, '东位是真人房主');
+ok(east.joined.seat === 0 && east.joined.host, '最先入室者是真人房主');
 ok(east.sync.protocolVersion === 2 && east.sync.room.status === 'waiting', '同步采用 v2 准备室协议');
 ok(east.sync.players.every((player) => player.n === 0 && !player.ready), '入座不会自动开始个人谱局');
 
@@ -77,8 +77,8 @@ east.send({ type: 'ready_set', ready: true, requestId: rid('ready') });
 south.send({ type: 'ready_set', ready: true, requestId: rid('ready') });
 const readySync = await east.next((message) =>
   message.type === 'sync' && message.players.filter((player) => player.ready).length === 2);
-ok(readySync.players.find((player) => player.id === east.playerId).ready, '东位准备状态广播');
-ok(readySync.players.find((player) => player.id === south.playerId).ready, '南位准备状态广播');
+ok(readySync.players.find((player) => player.id === east.playerId).ready, '房主准备状态广播');
+ok(readySync.players.find((player) => player.id === south.playerId).ready, '成员准备状态广播');
 
 west.send({ type: 'start_match', requestId: rid('start') });
 const hostOnly = await west.next((message) => message.type === 'command_error');
@@ -136,6 +136,31 @@ const sameName = await join('H3T9', '同名');
 const sameName2 = await join('H3T9', '同名');
 ok(sameName.joined.playerId !== sameName2.joined.playerId, '同名玩家不会冒名接管旧座');
 
+console.log('\n【同一人只占一座】');
+const repeatToken = `person:${crypto.randomUUID()}`;
+const repeatedA = await join('H3T11', '重复点击者', null, '', repeatToken);
+const repeatedB = await join('H3T11', '重复点击者', null, '', repeatToken);
+ok(repeatedA.joined.playerId === repeatedB.joined.playerId, '同一浏览器令牌重复入座复用原身份');
+ok(repeatedB.client.sync.players.length === 1, '重复点击不会把一间房占成多人');
+
+console.log('\n【三人局离开后继续】');
+const leaveHost = await join('H3T12', '先入房主');
+const leaveMemberA = await join('H3T12', '成员甲');
+const leaveMemberB = await join('H3T12', '成员乙');
+for (const entry of [leaveHost, leaveMemberA, leaveMemberB]) {
+  entry.client.send({ type: 'ready_set', ready: true, requestId: rid('ready') });
+}
+await leaveHost.client.next((message) => message.type === 'sync'
+  && message.players.filter((player) => player.ready).length === 3);
+leaveHost.client.send({ type: 'start_match', requestId: rid('start') });
+await leaveMemberA.client.next((message) => message.type === 'match_started');
+leaveHost.client.send({ type: 'leave', requestId: rid('leave') });
+const afterHostLeaves = await leaveMemberA.client.next((message) => message.type === 'sync'
+  && message.players.length === 2);
+ok(afterHostLeaves.room.status === 'playing' && afterHostLeaves.room.order.length === 2,
+  '三人局一人离开后其余两人继续');
+ok(afterHostLeaves.players.some((player) => player.host), '原房主离开后自动递补新房主');
+
 console.log('\n【聊天与历史分离】');
 east.inbox.length = 0;
 east.send({ type: 'chat', text: '随喜同修', requestId: rid('chat') });
@@ -157,16 +182,20 @@ const badKey = await east.next((message) => message.type === 'error' || message.
 ok(badKey.code === 'badkey', '密码必须为四位数字');
 east.send({ type: 'lock', key: '8412', requestId: rid('lock') });
 const locked = await east.next((message) => message.type === 'locked');
-ok(locked.locked && locked.key === '8412', '东位可设置邀请密码');
+ok(locked.locked && locked.key === '8412', '房主可设置邀请密码');
 const fifth = await join(TABLE, '第五人', null, '8412');
 ok(fifth.joined.type === 'error' && fifth.joined.code === 'full', '四个真人座位坐满后拒绝第五人');
 
 // 收摊：断线者使用重连连接离席，其余显式离席，避免污染下一次本地测试。
-for (const client of [east, west, north, reconnected, sameName.client, sameName2.client, historyJoin.client, later.client]) {
+for (const client of [east, west, north, reconnected, sameName.client, sameName2.client,
+  repeatedA.client, repeatedB.client, leaveMemberA.client, leaveMemberB.client,
+  historyJoin.client, later.client]) {
   try { client.send({ type: 'leave', requestId: rid('leave') }); } catch {}
 }
 await wait(350);
-for (const client of [...clients, reconnected, sameName.client, sameName2.client, historyJoin.client, later.client, fifth.client]) {
+for (const client of [...clients, reconnected, sameName.client, sameName2.client,
+  repeatedA.client, repeatedB.client, leaveHost.client, leaveMemberA.client, leaveMemberB.client,
+  historyJoin.client, later.client, fifth.client]) {
   try { client.ws.close(); } catch {}
 }
 

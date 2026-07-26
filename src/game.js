@@ -7027,27 +7027,45 @@ function sfpPeerWin(name, n) {
 // ---------------- 共修大厅 ----------------
 // 一排排桌子＋动态广播；两个去处：一人行谱（不占座）与入座共修室（准备后共同开局，桌号可发给莲友）。
 let plazaTimer = 0;
+let plazaJoining = false;
 function plazaStop() { if (plazaTimer) { clearInterval(plazaTimer); plazaTimer = 0; } }
+function plazaSetJoining(on) {
+  plazaJoining = !!on;
+  const panel = document.querySelector('.pzPanel');
+  if (!panel) return;
+  panel.classList.toggle('joining', plazaJoining);
+  panel.setAttribute('aria-busy', plazaJoining ? 'true' : 'false');
+  panel.querySelectorAll('#pzSolo,#pzQuick').forEach((button) => { button.disabled = plazaJoining; });
+  panel.querySelectorAll('.pzT').forEach((button) => {
+    button.disabled = plazaJoining || (button.classList.contains('s-full') && !button.classList.contains('mine'));
+  });
+  const label = panel.querySelector('#pzQuick em');
+  if (label) label.textContent = zh(plazaJoining ? '正在入座…' : '随喜入座');
+}
 
 async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
   const name = nameArg || Plaza.savedName();
   if (!name) { openPlazaSitName(code, keyArg); return; }      // 无存名：只问这一次
   if (needKey && !keyArg) { openPlazaSitKey(code); return; }  // 上锁之室：先问密码
+  if (plazaJoining) { showToast(zh('正在入座，请稍候'), 1800); return; }
   const ord = Plaza.TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
   if (Net.active) {
     if (Net.code === code) { plazaStop(); closeOverlay(); Net.openPanel(); return; } // 点的就是自己那室
-    await Net.leave({ notify: false });                        // 换室：确认原连接关闭后再求新座
   }
+  plazaSetJoining(true);
   try {
+    if (Net.active) await Net.leave({ notify: false });        // 一人只在一室：旧座释放后才能换房
     await Net.joinRoom(code, name, null, keyArg);
     plazaStop(); closeOverlay();
     Net.openPanel();
-    showToast(zh(`已入共修室${ord} · ${Net.myDir}位——请在同修面板准备开局`), 4600);
+    showToast(zh(`已入共修室${ord}——两位准备即可开局`), 4200);
   } catch (e) {
     const msg = (e && e.message) || '';
     if (/密码|上锁/.test(msg)) { openPlazaSitKey(code, msg); return; } // 密码错：留在密码卡上重填
     showToast(zh(msg || '此室暂时坐不下，请换一室'), 3200);
     openPlaza();                                    // 满座/断线：退回大厅重看桌况
+  } finally {
+    plazaSetJoining(false);
   }
 }
 
@@ -8606,26 +8624,32 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
       Net.openPanel();
     }
   };
-  let lastDir = '';
+  let rosterRoom = '';
+  let wasHost = false;
   Net.onRoster = () => {
     netSyncBeads();
     if (netHydrateMode) {
       hydrateNetGame(netHydrateMode === 'force');
       netHydrateMode = '';
     }
-    // 东位递补：房主离席后座次会变，接位者须知会——否则他不知道自己能设密码了
-    if (Net.active && Net.myDir && Net.myDir !== lastDir) {
-      if (lastDir && Net.isHost()) showToast(zh(`前位莲友已离席——您递补${Net.myDir}位，为本室房主，可设密码`), 5200);
-      lastDir = Net.myDir;
+    // 房主离席后由最早仍在室者递补；前台不再显示东南西北方位。
+    if (Net.active) {
+      if (rosterRoom === Net.code && !wasHost && Net.isHost()) {
+        showToast(zh('原房主已离开——您现在是房主，可邀请莲友并开始下一局'), 5200);
+      }
+      rosterRoom = Net.code;
+      wasHost = Net.isHost();
+    } else {
+      rosterRoom = '';
+      wasHost = false;
     }
-    if (!Net.active) lastDir = '';
   };
   Net.onState = scheduleNetTurnUi;
   Net.onMatchStarted = () => {
     closeOverlay();
     Net.closePanel();
     startSfp(false);
-    showToast('真人共修共同开局——依东南西北轮流掷轮', 4200);
+    showToast('真人共修共同开局——依入座次序轮流掷轮', 4200);
     scheduleNetTurnUi();
   };
   Net.onToss = (message) => {

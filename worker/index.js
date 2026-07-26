@@ -12,9 +12,8 @@ import {
 const ROOM_MAX = 4;                 // 原谱多人局：至多四位同修
 const CHAT_KEEP = 120;              // 聊天留存条数（重连可回看）
 const PLAYER_COLORS = ['#e8c766', '#96e1d6', '#d98873', '#b9a7e0']; // 金·青·赭·藕——四位同修珠色
-// 座次即方位（合本作四洲罗盘，亦合「东家」之俗）：东位者即房主，可设本室密码。
-// 东位空出后，下一位坐进东位者继承房主之位——规则只此一条，不另记谁先来。
-const SEAT_DIR = ['东', '南', '西', '北'];
+// 座次只用于服务器轮流掷轮，不在前台显示方位。最先入室者为房主；
+// 房主离开后按入座次序递补，不再让用户理解“东南西北”。
 const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
 
 // ---- 共修广场：固定 12 张共修室（桌数固定、座数固定，入座准备后共同开局） ----
@@ -40,7 +39,7 @@ function tableSeatOf(code) {
 const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
 const dayKey = (ts = Date.now()) => new Date(ts + SHANGHAI_OFFSET_MS).toISOString().slice(0, 10);
 
-// ---- 密码：共修室可由东位者（房主）设四位数密码，邀熟人同座（取代原「私室」） ----
+// ---- 密码：共修室可由房主设置四位数密码，邀熟人同座（取代原「私室」） ----
 // 密码由用户自设四位数字：一万种组合配「十分钟内错满十次暂闭」，猜中概率千分之一；
 // 系统代设反而让人记不住、也没法口头报给莲友。
 const LOCK_MAX_TRIES = 10;      // 密码错满即暂闭，防暴力猜
@@ -213,6 +212,11 @@ export class RoomDO {
       .trim()).slice(0, 12).join('');
   }
 
+  safeClientToken(value) {
+    const token = String(value || '');
+    return /^[A-Za-z0-9:_-]{12,96}$/.test(token) ? token : '';
+  }
+
   // ---- 共修广场（固定对象）：掷轮计数 · 及第局录 · 公报流 ----
   plazaInit() {
     if (this.plazaReady) return;
@@ -375,7 +379,6 @@ export class RoomDO {
       name: this.safeName(s?.name) || '同修',
       color: String(s?.color || '').slice(0, 8),
       seat: Math.max(0, Math.min(ROOM_MAX - 1, Math.floor(Number(s?.seat) || 0))),
-      dir: SEAT_DIR.includes(s?.dir) ? s.dir : '',
       host: !!s?.host,
       n: Math.max(0, Math.min(9999, Math.floor(Number(s?.n) || 0))),
       done: !!s?.done,
@@ -741,15 +744,15 @@ export class RoomDO {
     return ids;
   }
 
-  // 珠色跟人不跟座：座次会因东位递补而变，珠色一路不变，免得 3D 珠中途换色认不出人
+  // 珠色跟人不跟座：房主递补时珠色一路不变，免得 3D 珠中途换色认不出人
   freeColor() {
     const used = new Set(Object.values(this.players).map(q => q.color));
     return PLAYER_COLORS.find(c => !used.has(c)) || PLAYER_COLORS[0];
   }
 
-  // 东位递补：东位一空，在座者中座次最小者补上，房主之位随之继承。
+  // 房主递补：首位一空，在座者中座次最小者补为房主。
   // 不补的话，房主一走就没人能撤密码——那间室会一直锁着，谁也进不去、谁也解不开。
-  promoteEast() {
+  promoteHost() {
     const all = Object.values(this.players);
     if (!all.length || all.some(q => q.seat === 0)) return false;
     const next = all.slice().sort((a, b) => a.seat - b.seat)[0];
@@ -769,7 +772,7 @@ export class RoomDO {
       if (offGone) { delete this.players[q.id]; swept = true; }
     }
     if (swept) {
-      this.promoteEast();
+      this.promoteHost();
       this.meta.order = this.meta.order.filter((id) => this.players[id]);
       if (currentId && this.meta.order.includes(currentId)) this.meta.turnIdx = this.meta.order.indexOf(currentId);
       else if (this.meta.order.length) this.meta.turnIdx %= this.meta.order.length;
@@ -787,7 +790,6 @@ export class RoomDO {
         name: p.name,
         color: p.color,
         seat: p.seat,
-        dir: SEAT_DIR[p.seat] || '',
         host: p.seat === 0,
         online: live.has(p.id),
         ready: !!p.ready,
@@ -806,7 +808,7 @@ export class RoomDO {
     const code = this.meta && this.meta.code;
     if (!isTableCode(code)) return;
     const seats = this.roster(exceptWs).map(p => ({
-      name: p.name, color: p.color, seat: p.seat, dir: p.dir, host: p.host,
+      name: p.name, color: p.color, seat: p.seat, host: p.host,
       n: p.n, done: !!p.done, online: !!p.online, ready: !!p.ready,
       spectator: !!p.spectator, roomStatus: this.meta.status,
     }));
@@ -910,9 +912,14 @@ export class RoomDO {
 
     switch (msg.type) {
       case 'join': {
-        // 只有持原 playerId 才算重连；同名不再接管旧座，避免陌生人冒名覆盖棋况。
+        // playerId 用于断线重连；clientToken 防同一浏览器重复点击生成多个“自己”。
+        // 同名仍不作为身份依据，避免陌生人冒名覆盖棋况。
         const name = this.safeName(msg.name) || '同修';
+        const clientToken = this.safeClientToken(msg.clientToken);
         let p = msg.playerId ? this.players[msg.playerId] : null;
+        if (!p && clientToken) {
+          p = Object.values(this.players).find((player) => player.clientToken === clientToken) || null;
+        }
         if (!p) {
           this.sweepSeats();
           if (Object.keys(this.players).length >= ROOM_MAX) {
@@ -945,6 +952,7 @@ export class RoomDO {
             id: crypto.randomUUID(),
             name, seat,
             color: this.freeColor(),
+            clientToken,
             ready: false,
             spectator: this.meta.status === 'playing',
             away: false,
@@ -954,6 +962,7 @@ export class RoomDO {
           this.players[p.id] = p;
         }
         p.name = name;
+        if (clientToken) p.clientToken = clientToken;
         p.away = false;
         p.skips = 0;
         p.seenAt = Date.now();
@@ -966,7 +975,6 @@ export class RoomDO {
           playerId: p.id,
           seat: p.seat,
           color: p.color,
-          dir: SEAT_DIR[p.seat] || '',
           host: p.seat === 0,
         }));
         ws.send(JSON.stringify(this.syncMsg(true)));    // 入座/重连者：名单 + 历史聊天
@@ -976,7 +984,7 @@ export class RoomDO {
       }
 
       case 'lock': {
-        // 设密码／撤密码：只有东位者（房主）可设。密码由用户自定四位数字；
+        // 设密码／撤密码：只有房主可设。密码由用户自定四位数字；
         // 库中只留加盐哈希（盐＝房号，同一密码在不同室哈希不同），比对亦在服务端。
         const me = this.players[att.playerId];
         if (!me || me.seat !== 0) return;
@@ -1034,7 +1042,7 @@ export class RoomDO {
       case 'start_match': {
         const me = this.players[att.playerId];
         if (!me || me.seat !== 0) {
-          this.commandError(ws, 'host_only', '由东位同修开局', msg.requestId);
+          this.commandError(ws, 'host_only', '由房主开始本局', msg.requestId);
           return;
         }
         if (this.meta.status === 'playing') {
@@ -1197,7 +1205,7 @@ export class RoomDO {
       this.meta = this.freshRoomMeta(keep);
       this.chat = [];
     } else {
-      this.promoteEast();
+      this.promoteHost();
       if (this.meta.status === 'playing') {
         if (this.meta.order.length < 2) {
           await this.finishMatch('not_enough_players');
@@ -1213,7 +1221,12 @@ export class RoomDO {
     }
     this.bumpRevision();
     await this.save();
-    try { ws.close(1000, 'left'); } catch (e) { /* 已断则忽略 */ }
+    // 同一浏览器若曾因旧版并发入座留下多条连接，离开时一并关闭，避免幽灵连接。
+    for (const socket of this.state.getWebSockets()) {
+      const attachment = socket.deserializeAttachment() || {};
+      if (attachment.playerId !== playerId) continue;
+      try { socket.close(1000, 'left'); } catch (e) { /* 已断则忽略 */ }
+    }
     this.broadcast(this.syncMsg());
     this.state.waitUntil(this.plazaReport());
   }
@@ -1234,7 +1247,7 @@ export class RoomDO {
         removed = true;
       }
     }
-    if (removed) this.promoteEast();
+    if (removed) this.promoteHost();
 
     if (!Object.keys(this.players).length) {
       await this.state.storage.deleteAll();

@@ -183,9 +183,39 @@ try {
   const tableC = await openTables.nth(openCount - 1).getAttribute('data-code');
 
   console.log('\n【准备室与共同开局】');
-  await page.locator(`.pzT[data-code="${tableA}"]`).evaluate((button) => button.click());
-  await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
+  await page.locator(`.pzT[data-code="${tableA}"]`).evaluate((button) => {
+    for (let index = 0; index < 6; index++) button.click();
+  });
+  try {
+    await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
+  } catch (error) {
+    const joinState = await page.evaluate(() => ({
+      toast: document.querySelector('#toast')?.textContent || '',
+      plazaBusy: document.querySelector('.pzPanel')?.getAttribute('aria-busy') || '',
+      quickDisabled: !!document.querySelector('#pzQuick')?.disabled,
+      lease: localStorage.getItem('sm10.net.active.v1'),
+      savedRoom: localStorage.getItem('sm10.net.v2'),
+    }));
+    console.error(`  入座诊断：${JSON.stringify(joinState)}`);
+    throw error;
+  }
+  await page.waitForTimeout(350);
+  ok(await page.locator('#netRoster .netP').count() === 1, '重复点击入座仍只生成一个自己');
+  ok((await page.locator('#netRoster').innerText()).includes('房主')
+    && !/[东南西北]·主/.test(await page.locator('#netRoster').innerText()), '房间只显示房主，不再显示方位座次');
   ok((await page.locator('#netRoomState').innerText()).includes('准备室'), '入座后进入准备室而非直接开局');
+  ok((await page.locator('#netRoomState').innerText()).includes('2 人即可开局'), '房内明确两人即可开局，不要求四人到齐');
+  await page.setViewportSize({ width: 375, height: 667 });
+  ok(await page.locator('#netReadyBtn').isVisible()
+    && await page.locator('#netStartBtn').isVisible()
+    && await page.locator('#netLeaveBtn').isVisible(), 'iPhone 小屏准备室首屏看得到准备、开始和离开');
+  const waitingPanelBox = await page.locator('#netPanel').boundingBox();
+  const waitingFooterBox = await page.locator('#netBtns').boundingBox();
+  ok(!!waitingPanelBox && !!waitingFooterBox
+    && waitingPanelBox.y >= 0 && waitingPanelBox.y + waitingPanelBox.height <= 668
+    && waitingFooterBox.y + waitingFooterBox.height <= 668, '小屏准备室工具栏没有被游戏底栏裁掉');
+  await capture(page, '01a-waiting-room-mobile');
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   const peerB = await openPeer(tableA, '乙同修'); peers.push(peerB);
   const peerC = await openPeer(tableA, '丙同修'); peers.push(peerC);
@@ -231,10 +261,13 @@ try {
   ok(!await page.locator('#sfpRoll').evaluate((element) => element.classList.contains('hold')), '点聊天外部立即收起且不误触掷轮');
 
   await page.locator('#sfpChat').click({ force: true });
-  await page.setViewportSize({ width: 390, height: 844 });
+  await page.setViewportSize({ width: 375, height: 667 });
   const mobileBox = await page.locator('#netPanel').boundingBox();
-  ok(!!mobileBox && mobileBox.x >= 0 && mobileBox.y >= 0 && mobileBox.x + mobileBox.width <= 391
-    && mobileBox.y + mobileBox.height <= 845, '手机尺寸下面板完整留在可视区');
+  ok(!!mobileBox && mobileBox.x >= 0 && mobileBox.y >= 0 && mobileBox.x + mobileBox.width <= 376
+    && mobileBox.y + mobileBox.height <= 668, 'iPhone 小屏下面板完整留在可视区');
+  ok(await page.locator('#netLeaveBtn').isVisible()
+    && await page.locator('#netInput').isVisible()
+    && await page.locator('#netBtns').isVisible(), '小屏行谱中始终看得到离开、聊天和房间工具');
   const mobileButtons = page.locator('#netBtns button');
   const buttonCount = await mobileButtons.count();
   let touchTargetsOk = true;
@@ -242,7 +275,14 @@ try {
     const box = await mobileButtons.nth(index).boundingBox();
     if (!box || box.height < 43) touchTargetsOk = false;
   }
-  ok(touchTargetsOk, '手机底部操作按钮均达到约44px触控高度');
+  const leaveBox = await page.locator('#netLeaveBtn').boundingBox();
+  const roundButtons = page.locator('#netRoundActions button:visible');
+  const roundButtonCount = await roundButtons.count();
+  for (let index = 0; index < roundButtonCount; index++) {
+    const box = await roundButtons.nth(index).boundingBox();
+    if (!box || box.height < 43) touchTargetsOk = false;
+  }
+  ok(touchTargetsOk && leaveBox?.height >= 43, '手机关键操作均达到约44px触控高度');
   await capture(page, '03-chat-mobile');
   await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -260,13 +300,13 @@ try {
   await wait(300);
 
   console.log('\n【刷新重连、房主递补与人数不足】');
-  const host = await openPeer(tableB, '原东位'); peers.push(host);
+  const host = await openPeer(tableB, '原房主'); peers.push(host);
   await page.locator(`.pzT[data-code="${tableB}"]`).evaluate((button) => button.click());
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
   const tail = await openPeer(tableB, '后位同修'); peers.push(tail);
   await page.waitForFunction(() => document.querySelectorAll('#netRoster .netP').length === 3);
-  ok((await page.locator('#netRoster').innerText()).includes('南')
-    && (await page.locator('#netRoster').innerText()).includes('甲同修'), '先有房主时浏览器玩家正确落在南位');
+  ok(!(await page.locator('#netRoster').innerText()).includes('甲同修（我）房主')
+    && (await page.locator('#netRoster').innerText()).includes('甲同修'), '后进入者显示为普通成员，不暴露方位座次');
 
   await page.locator('#netReadyBtn').evaluate((button) => button.click());
   host.send({ type: 'ready_set', ready: true, requestId: 'ui:host-ready' });
@@ -285,7 +325,7 @@ try {
   host.leave();
   await page.waitForFunction(() => {
     const roster = document.querySelector('#netRoster')?.textContent || '';
-    return roster.includes('东·主') && roster.includes('甲同修');
+    return roster.includes('房主') && roster.includes('甲同修');
   });
   await page.locator('#netKeyBtn').waitFor({ state: 'visible', timeout: 3000 });
   ok(true, '原房主离席后下一位前台立即获得房主操作');
@@ -304,7 +344,7 @@ try {
   ok(true, '结算后离席无需二次确认并返回大厅');
 
   console.log('\n【两人局主动离席】');
-  const twoPlayerHost = await openPeer(tableC, '两人局东位'); peers.push(twoPlayerHost);
+  const twoPlayerHost = await openPeer(tableC, '两人局房主'); peers.push(twoPlayerHost);
   await page.locator(`.pzT[data-code="${tableC}"]`).evaluate((button) => button.click());
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
   await page.locator('#netReadyBtn').evaluate((button) => button.click());

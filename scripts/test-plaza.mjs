@@ -116,7 +116,7 @@ const b = connect(TABLE); await b.opened;
 b.send({ type: 'join', protocolVersion: 2, name: '乙同修' });
 const jb = await b.next(m => m.type === 'joined');
 await b.next(m => m.type === 'sync');
-ok(jb.seat === 1, '第二位落南座');
+ok(jb.seat === 1, '第二位成为普通成员');
 
 await new Promise(r => setTimeout(r, 250));
 const pT = await plaza();
@@ -127,7 +127,7 @@ b.send({ type: 'ready_set', ready: true, requestId: 'pb-ready' });
 await a.next(m => m.type === 'sync' && m.players.filter(q => q.ready).length === 2);
 a.send({ type: 'start_match', requestId: 'pa-start' });
 const ms = await a.next(m => m.type === 'match_started');
-ok(ms.room.status === 'playing' && ms.room.order.length === 2, '准备后由东位共同开局');
+ok(ms.room.status === 'playing' && ms.room.order.length === 2, '两位准备后由房主共同开局');
 await new Promise(r => setTimeout(r, 250));
 const pP = await plaza();
 ok(table12(pP).state === 'playing', '服务器房态开局后广场显示行谱中');
