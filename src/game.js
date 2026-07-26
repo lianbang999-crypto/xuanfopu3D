@@ -33,6 +33,8 @@ const save = {
   seenTut: false,
   sfp: null                                                   ,
   sfpWins: 0,
+  // 见闻录（跨局累计）：只记曾见位与可数行程，不作修证高下判断
+  lg: { seen: [], tos: 0, evil: 0, back: 0, up: 0, games: 0 },
   sfpFocus: true,
   sfpHelp: false,
   askq: { d: '', n: 0 }, // 问义日额（每日 100 次）
@@ -52,6 +54,14 @@ function loadSave() {
     save.seenTut = !!d.seenTut;
     if (d.sfp && d.sfp.pos) save.sfp = { pos: String(d.sfp.pos), n: Number(d.sfp.n) || 0, hist: Array.isArray(d.sfp.hist) ? d.sfp.hist : [], seenD: Array.isArray(d.sfp.seenD) ? d.sfp.seenD : [], trail: Array.isArray(d.sfp.trail) ? d.sfp.trail : [] };
     if (typeof d.sfpWins === 'number') save.sfpWins = d.sfpWins;
+    if (d.lg && typeof d.lg === 'object') {
+      save.lg.seen = Array.isArray(d.lg.seen) ? d.lg.seen.filter(x => typeof x === 'string' && SFP_BY[x]) : [];
+      save.lg.tos = Number(d.lg.tos) || 0;
+      save.lg.evil = Number(d.lg.evil) || 0;
+      save.lg.back = Number(d.lg.back) || 0;
+      save.lg.up = Number(d.lg.up) || 0;
+      save.lg.games = Number(d.lg.games) || 0;
+    }
     if (typeof d.sfpFocus === 'boolean') save.sfpFocus = d.sfpFocus;
     save.sfpHelp = !!d.sfpHelp;
     if (d.askq && typeof d.askq.d === 'string') save.askq = { d: d.askq.d, n: Number(d.askq.n) || 0 };
@@ -2170,6 +2180,30 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .lbJoin label{font-size:var(--fs-sm);color:#dccf9f}
 .lbJoin input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(216,197,139,.3);border-radius:9px;color:#efe9d8;padding:12px;font-size:16px;outline:none}
 .lbJoin input:focus{border-color:rgba(232,199,102,.75);box-shadow:0 0 0 2px rgba(215,170,69,.12)}
+/* V92：缘起/玩法由文字墙改成四段原意 + 三步操作；见闻录沿用同一极简排版。 */
+.igLead{font-size:15px;color:#f7eed6;line-height:1.9;margin:2px 0 4px}.igLead b{color:#f4e6b8}
+.igMeta{font-size:11.5px;color:#9d9170;letter-spacing:1px;margin-bottom:10px}
+.igOr{padding:9px 0;border-top:1px solid rgba(215,170,69,.16)}.igOr:first-of-type{border-top:0}
+.igOr b.k{display:inline-block;font-size:11px;letter-spacing:3px;color:#e8c766;border:1px solid rgba(215,170,69,.4);border-radius:5px;padding:1px 7px;margin-right:8px;vertical-align:2px}
+.igOr>span{font-size:13.8px;color:#e5d8b2;line-height:1.8}
+.igStep{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid rgba(215,170,69,.16)}
+.igStep .n{flex:0 0 22px;height:22px;border-radius:50%;border:1px solid rgba(215,170,69,.5);color:#e8c766;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.igStep .tx{flex:1;font-size:13.8px;color:#e5d8b2;line-height:1.75}.igStep .tx b{color:#f4e6b8}
+.igStep .tx i{font-style:normal;display:block;font-size:11.5px;color:#9d9170;margin-top:2px}
+.igTwo{display:flex;gap:8px;margin-top:10px}.igTwo>div{flex:1;padding:9px 10px;border-radius:10px;background:rgba(239,224,180,.05);border:1px solid rgba(215,170,69,.18)}
+.igTwo b{display:block;font-size:13px;letter-spacing:2px;color:#e8c766;margin-bottom:3px}.igTwo span{font-size:12.2px;color:#cdbf95;line-height:1.7}
+.igBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.igBtns .wide{grid-column:1/-1}
+.lgTop{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;padding:2px 0 10px}.lgTop b{font-size:30px;color:#f4e6b8;line-height:1}
+.lgTop span{font-size:13px;color:#d7aa45;letter-spacing:1px}.lgTop i{flex:1 0 100%;font-style:normal;font-size:11.5px;color:#9d9170;line-height:1.6;margin-top:4px}
+.lgRow{display:flex;align-items:center;gap:7px;width:100%;padding:5px 0;border:0;border-top:1px solid rgba(215,170,69,.12);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.lgRow.z{opacity:.45}
+.lgRow .d{flex:0 0 24px;font-size:11px;color:#d7aa45;text-align:center}.lgRow .t{flex:1;font-size:12.8px;color:#e5d8b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgRow .bar{flex:0 0 58px;height:4px;border-radius:2px;background:rgba(239,224,180,.12);overflow:hidden}.lgRow .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a6a2a,#e8c766)}
+.lgRow .n{flex:0 0 46px;text-align:right;font-size:11px;color:#9d9170}.lgRow .go{flex:0 0 10px;text-align:right;color:#d7aa45;font-size:12px}
+.lgPs{display:flex;flex-wrap:wrap;gap:4px;margin-top:9px}.lgPs .lgP{font-size:11.5px;padding:2px 7px;border-radius:8px;border:1px solid rgba(215,170,69,.16);color:#8d8368;background:rgba(239,224,180,.03)}
+.lgPs .lgP.on{color:#f0dfa8;border-color:rgba(215,170,69,.5);background:rgba(215,170,69,.12)}
+.lgNums{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}.lgNums>div{padding:7px 4px;border-radius:9px;background:rgba(239,224,180,.05);border:1px solid rgba(215,170,69,.16);text-align:center}
+.lgNums b{display:block;font-size:17px;color:#f4e6b8;line-height:1.3}.lgNums span{font-size:11px;color:#9d9170;letter-spacing:1px}
+@media(max-width:360px){.igTwo{flex-direction:column}}@media(max-height:470px){.lgTop b{font-size:24px}.lgRow{padding:4px 0}.igLead{font-size:13.8px;line-height:1.7}.igOr{padding:7px 0}.igOr>span{font-size:13px;line-height:1.7}}
 #backBtn{position:static;display:none;font-size:var(--fs-sm);padding:5px 12px;min-height:0;letter-spacing:2px;border-radius:16px;flex:none}
 #backBtn.show{display:block}
 #sfpBar{box-sizing:border-box;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(540px,96vw);padding:9px 12px;display:none;text-align:center} /* v327 border-box：旧 content-box 宽+padding 在竖屏撑出视口 */
@@ -2396,27 +2430,38 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .nlabel.drl.cur{font-size:var(--fs-md);color:#ffe9a8;opacity:1;text-shadow:0 0 12px rgba(215,170,69,.85),0 1px 4px #000}
 `;
 
-/* ── 谱务 · 极简 ──
-   一行状态 + 三组文字行 + 一个主钮。无图标无卡框：图标与副题在小屏上把七项挤成一团，
-   反而看不清；文字行一行一事，发丝分隔线分组，扫一眼就够。 */
+/* ── 行谱菜单 · 极简 ──
+   当前行处先交代上下文；高频入口成两列大触点，低频设置收成细行，危险操作独立沉底。 */
 css.textContent += `
-.smPanel{width:min(380px,92vw)}  /* 纯文字行不撑宽度，给个下限免得桌面上缩成细条 */
-.smPanel .body{display:grid;gap:0;align-content:start}  /* 不拉伸：否则 grid 轨道分掉余高，行高参差 */
-.smStat{font-size:var(--fs-sm);color:#9d9170;letter-spacing:1px;line-height:1.6;
-  padding:0 2px 11px;border-bottom:1px solid rgba(216,197,139,.16)}
-.smList{display:grid;align-content:start;padding:3px 0;line-height:1.35;border-bottom:1px solid rgba(216,197,139,.1)}
-.smList:last-of-type{border-bottom:none}
+.smPanel{width:min(500px,92vw)}
+.smPanel>h2{margin-bottom:12px;letter-spacing:5px}
+.smPanel .body{display:grid;gap:14px;align-content:start}
+.smStat{display:grid;gap:4px;padding:14px 15px;border:1px solid rgba(216,197,139,.14);border-radius:12px;
+  background:rgba(255,255,255,.025);line-height:1.5}
+.smStat span,.smLabel{color:#817967;font-size:var(--fs-xs);letter-spacing:2px}
+.smStat b{color:#e7d9b3;font-size:var(--fs-md);font-weight:500;letter-spacing:2px}
+.smStat i{font-style:normal;color:#9d9170;font-size:var(--fs-sm);letter-spacing:1px}
+.smSection{display:grid;gap:7px}
+.smGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.smList{display:grid;align-content:start;line-height:1.35;border-top:1px solid rgba(216,197,139,.1)}
 .smRow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;line-height:1.35;
-  background:none;border:none;border-radius:9px;padding:11px 10px;cursor:pointer;
-  font-family:inherit;color:#e8e2d0;min-height:46px;box-sizing:border-box;transition:background .16s}
-.smRow:hover,.smRow:active{background:rgba(232,199,102,.1)}
+  border:1px solid transparent;border-radius:10px;padding:11px 12px;cursor:pointer;
+  font-family:inherit;color:#e8e2d0;min-height:46px;box-sizing:border-box;transition:background .16s,border-color .16s}
+.smGrid .smRow{display:grid;align-content:center;gap:5px;min-height:78px;background:rgba(255,255,255,.03);
+  border-color:rgba(216,197,139,.14)}
+.smGrid .smRow:last-child:nth-child(odd){grid-column:1/-1;min-height:64px}
+.smList .smRow{border-radius:0;border-bottom-color:rgba(216,197,139,.1);background:none}
+.smRow:hover,.smRow:active{background:rgba(232,199,102,.09);border-color:rgba(232,199,102,.28)}
 .smRow b{font-size:var(--fs-md);font-weight:600;letter-spacing:2px;color:#f0dfa8;flex:none}
-.smRow i{font-style:normal;font-size:var(--fs-xs);color:#9d9170;letter-spacing:1px;
-  flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.smRow.warn b{color:#dccf9f}
+.smRow i{font-style:normal;font-size:var(--fs-xs);color:#8f8774;letter-spacing:1px;
+  flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.smList .smRow i{text-align:right}
+.smDanger{padding-top:2px}
+.smRow.warn{min-height:42px;background:none;border-color:transparent}
+.smRow.warn b{color:#b9ae93;font-weight:500}
 .smRow.arm{background:rgba(217,136,115,.16)}
 .smRow.arm b,.smRow.arm i{color:#f08f7a}
-.smPanel .gbtn.primary{width:100%;margin-top:14px;padding:13px 0;letter-spacing:3px}
+.smPanel .gbtn.primary{width:100%;padding:13px 0;letter-spacing:3px}
 /* 抓手条：手机底部抽屉态才现 */
 .panel .grab{display:none}
 @media (max-width:520px){
@@ -2429,6 +2474,7 @@ css.textContent += `
   .overlay.ovsheet .panel .grab{display:block;height:18px;position:relative;margin:-6px 0 2px}
   .overlay.ovsheet .panel .grab::after{content:'';position:absolute;left:50%;top:7px;width:42px;height:4px;
     border-radius:2px;background:rgba(216,197,139,.45);transform:translateX(-50%)}
+  .smPanel .body{gap:11px}.smGrid .smRow{min-height:70px;padding:10px}
 }
 `;
 css.textContent += Plaza.PLAZA_CSS + Plaza.PEER_WIN_CSS; // 共修大厅与同修及第横幅样式随主样式一并注入
@@ -2639,7 +2685,7 @@ function renderCard() {
       ph += (d.figures         ).map((f     ) => `<div class="citeItem"><div class="src">${esc(f.name)}</div>
         <div class="txt">${esc(f.note)}</div></div>`).join('');
     }
-    ph += `<div class="cNote" style="margin-top:6px">未标「摘录」者均为义理概述；寿量身量诸说以《俱舍》系为主，异说不强行统一。</div>`;
+    ph += `<div class="cNote" style="margin-top:6px">出处带「义」字者为义理概述（本图撮述），不带者为逐字原文；寿量身量诸说以《俱舍》系为主，异说不强行统一。</div>`;
     secProf = sec('prof', '界相 · 众相', ph);
   }
   // 异说
@@ -2927,23 +2973,21 @@ function openTitle() {
   const p = el(`<div class="panel" style="text-align:center;max-width:min(400px,92vw)">
     <div class="tkey"><img src="assets/title-cg.jpg" alt="">
       <div style="position:absolute;left:0;right:0;bottom:12px;font-size:36px;letter-spacing:16px;text-indent:16px;color:#f4e6b8;text-shadow:0 2px 12px rgba(0,0,0,.9),0 0 30px rgba(215,170,69,.35)">选佛谱</div></div>
-    <div style="font-size:var(--fs-sm);letter-spacing:2px;color:#9d9170;margin:0 0 16px">掷「南无阿弥陀佛」二轮 · 行十法界 · 直至选佛及第</div>
-    <button class="gbtn primary" id="tiSfp" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 10px"><b style="letter-spacing:4px">${act ? '回到局中' : (hasSfp ? '续掷上局' : '进入共修大厅')}</b>
+    <div style="font-size:var(--fs-sm);letter-spacing:2px;color:#9d9170;margin:0 0 16px">一人或与莲友共修 · 行十法界 · 直至选佛及第</div>
+    <button class="gbtn primary" id="tiSfp" style="width:100%;display:flex;flex-direction:column;align-items:center;gap:2px;padding:12px 10px"><b style="letter-spacing:4px">${act ? '回到局中' : (hasSfp ? '续掷上局' : '开始行谱')}</b>
       ${cur ? `<span style="font-size:var(--fs-xs);color:#c8b988;letter-spacing:1px">现居「${esc(cur.name)}」 · 第 ${act ? sfpS.n : save.sfp.n} 掷</span>` : ''}</button>
     <div style="display:flex;justify-content:center;gap:22px;margin-top:13px;flex-wrap:wrap">
-      ${act || hasSfp ? '<span class="tlink" id="tiNew">新开一局</span>' : '<span class="tlink" id="tiSolo">一人行谱</span>'}
+      ${act || hasSfp ? '<span class="tlink" id="tiNew">新开一局</span>' : ''}
       <span class="tlink" id="tiHow">玩法</span>
       ${Net.active ? `<span class="tlink" id="tiNet">联机 · ${esc(Net.code)}</span>`
         : (act || hasSfp ? '<span class="tlink" id="tiHall">共修大厅</span>' : '')}
       <span class="tlink" id="tiShare">分享</span></div></div>`);
-  // 主钮三态：局中→回局；有存局→直接续掷（不经大厅，回头客一键回到行处）；无局→入大厅
+  // 主钮三态：局中→回局；有存局→直接续掷；无局→全屏大厅选择一人或与人共修。
   (p.querySelector('#tiSfp')               ).addEventListener('click', () => {
     if (act) { closeOverlay(); return; }
     if (hasSfp) { closeOverlay(); startSfp(true); return; }
     openPlaza();
   });
-  const tsolo = p.querySelector('#tiSolo');           // 无存局时的直通：想直接掷的不必绕大厅
-  if (tsolo) tsolo.addEventListener('click', () => { closeOverlay(); startSfp(false); });
   const thall = p.querySelector('#tiHall');
   if (thall) thall.addEventListener('click', () => openPlaza());
   const tn = p.querySelector('#tiNew');
@@ -5748,7 +5792,7 @@ function wheelFitScale() {
   return s;
 }
 let wheelLat = 0.9;
-// 置轮掌心：二轮竖立掌上微息，默念蓄念
+// 置轮掌心：二轮竖立掌上微息，至心称念
 let palmY = -1.45;
 function startWheelPalm() {
   playVar('wood_light', 0.3, 1.12); // 置轮入掌：木质轻叩
@@ -6184,6 +6228,7 @@ function sfpGoto(id        , msg        , dir         , combo         ) {
     }, 380);
   };
   sfpS.pos = id;
+  lgMark(id, dir);
   sfpTrailPush(id); // 足迹星座：记实际行迹（落定时才重建可见层）
   if (save.sfpFocus) setSfpFocus(p.door, prev ? prev.door : 0); // 跨门行棋：新旧两门短暂同显
   const seq = ++sfpMoveSeq;
@@ -6379,7 +6424,7 @@ function sfpQuiet(on         ) { // 掷轮静场：暗纱罩景、星名隐去�
   sfpVeil.classList.toggle('on', on);
   labelLayer.style.opacity = on ? '0.08' : '';
 }
-// 依「置輪掌心，仰手旁擲」：按住→置輪掌心默念；松手→旁掷
+// 依「置輪掌心，仰手旁擲」：按住→置輪掌心至心称念；松手→旁掷
 function sfpPalmDown() {
   if (!sfpS.active || sfpS.rolling || sfpTransit) return;
   if (Net.active && !Net.canToss()) {
@@ -6409,7 +6454,7 @@ function sfpPalmDown() {
   sfpQuiet(true);
   // 置轮掌心：六字静静呈现，不计时、不出声——念佛节奏由用户自己把握，何时松手都可
   const chantEl = sfpDice.querySelector('#sfpChant')               ;
-  chantEl.innerHTML = `<em>${zh('置轮掌心 · 随轮默念')}</em>` +
+  chantEl.innerHTML = `<em>${zh('置轮掌心 · 至心称念')}</em>` +
     '南无阿弥陀佛'.split('').map(c => `<b>${zh(c)}</b>`).join('') +
     `<i id="chantGo">${zh('念毕松手旁掷')}</i>`;
   startWheelPalm();
@@ -6425,6 +6470,8 @@ function sfpPrepareTossRelease() {
 function sfpAnimateCommittedToss(combo        , authoritativeN                ) {
   if (Number.isFinite(authoritativeN)) sfpS.n = Number(authoritativeN);
   else sfpS.n++;
+  save.lg.tos++;
+  persist();
   void Plaza.tick(1); // 只计服务器已承诺或单机已落定的真实一掷
   if (sfpBonusLeft > 0) sfpBonusLeft--;
   const ia = SFP_ORDER.indexOf(combo[0]), ib = SFP_ORDER.indexOf(combo[1]);
@@ -6466,37 +6513,44 @@ window.addEventListener('pointercancel', sfpTossUp);
 // 极简行动栏：左「⋯」谱务 · 中掷轮 · 右「问」问义；谱注走点位名，观星入口已撤
 // v316 手机改底部抽屉（拇指区）：现居卡可点开位卡，四事大按钮，下滑即关
 function openSfpMore() {
-  // 谱务 · 极简（单菜单原则：全站唯一菜单；观全图在顶栏题字，归位在场内返回钮）
-  // 版式：一行状态 + 一列文字行 + 一个主钮。不设图标、不设卡片框——
-  // 图标与副题在小屏上把七项挤成一团，反而看不清；文字行一行一事，扫一眼就够。
+  // 单菜单原则：全站只有此处承载次级功能。高频入口给大触点，低频入口与危险操作分层。
   const row = (id, t, note = '', cls = '') =>
     `<button class="smRow ${cls}" id="${id}"><b>${t}</b>${note ? `<i>${note}</i>` : ''}</button>`;
   const cur = sfpS.pos ? SFP_BY[sfpS.pos] : null;
   const hasSaved = !sfpS.active && !!(save.sfp && SFP_BY[save.sfp.pos]);
-  const stat = cur
-    ? `第 ${sfpS.n} 掷 · 第${SFP_CN[cur.door - 1]}门「${SFP_DOOR_BY[cur.door].title}」 · 现居「${esc(cur.name)}」`
-    : (hasSaved ? `行处已存 · 现居「${esc(SFP_BY[save.sfp.pos].name)}」` : '未定位——先掷發始因地');
-  const p = el(`<div class="panel smPanel"><div class="grab"></div><h2>谱务</h2><div class="body">
-    <div class="smStat">${stat}</div>
-    <div class="smList">
+  const currentName = cur ? `现居「${esc(cur.name)}」`
+    : (hasSaved ? `行处已存 · 现居「${esc(SFP_BY[save.sfp.pos].name)}」` : '尚未起行');
+  const currentMeta = cur
+    ? `第 ${sfpS.n} 掷 · 第${SFP_CN[cur.door - 1]}门「${SFP_DOOR_BY[cur.door].title}」`
+    : (hasSaved ? '可从题屏继续上局' : '先掷發始因地');
+  const p = el(`<div class="panel smPanel"><div class="grab"></div><h2>行谱菜单</h2><div class="body">
+    <div class="smStat"><span>当前行处</span><b>${currentName}</b><i>${currentMeta}</i></div>
+    <div class="smSection">
+      <div class="smLabel">常用</div>
+      <div class="smGrid">
       ${row('smMap', '全谱', '十五门二百二十位')}
       ${row('smTrail', '行迹', '本局升沉记录')}
-      ${row('smCanon', '原文', '六卷谱文逐字')}
-    </div>
-    <div class="smList">
       ${Net.active
-        ? row('smNet', '同修在此', `${Net.locked ? '🔒 ' : ''}共修室 ${esc(Net.code)}`) + row('smHall', '共修大厅', '换一室 · 看动态')
-        : row('smNet', '共修大厅', '择席同座')}
+        ? row('smNet', '同修面板', `${Net.locked ? '🔒 ' : ''}共修室 · 名单与聊天`)
+        : row('smNet', '共修大厅', '一人或与人共修')}
+      ${Net.active ? row('smHall', '共修大厅', '看动态 · 换一室') : ''}
+      </div>
     </div>
-    <div class="smList">
+    <div class="smSection">
+      <div class="smLabel">更多</div>
+      <div class="smList">
+      ${row('smLg', '见闻录', '历局所见次第与行程账')}
+      ${row('smCanon', '原文', '六卷谱文逐字')}
       ${row('smSet', '设置', '声音 · 简繁 · 卡片')}
       ${Net.active ? row('smNetRound', '共同再局', '须待本局结算后共同准备') : row('smNew', '重开一局', '从头掷', 'warn')}
+      </div>
     </div>
     <button class="gbtn primary" id="smBack">回到局中</button></div></div>`);
   const on = (id, fn) => { const b = p.querySelector('#' + id); if (b) b.addEventListener('click', fn); };
   on('smBack', closeOverlay);
   on('smMap', () => { closeOverlay(); openSfpMap(); });
   on('smTrail', () => { closeOverlay(); openSfpTrail(); });
+  on('smLg', () => { closeOverlay(); openLogbook(); });
   on('smCanon', () => { closeOverlay(); openCanon(cur ? cur.door : 1, cur ? cur.name : undefined); });
   on('smNet', () => { closeOverlay(); if (Net.active) Net.openPanel(); else openPlaza(); });
   on('smHall', () => { closeOverlay(); openPlaza(); });
@@ -6603,6 +6657,95 @@ function openSfpMap() {
   openOverlay(p);
 }
 
+// V92 见闻录：跨局只记可数事件（曾见位／总掷／入恶趣／升沉），不作任何判语。
+function lgMark(id        , dir         ) {
+  const lg = save.lg;
+  const p = SFP_BY[id];
+  if (!p) return;
+  if (!lg.seen.includes(id)) lg.seen.push(id);
+  if (dir === 'down') lg.back++;
+  if (dir === 'up' || dir === 'pure') lg.up++;
+  if (p.door === 3) lg.evil++;
+  persist();
+}
+function lgSeenByDoor() {
+  const out                         = {};
+  for (const id of save.lg.seen) {
+    const p = SFP_BY[id];
+    if (p) out[p.door] = (out[p.door] || 0) + 1;
+  }
+  return out;
+}
+const SFP_DOOR_TOTAL = (() => {
+  const out                         = {};
+  for (const p of (SFP_POS         )) out[p.door] = (out[p.door] || 0) + 1;
+  return out;
+})();
+function openLogbook() {
+  const lg = save.lg;
+  const by = lgSeenByDoor();
+  const total = (SFP_POS         ).length;
+  const rows = (SFP_DOORS         ).map(d => {
+    const n = by[d.no] || 0;
+    const t = SFP_DOOR_TOTAL[d.no] || 0;
+    const pc = t ? Math.round(n / t * 100) : 0;
+    return `<button class="lgRow${n ? '' : ' z'}" data-dn="${d.no}" type="button">
+      <span class="d">${SFP_CN[d.no - 1]}</span><span class="t">${esc(d.title)}</span>
+      <span class="bar"><i style="width:${pc}%"></i></span><span class="n">${n}/${t}</span><span class="go">›</span></button>`;
+  }).join('');
+  const p = el(`<div class="panel"><h2>见闻录 · 历局所见</h2><div class="body">
+    <div class="lgTop"><b>${lg.seen.length}</b><span>/ ${total} 位</span><i>全谱十五门二百二十位；每落一位、每途经一位即记，跨局只增不减</i></div>
+    <div class="lgWrap">${rows}</div>
+    <div class="lgNums">
+      <div><b>${lg.games}</b><span>开局</span></div><div><b>${lg.tos}</b><span>总掷数</span></div>
+      <div><b>${lg.up}</b><span>升</span></div><div><b>${lg.back}</b><span>沉</span></div>
+      <div><b>${lg.evil}</b><span>入恶趣</span></div><div><b>${save.sfpWins || 0}</b><span>及第</span></div>
+    </div>
+    <div class="verse" style="margin-top:10px"><i class="duL">敘</i>能使人即遊戲間。頓知六道往還之疲苦。三乘出要之差別。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div>
+    <div class="cNote">只记掷数、升沉次数和曾见之位；不计先后，不判高下。</div></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="gbtn primary" id="lgGo" style="flex:1 0 100%">${sfpS.active ? '回到局中' : '入选佛场'}</button>
+      <button class="gbtn" id="lgMap" style="flex:1">十五门全图</button>
+      <button class="gbtn" id="lgOk" style="flex:1">关闭</button></div></div>`);
+  (p.querySelector('#lgGo')               ).addEventListener('click', () => {
+    closeOverlay();
+    if (!sfpS.active) openSfpIntro();
+  });
+  (p.querySelector('#lgMap')               ).addEventListener('click', () => { closeOverlay(); openSfpMap(); });
+  (p.querySelector('#lgOk')               ).addEventListener('click', closeOverlay);
+  p.querySelectorAll('.lgRow').forEach(row => row.addEventListener('click', () => {
+    closeOverlay();
+    openDoorBrief(Number((row               ).dataset.dn));
+  }));
+  openOverlay(p);
+}
+function openDoorBrief(dn        ) {
+  const door = SFP_DOOR_BY[dn];
+  if (!door) return;
+  const cn = (SFP_CANON_DOORS       )[dn];
+  const seen = lgSeenByDoor()[dn] || 0;
+  const total = SFP_DOOR_TOTAL[dn] || 0;
+  const plain = (SFP_DOOR_PLAIN       )[dn];
+  const originalIntro = cn && cn.intro && ![1, 2, 15].includes(dn);
+  const names = (SFP_POS         ).filter(x => x.door === dn);
+  const listHtml = names.map(x => `<span class="lgP${save.lg.seen.includes(x.id) ? ' on' : ''}">${esc(x.name)}</span>`).join('');
+  const p = el(`<div class="panel"><h2>第${SFP_CN[dn - 1]}门 · ${esc(door.title)}</h2><div class="body">
+    <div class="cMeta">本门 ${total} 位，已见 ${seen} 位${cn ? ` · 原文见卷第${SFP_CN[cn.juan - 1]}` : ''}</div>
+    ${plain ? `<div class="cPlain" style="margin:6px 0">${glossify(esc(plain))}</div>` : ''}
+    ${originalIntro ? `<div class="verse" style="margin-top:6px"><i class="duL">譜曰</i>${verseHtml(cn.intro)}<span class="cSrc" style="display:block">《選佛譜》卷第${SFP_CN[cn.juan - 1]} · ${esc(door.title)}總說</span></div>`
+      : '<div class="cNote" style="margin-top:6px">本门原谱无总说一篇（谱文直列位次），可入全门谱文逐位读原文。</div>'}
+    <div class="lgPs">${listHtml}</div>
+    <div class="cNote">上列为本门诸位，已见者亮显；见闻录只记曾见。</div></div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="gbtn primary" id="dbCanon" style="flex:1 0 100%">读本门谱文原文</button>
+      <button class="gbtn" id="dbBack" style="flex:1">回见闻录</button>
+      <button class="gbtn" id="dbOk" style="flex:1">关闭</button></div></div>`);
+  (p.querySelector('#dbCanon')               ).addEventListener('click', () => { closeOverlay(); openCanon(dn); });
+  (p.querySelector('#dbBack')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
+  (p.querySelector('#dbOk')               ).addEventListener('click', closeOverlay);
+  openOverlay(p);
+}
+
 // 轮相表法：依原谱卷一「輪相表法第一」原文，不加今解
 const SFP_PLAIN                         = {
   '那': '表見惑（屬見煩惱）', '謨': '表思惑（屬愛煩惱）',
@@ -6621,7 +6764,7 @@ function openSfpHelp() {
     ${h('缘 起 —— 大 师 初 心')}
     <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">蕅益大师见法友耽嗜博弈，思以选佛之图易之；五十五岁单丁行脚至歙浦，十三日成谱。自敘其愿：<b style="color:#f4e6b8">「能使人即遊戲間，頓知六道往還之疲苦，三乘出要之差別，誠為不可思議。」</b>谱中一切升沉去向，「皆本教乘，非出臆見」——这局游戏的每一步，都踏在经论上。</div>
     ${h('轮 相 —— 为 何 恭 敬 对 待 掷 轮')}
-    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75"><b style="color:#d7aa45">谱曰原文：</b>「輪如占察輪相。而作六面。以那謨阿彌陀佛六字。順次右旋。刻於六面。」又问何不用幺二三四五六，答曰：「幺二三四五六。不過世間數目。是無記法。不能生善滅惡。那謨阿彌陀佛六字。乃是萬德洪名。……<b style="color:#f4e6b8">一稱佛名。能滅八十億劫生死重罪。</b>」<br><b style="color:#d7aa45">释义：</b>原谱以佛号六字取代世间数目，使每次掷轮都表持名与善恶升沉之义。<br><b style="color:#d7aa45">本项目操作规则：</b>长按掷轮时默念一句佛号，念毕松手旁掷；请如持名般恭敬对待。</div>
+    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75"><b style="color:#d7aa45">谱曰原文：</b>「輪如占察輪相。而作六面。以那謨阿彌陀佛六字。順次右旋。刻於六面。」又问何不用幺二三四五六，答曰：「幺二三四五六。不過世間數目。是無記法。不能生善滅惡。那謨阿彌陀佛六字。乃是萬德洪名。……<b style="color:#f4e6b8">一稱佛名。能滅八十億劫生死重罪。</b>」<br><b style="color:#d7aa45">释义：</b>原谱以佛号六字取代世间数目，使每次掷轮都表持名与善恶升沉之义。<br><b style="color:#d7aa45">本项目操作规则：</b>长按掷轮时至心称念一句佛号，念毕松手旁掷；请如持名般恭敬对待。</div>
     <div style="margin:8px 0">${row('那', false)}${row('謨', false)}${row('阿', true)}${row('彌', true)}${row('陀', true)}${row('佛', true)}</div>
     ${h('规 则')}
     <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">
@@ -6630,14 +6773,14 @@ function openSfpHelp() {
     · <b>没有输</b>：坠地狱饿鬼非失败，只是看清业果——谱云「逆惡猛心，準觀經而許歸淨土」，原谱本无绝路，续掷总能回升。</div>
     ${h('一 分 钟 上 手')}
     <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">
-    ① <b>长按掷钮</b>＝谱曰「置輪掌心」——按自己的节奏默念一句「南无阿弥陀佛」；<b>念毕松手</b>＝「仰手旁擲」。<br>
+    ① <b>长按掷钮</b>＝谱曰「置輪掌心」——按自己的节奏至心称念一句「南无阿弥陀佛」；<b>念毕松手</b>＝「仰手旁擲」。<br>
     ② 判词窗先读白话判定，需要时展开逐字原文，点<b>「行」</b>落子；下滑可收成细签（桌面：空格＝掷、回车＝行）。<br>
     ③ 判词里点位名读白话与原文；掷钮右侧「问」可与本谱对话（问谱位·名相·行法，接 G 版选佛谱智能体依经检证）；最右「⋯」有全谱与行迹。<br>
     ④ 星图常开可自由观照：点顶栏题字直览全图；单击门星／门签入门，位珠位名点之读谱注，长按速览、双击飞临；Esc／「全图」返回。</div></div>
     <div style="margin-top:12px"><button class="gbtn primary" id="sfpHelpOk" style="width:100%">敬领谱意 · 恭敬开掷</button></div></div>`);
   (p.querySelector('#sfpHelpOk')               ).addEventListener('click', () => {
     closeOverlay();
-    if (sfpS.active && sfpS.n === 0) showToast('第一掷定「发始因地」：长按掷钮，默念一句佛号，念毕松手旁掷', 4800);
+    if (sfpS.active && sfpS.n === 0) showToast('第一掷定「发始因地」：长按掷钮，至心称念一句佛号，念毕松手旁掷', 4800);
   });
   openOverlay(p);
 }
@@ -6646,6 +6789,10 @@ function startSfp(resume         ) {
   closeOverlay(); closeCard();
   // 调试钩子：仅供自测驱动（不影响玩法）
   (window       ).__sfpGo = (id        ) => { if (sfpS.active) sfpGoto(id, '调试移位'); };
+  (window       ).__lgDbg = (patch      ) => {
+    if (patch) { Object.assign(save.lg, patch); persist(); }
+    return JSON.parse(JSON.stringify(save.lg));
+  };
   (window       ).__sfpInert = (id        ) => { const p = (SFP_BY       )[id]; return p ? { pos: sfpS.pos, pure: !!p.pure, inert: !p.moves.some((m     ) => m.c.some((c        ) => ['那那', '那謨', '謨謨'].includes(c))), mv: p.moves.map((m     ) => m.c.join('/')) } : null; };
   (window       ).__sfpBead = (pid        ) => { const v = sfpBeadLocal[pid]; return v ? [Math.round(v.x * 100) / 100, Math.round(v.y * 100) / 100, Math.round(v.z * 100) / 100] : null; }; // 自测：位珠锚点局部坐标
   (window       ).__sfpTone = (pid        ) => { for (const m of sfpBeadMeshes) { const i = (m.userData.pids             || []).indexOf(pid); if (i >= 0 && m.instanceColor) { const a = m.instanceColor.array                ; return Math.round((a[i * 3] + a[i * 3 + 1] + a[i * 3 + 2]) * 100) / 100; } } return null; }; // 自测：位珠实例色三通道和（明度档差用）
@@ -6695,6 +6842,8 @@ function startSfp(resume         ) {
     sfpShowMsg(`续掷：现居「${p.name}」`);
   } else {
     sfpS.pos = null; sfpS.n = 0;
+    save.lg.games++;
+    persist();
     sfpS.seenD = [];
     sfpS.trail = [];
     rebuildFoot();
@@ -6788,7 +6937,12 @@ function sfpVictory() {
   const p = el(`<div class="panel keepOv"><h2>选佛及第 · 佛</h2><div class="body">
     <div class="cMeta">第 ${n} 掷，登第十五门「圓極果位」——圓教究竟妙覺位</div>
     ${fo15Html()}
-    <div style="margin-top:8px;font-size:var(--fs-sm);color:#9d9170">已选佛 ${save.sfpWins} 次</div>
+    <div class="lgNums" style="margin-top:12px">
+      <div><b>${n}</b><span>本局掷数</span></div><div><b>${save.lg.tos}</b><span>历局总掷</span></div>
+      <div><b>${save.lg.evil}</b><span>历局入恶趣</span></div><div><b>${save.lg.seen.length}/${(SFP_POS         ).length}</b><span>见闻录</span></div>
+      <div><b>${save.lg.back}</b><span>历局下沉</span></div><div><b>${save.sfpWins}</b><span>及第</span></div>
+    </div>
+    <div class="verse" style="margin-top:10px"><i class="duL">紀事</i>願以此功德。普施法界有情。同開妙解。深知法界事理性相。同發大願速生西方極樂世界。<span class="cSrc" style="display:block">《選佛譜》卷末 · 紀事（卷第六後）</span></div>
     ${Net.active ? '<div class="cNote">及第后本座留十分钟；久不再掷则自动让座给候着的莲友。</div>' : ''}
     <div id="lbLine" style="margin-top:6px;font-size:var(--fs-sm);color:#dccf9f"></div>
     ${(() => { // 同座现况：只陈述各人行处，不排名次——本谱纯由掷相所至，比快慢无义
@@ -6801,6 +6955,7 @@ function sfpVictory() {
     })()}</div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <button class="gbtn primary" id="sfpAgain" style="flex:1;min-width:110px">再入选佛场${Net.active ? '<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">留座重开</i>' : ''}</button>
+      <button class="gbtn" id="sfpLg" style="flex:1;min-width:110px">见闻录</button>
       ${Net.active ? '<button class="gbtn" id="sfpLeave" style="flex:1;min-width:110px">离席回大厅<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">让座给莲友</i></button>' : ''}
       <button class="gbtn" id="sfpFree" style="flex:1;min-width:110px">观照星图${Net.active ? '<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">留座旁观</i>' : ''}</button></div></div>`);
   const leaveBtn = p.querySelector('#sfpLeave')                      ;
@@ -6815,6 +6970,7 @@ function sfpVictory() {
     // 再入选佛场：只重开自己这一局。同桌莲友的行处各自独立，不该被他人一键归零。
     closeOverlay(); startSfp(false);
   });
+  (p.querySelector('#sfpLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
   (p.querySelector('#sfpFree')               ).addEventListener('click', () => { // v212 修复：毕局后避免残留「活局在终点」僵尸态（归位钮反复钻回门15，全图回不去）
     closeOverlay();
     endSfp('一局功圓——已入自由观照，点「选佛」可再入选佛场');
@@ -6880,8 +7036,7 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
   const ord = Plaza.TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
   if (Net.active) {
     if (Net.code === code) { plazaStop(); closeOverlay(); Net.openPanel(); return; } // 点的就是自己那室
-    Net.onLeft = null; Net.leave(); Net.onLeft = () => { if (!plazaTimer) openPlaza(); }; // 换室：先让出原座
-    await new Promise(r => setTimeout(r, 260));
+    await Net.leave({ notify: false });                        // 换室：确认原连接关闭后再求新座
   }
   try {
     await Net.joinRoom(code, name, null, keyArg);
@@ -6923,7 +7078,7 @@ function plazaRender(data) {
     backText: sfpS.active ? '回到局中' : '返回',
     onSolo: () => {                                 // 一人行谱：不占座，若在房先离席
       plazaStop(); closeOverlay();
-      if (Net.active) Net.leave();
+      if (Net.active) Net.leave({ notify: false });
       startSfp(false);
     },
     onSit: (code, _n, locked) => plazaSit(code, '', !!locked),
@@ -6934,20 +7089,33 @@ function plazaRender(data) {
     onPrivate: () => { showToast(zh('入座后可设四位数密码，把邀请链接发给莲友，即成熟人局'), 4600); },
     onClose: () => { plazaStop(); closeOverlay(); if (!sfpS.active) openTitle(); },
   });
-  openOverlay(p); zhDom(p);
+  zhDom(p);
   return p;
 }
 
 async function openPlaza() {
   plazaStop();
-  const loading = el('<div class="panel"><h2>共修大厅</h2><div class="body"><div class="cbStage">正在入大厅……</div></div></div>');
+  const loading = el(`<div class="panel pzPanel pzLoading"><div class="pzLoadingInner">
+    <span>选佛谱</span><h2>共修大厅</h2><div class="body"><div class="cbStage">正在入大厅……</div></div>
+  </div></div>`);
   openOverlay(loading); zhDom(loading);
   let panel = null;
   const draw = async () => {
     try {
       const data = await Plaza.fetchPlaza();
       if (!loading.isConnected && !(panel && panel.isConnected)) { plazaStop(); return; } // 已离开大厅
-      panel = plazaRender(data);
+      if (!panel) {
+        panel = plazaRender(data);
+        openOverlay(panel);
+      } else {
+        // 定时刷新只补写数字与桌况：不重开覆盖层，保住滚动、焦点与已展开的功课榜。
+        Plaza.updatePlaza(panel, data, {
+          ...panel._plazaUi,
+          seatedAt: Net.active ? Net.code : '',
+          backText: sfpS.active ? '回到局中' : '返回',
+        });
+        zhDom(panel);
+      }
     } catch (e) {
       plazaStop();
       if (!loading.isConnected) return;
@@ -7322,7 +7490,7 @@ const sfpChat                                  = [];
 const SFP_ORD = '那謨阿彌陀佛';
 const SFP_CHAT_HELLO = '<div class="cRead" style="margin:4px 0">南无阿弥陀佛。这里可与本谱对话——可以问我：<br>· 谱位：如「無想天」「上品上生」<br>· 行法：如「在南贍部洲掷得彌陀会怎样」<br>· 名相：如「八背捨」「四如意足」<br>· 某一门：如「第八门」；修行：如「圆教怎么修」<br>· 或「这局怎么玩」。<br>每次提问都会交由 G 版选佛谱智能体依经据库检证；本地谱内速查同时保留，等待或离线时也可继续阅读。</div>';
 const askCite = (t        , src        ) => `<div class="verse" style="margin-top:6px"><i class="duL">谱曰原文</i>${verseHtml(t)}<span class="cSrc" style="display:block">《選佛譜》${esc(src)}</span></div>`;
-const SFP_RULES_A = '<div class="cPlain" style="margin:4px 0">两枚轮相各刻「那·謨·阿·彌·陀·佛」，合读正是「南无阿弥陀佛」——掷轮即是称名。长按掷钮默念一句佛号、念毕松手即掷；第一掷定「發始因地」，此后每掷依当位行法表升降，判词窗点「行」落子。那謨二字下坠、阿彌陀佛四字上升；堕三途亦不出谱，仍依本位行法续掷。</div>' + askCite('那謨表惡阿彌陀佛表善', '卷第一 · 輪相表法第一') + askCite('若但有善無惡。則應有升無降。', '卷第一 · 輪相表法第一');
+const SFP_RULES_A = '<div class="cPlain" style="margin:4px 0">两枚轮相各刻「那·謨·阿·彌·陀·佛」，合读正是「南无阿弥陀佛」——掷轮即是称名。长按掷钮至心称念一句佛号、念毕松手即掷；第一掷定「發始因地」，此后每掷依当位行法表升降，判词窗点「行」落子。那謨二字下坠、阿彌陀佛四字上升；堕三途亦不出谱，仍依本位行法续掷。</div>' + askCite('那謨表惡阿彌陀佛表善', '卷第一 · 輪相表法第一') + askCite('若但有善無惡。則應有升無降。', '卷第一 · 輪相表法第一');
 const SFP_WHEEL_A = '<div class="cPlain" style="margin:4px 0">两轮合读即「南无阿弥陀佛」，掷轮即称名。六字各有表法：那表见惑、謨表思惑（二恶）；阿表布施、彌表持戒、陀表禅定、佛表善慧（四善）——诸门诸位取义各异，以当位谱注为准。</div>' + askCite('那謨表惡阿彌陀佛表善那表屬見煩惱', '卷第一 · 輪相表法第一') + askCite('阿表施善彌表戒善陀表定善佛表善慧', '卷第一 · 輪相表法第一');
 function sfpTossAnswerHtml(ctx                                                         )         {
   const F = ctx.from ? SFP_BY[ctx.from] : null;
@@ -7687,19 +7855,31 @@ function openSfpIntro() {
   // 调试钩子：仅供自测驱动（不影响玩法）
   (window       ).__sfpGo = (id        ) => { if (sfpS.active) sfpGoto(id, '调试移位'); };
   const hasSave = !!(save.sfp && SFP_BY[save.sfp.pos]);
-  const p = el(`<div class="panel"><h2>选佛谱 · 十五门二百二十位</h2><div class="body">
-    <div>这是三百多年前蕅益大师设计的掷轮修行图（六卷，1653）：两枚轮相如占察轮，各六面刻「那·謨·阿·彌·陀·佛」——合读正是「南无阿弥陀佛」，掷轮即是称名。谱曰「那謨表惡，阿彌陀佛表善」：掷出善字（施·戒·定·善慧）向上升，掷出惡字（見惑·思惑）往下坠；从地狱到成佛十五门二百二十位，逐位升降与谱注全依原谱（CBETA B0136），未作增损。</div>
-    <div style="margin:8px 0;color:#cbbb8d;font-size:var(--fs-sm)">【大师初心】幽溪大师旧图仅用佛轮一枚，「升沉迴隔」；六轮之图又「六字纷陈」、粗心浮气者每以为苦。大师归卧灵峰，「爰思但用二轮，以为擲行方便，既易于行，仍多转变」——遂成此二轮定本。以游戏为佛事：升沉皆由自心一念迷悟，信因果而发向上之愿。</div>
-    <div style="margin:8px 0">第一掷定「發始因地」，二十一种组合对应二十一种起点业因；此后每掷依当位升降表行棋，相机随棋子飞往对应法界；入净土位则入极乐观照场。局中点控制台位名，随时可读当位原谱原文。</div>
-    <div>无输局：堕三途不是失败，是看清升沉；大师自序说此图能使人「即游戏间，顿知六道往还之疲苦，三乘出要之差别」。</div></div>
-    <div style="display:flex;gap:8px;margin-top:14px">
-      ${hasSave ? '<button class="gbtn primary" id="sfpResume" style="flex:1">续掷上局</button>' : ''}
-      <button class="gbtn ${hasSave ? '' : 'primary'}" id="sfpNew" style="flex:1">新开一局</button>
+  const p = el(`<div class="panel"><h2>选佛谱 · 缘起与玩法</h2><div class="body">
+    <div class="igLead">明末蕅益大师五十五岁手定的一部<b>掷轮图谱</b>：两枚轮相刻「那·謨·阿·彌·陀·佛」，掷之即在十法界二百二十位间升沉——从地狱到成佛，一图备见。</div>
+    <div class="igMeta">釋智旭（蕅益大師）述 · 六卷 · 癸巳（1653）歙浦迴龍精舍 · CBETA B0136</div>
+    <div class="igOr"><b class="k">缘起</b><span>大师见同参耽于博弈，想拿一张能长智慧的图替下赌局；旧传的选佛图或失传、或理路不通，遂自己重制。</span>
+      <div class="verse"><i class="duL">敘</i>見諸法友眈嗜博奕。思易之以幽溪之圖。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div></div>
+    <div class="igOr"><b class="k">初心</b><span>要让人在游戏之间，亲眼看见六道往还有多苦、三乘出离有何差别。</span>
+      <div class="verse"><i class="duL">敘</i>能使人即遊戲間。頓知六道往還之疲苦。三乘出要之差別。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div></div>
+    <div class="igOr"><b class="k">精神</b><span>图中一切升沉判语皆依经论教乘而定，不出自己的猜想；三十余年反复改图，只为「易于行」。</span>
+      <div class="verse"><i class="duL">敘</i>皆本教乘非出臆見。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div></div>
+    <details class="sec"><summary>怎么掷 · 三步</summary>
+      <div class="igStep"><span class="n">1</span><span class="tx"><b>长按掷轮</b>，至心称念一句佛号，念毕松手即掷<i>两轮合读即「南无阿弥陀佛」——掷轮即是称名</i></span></div>
+      <div class="igStep"><span class="n">2</span><span class="tx"><b>首掷定發始因地</b>，此后每掷依当位行法表升降<i>那·謨二字下坠，阿·彌·陀·佛四字上升</i></span></div>
+      <div class="igStep"><span class="n">3</span><span class="tx"><b>判词窗点「行」落子</b>，行至圆教究竟妙觉即选佛及第<i>无输局：堕三途亦不出谱，仍依本位行法续掷</i></span></div>
+      <div class="igTwo"><div><b>豎入</b><span>依自力沿藏通別圓四教位次拾级而登</span></div>
+        <div><b>橫超</b><span>念佛往生净土，径趋毕局——第十四门「淨土橫超門」</span></div></div></details></div>
+    <div class="igBtns">
+      ${hasSave ? '<button class="gbtn primary wide" id="sfpResume">续掷上局</button>' : ''}
+      <button class="gbtn ${hasSave ? '' : 'primary wide'}" id="sfpNew">新开一局</button>
+      <button class="gbtn" id="sfpLog">见闻录</button>
       <button class="gbtn" id="sfpMapB">十五门全图</button>
-      <button class="gbtn" id="sfpBack">再看看</button></div></div>`);
+      <button class="gbtn wide" id="sfpBack">再看看</button></div></div>`);
   const rs = p.querySelector('#sfpResume');
   if (rs) rs.addEventListener('click', () => startSfp(true));
   (p.querySelector('#sfpNew')               ).addEventListener('click', () => startSfp(false));
+  (p.querySelector('#sfpLog')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
   (p.querySelector('#sfpMapB')               ).addEventListener('click', () => openSfpMap());
   (p.querySelector('#sfpBack')               ).addEventListener('click', closeOverlay);
   openOverlay(p);
@@ -8481,7 +8661,8 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   Net.onHall = () => openPlaza();                 // 在座也能回大厅看看/换室（不离席）
   Net.onLeft = () => {
     if (sfpS.active) endSfp('已离开真人共修室');
-    if (!plazaTimer) openPlaza();
+    plazaStop();                                  // 即使旧大厅定时器还挂着，也以这次显式离席为准
+    openPlaza();
   };
   Net.onLocked = (locked, key) => {
     showToast(zh(locked ? `本室密码已设为 ${key}——点「邀请」转发，莲友点开即入座` : '本室密码已撤，诸位莲友皆可入座'), 4200);

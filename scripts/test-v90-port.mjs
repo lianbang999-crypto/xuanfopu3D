@@ -49,8 +49,11 @@ try {
   page.on('pageerror', (error) => pageErrors.push(String(error)));
 
   await page.goto(UI_BASE, { waitUntil: 'domcontentloaded' });
-  const solo = page.locator('#tiSolo');
-  await solo.waitFor({ state: 'visible', timeout: 90_000 });
+  const start = page.getByRole('button', { name: '开始行谱', exact: true });
+  await start.waitFor({ state: 'visible', timeout: 90_000 });
+  await start.click({ force: true });
+  const solo = page.locator('#pzSolo');
+  await solo.waitFor({ state: 'visible', timeout: 12_000 });
   await solo.click({ force: true });
   await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 12_000 });
   await page.waitForTimeout(250);
@@ -143,6 +146,19 @@ try {
   ok(content.d2.includes('法道流弊門「破軌則」') && !content.d2.includes('解行相应'), '第二门改用本门原文，不再把自撰提法当作引文');
   ok(content.d15.includes('圓極果位門「佛」') && !content.d15.includes('心空及第'), '第十五门只引用本门「佛」位原文');
   ok(content.fo15.includes('原文说明 · 对读') && content.fo15.includes('圓極果位門「佛」') && !content.fo15.includes('輪相表法第一'), '及第说明只呈门十五原文对读，不借别门判词');
+
+  console.log('\n【V92 内容与见闻录】');
+  ok(content.rules.includes('至心称念') && !content.rules.includes('默念'), '掷轮操作统一校正为至心称念');
+  const logBefore = await page.evaluate(() => window.__lgDbg?.());
+  ok(logBefore?.games >= 1 && Array.isArray(logBefore?.seen), '见闻录跨局数据结构已建立并记录开局');
+  await page.locator('#sfpMore').click({ force: true });
+  await page.locator('#smLg').waitFor({ state: 'visible' });
+  await page.locator('#smLg').click({ force: true });
+  const logTitle = page.getByRole('heading', { name: '见闻录 · 历局所见' });
+  await logTitle.waitFor({ state: 'visible' });
+  ok(await page.locator('.lgRow').count() === 15, '见闻录按十五门显示曾见进度');
+  ok((await page.locator('.lgNums').innerText()).includes('总掷数'), '见闻录显示可数行程账且不作修证判语');
+  await page.locator('#lgOk').click({ force: true });
 
   ok(pageErrors.length === 0, `页面运行无异常${pageErrors.length ? `：${pageErrors.join(' | ')}` : ''}`);
   await context.close();

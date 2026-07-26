@@ -23,6 +23,7 @@ const TABLE_COUNT = 12;
 const TABLE_ORD = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
 const FEED_KEEP = 60;   // 公报流留存条数
 const RUN_KEEP = 500;   // 及第录留存条数（超出按时间裁旧）
+const PRACTICE_DAILY_CAP = 10000; // 功课榜是随喜记录；单身份日上限仅防异常灌数
 // 桌位快照保鲜期：桌 DO 若因驱逐/发版等原因没能报「已离席」，快照会挂着假在座者。
 // 超期即视为失效并清掉；在座者只要还在掷轮就会续报，不会被误清。
 const TABLE_TTL = 20 * 60 * 1000;
@@ -36,7 +37,8 @@ function tableSeatOf(code) {
   const m = TABLE_RE.exec(String(code || '').toUpperCase());
   return m ? { hall: Number(m[1]), no: Number(m[2]) } : null;
 }
-const dayKey = (ts = Date.now()) => new Date(ts).toISOString().slice(0, 10); // UTC 日界，与展示口径一致
+const SHANGHAI_OFFSET_MS = 8 * 60 * 60 * 1000;
+const dayKey = (ts = Date.now()) => new Date(ts + SHANGHAI_OFFSET_MS).toISOString().slice(0, 10);
 
 // ---- 密码：共修室可由东位者（房主）设四位数密码，邀熟人同座（取代原「私室」） ----
 // 密码由用户自设四位数字：一万种组合配「十分钟内错满十次暂闭」，猜中概率千分之一；
@@ -228,6 +230,16 @@ export class RoomDO {
         ts INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS plaza_runs_ts ON plaza_runs(ts DESC, seq DESC);
+      CREATE TABLE IF NOT EXISTS plaza_daily_practice (
+        day TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        name TEXT NOT NULL,
+        tosses INTEGER NOT NULL DEFAULT 0,
+        updated INTEGER NOT NULL,
+        PRIMARY KEY(day, actor)
+      );
+      CREATE INDEX IF NOT EXISTS plaza_daily_practice_rank
+        ON plaza_daily_practice(day, tosses DESC, updated ASC);
       CREATE TABLE IF NOT EXISTS plaza_feed (
         seq INTEGER PRIMARY KEY AUTOINCREMENT,
         kind TEXT NOT NULL, text TEXT NOT NULL, ts INTEGER NOT NULL
@@ -271,6 +283,7 @@ export class RoomDO {
   plazaStat() {
     this.plazaInit();
     const today = dayKey();
+    const todayStart = Date.parse(`${today}T00:00:00+08:00`);
     const runs = [...this.state.storage.sql.exec(
       'SELECT name,n,doors,lowest,span,path,seat,ts FROM plaza_runs ORDER BY ts DESC, seq DESC LIMIT 20',
     )].map(r => ({
@@ -278,6 +291,46 @@ export class RoomDO {
       doors: JSON.parse(String(r.doors || '[]')), lowest: r.lowest ? String(r.lowest) : '',
       span: Number(r.span), path: String(r.path), seat: String(r.seat), ts: Number(r.ts),
     }));
+    const mapLeaders = (rows) => [...rows].map(r => ({
+      name: String(r.name), wins: Number(r.wins), best: Number(r.best),
+      avg: Math.round(Number(r.avg)), last: Number(r.last),
+    }));
+    // 榜单只据实际录入的及第局，不以客户端自报掷数捏造名次。
+    // 总榜口径是当前留存的最近 500 局；接口同时返回样本数，前台据实标示。
+    const leaders = mapLeaders(this.state.storage.sql.exec(
+      `SELECT name,COUNT(*) wins,MIN(n) best,AVG(n) avg,MAX(ts) last
+       FROM plaza_runs GROUP BY name ORDER BY wins DESC,best ASC,last DESC LIMIT 20`,
+    ));
+    const leadersToday = mapLeaders(this.state.storage.sql.exec(
+      `SELECT name,COUNT(*) wins,MIN(n) best,AVG(n) avg,MAX(ts) last
+       FROM plaza_runs WHERE ts >= ? GROUP BY name
+       ORDER BY wins DESC,best ASC,last DESC LIMIT 20`, todayStart,
+    ));
+    const rankedRuns = Number([...this.state.storage.sql.exec(
+      'SELECT COUNT(*) n FROM plaza_runs',
+    )][0]?.n || 0);
+    const duplicatePracticeNames = new Set([...this.state.storage.sql.exec(
+      `SELECT name FROM plaza_daily_practice WHERE day = ?
+       GROUP BY name HAVING COUNT(*) > 1`, today,
+    )].map(r => String(r.name)));
+    const practiceLeaders = [...this.state.storage.sql.exec(
+      `SELECT actor,name,tosses,updated FROM plaza_daily_practice WHERE day = ?
+       ORDER BY tosses DESC,updated ASC LIMIT 20`, today,
+    )].map(r => {
+      const name = String(r.name);
+      return {
+        name: duplicatePracticeNames.has(name) ? `${name} · ${String(r.actor).slice(-4).toUpperCase()}` : name,
+        tosses: Number(r.tosses),
+        updated: Number(r.updated),
+      };
+    });
+    const practicePeople = Number([...this.state.storage.sql.exec(
+      'SELECT COUNT(*) n FROM plaza_daily_practice WHERE day = ?', today,
+    )][0]?.n || 0);
+    // 榜单只需保留近期日数据；总量另在计数器中累计，不受清理影响。
+    this.state.storage.sql.exec(
+      'DELETE FROM plaza_daily_practice WHERE day < ?', dayKey(Date.now() - 32 * 86400000),
+    );
     const feed = [...this.state.storage.sql.exec(
       'SELECT kind,text,ts FROM plaza_feed ORDER BY seq DESC LIMIT 20',
     )].map(r => ({ kind: String(r.kind), text: String(r.text), ts: Number(r.ts) }));
@@ -302,7 +355,7 @@ export class RoomDO {
       tossesToday: this.plazaGet(`tosses:${today}`),
       wins: this.plazaGet('wins'),
       winsToday: this.plazaGet(`wins:${today}`),
-      runs, feed, day: today,
+      runs, feed, leaders, leadersToday, rankedRuns, practiceLeaders, practicePeople, day: today,
       hall, snaps,
       halls: halls.map(h => ({ hall: h, live: hallLive[h] })),
       hallCount: Math.max(1, halls.length ? Math.max(...halls) : 1),
@@ -363,12 +416,35 @@ export class RoomDO {
     let body;
     try { body = await request.json(); }
     catch { return json({ error: 'invalid json' }, 400); }
-    // 只计实际落定的掷轮；单次上报上限 60，防止伪造把总数灌爆
+    // 只计实际落定的掷轮；单次上报上限 60，稳定匿名身份每日最多记一万念。
     const n = Math.min(60, Math.max(0, Math.floor(Number(body?.n) || 0)));
     if (!n) return json({ ok: true, tosses: this.plazaGet('tosses') });
-    this.plazaBump('tosses', n);
-    this.plazaBump(`tosses:${dayKey()}`, n);
-    return json({ ok: true, tosses: this.plazaGet('tosses') });
+    const actor = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
+    const name = this.safeName(body?.name) || (actor ? `莲友·${actor.slice(-4).toUpperCase()}` : '莲友');
+    const today = dayKey();
+    let accepted = n;
+    if (actor) {
+      const old = [...this.state.storage.sql.exec(
+        'SELECT tosses FROM plaza_daily_practice WHERE day = ? AND actor = ? LIMIT 1', today, actor,
+      )][0];
+      accepted = Math.min(n, Math.max(0, PRACTICE_DAILY_CAP - Number(old?.tosses || 0)));
+      if (accepted) {
+        this.state.storage.sql.exec(
+          `INSERT INTO plaza_daily_practice (day,actor,name,tosses,updated) VALUES (?,?,?,?,?)
+           ON CONFLICT(day,actor) DO UPDATE SET
+             name = excluded.name,
+             tosses = plaza_daily_practice.tosses + excluded.tosses,
+             updated = excluded.updated`,
+          today, actor, name, accepted, Date.now(),
+        );
+      }
+    }
+    // 兼容旧客户端：无匿名身份时仍计入全站总数，但不会进入个人榜。
+    if (accepted) {
+      this.plazaBump('tosses', accepted);
+      this.plazaBump(`tosses:${today}`, accepted);
+    }
+    return json({ ok: true, accepted, tosses: this.plazaGet('tosses') });
   }
 
   async plazaRecord(request) {

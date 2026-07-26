@@ -197,11 +197,23 @@ export const Net = {
     });
   },
 
-  leave() {
+  leave({ notify = true } = {}) {
     this._manualLeave = true;
     this._send({ type: 'leave', requestId: requestId('leave') }, false);
     const old = this.ws;
-    setTimeout(() => { try { old?.close(); } catch (e) {} }, 80);
+    // 换室需要确认旧连接已经由服务器关闭，不能再猜一个固定的 260ms。
+    // 普通离席仍立即清前台并回大厅；返回的 Promise 只供换室流程等待。
+    const closed = old && old.readyState < WebSocket.CLOSING
+      ? new Promise((resolve) => {
+        let settled = false;
+        const done = () => { if (!settled) { settled = true; resolve(); } };
+        old.addEventListener('close', done, { once: true });
+        setTimeout(() => {
+          try { old.close(); } catch (e) {}
+          done();
+        }, 1200);
+      })
+      : Promise.resolve();
     this.active = false;
     this.myId = null;
     this.mySeat = -1;
@@ -220,7 +232,8 @@ export const Net = {
     this._uiRoomSync();
     this.onRoster?.([]);
     this.onState?.(this.room);
-    this.onLeft?.();
+    if (notify) this.onLeft?.();
+    return closed;
   },
 
   savedRoom() {
