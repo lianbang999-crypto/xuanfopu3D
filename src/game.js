@@ -159,6 +159,9 @@ async function startMusic() {
   })();
   return chantLoad;
 }
+// 唱赞留着句柄才停得下来：从前起了就撒手，人离开及第面板后它还在唱，
+// 除了去设置里静音别无办法。
+let chantNode = null;
 async function playChant() {
   if (!actx || !save.settings.music || performance.now() < chantUntil) return;
   const b = chantBuf || await startMusic();
@@ -167,6 +170,14 @@ async function playChant() {
   const s = actx.createBufferSource(); s.buffer = b;
   const g = actx.createGain(); g.gain.value = 0.42;
   s.connect(g); g.connect(actx.destination); s.start();
+  s.onended = () => { if (chantNode === s) chantNode = null; };
+  chantNode = s;
+}
+function stopChant() {
+  chantUntil = 0;
+  if (!chantNode) return;
+  try { chantNode.stop(); } catch (e) { /* 已自然结束 */ }
+  chantNode = null;
 }
 // 事件音映射：旧名保留，但全部落到真实采样（sfxr 合成 wav 已弃用）
 const SFX_MAP                                   = {
@@ -2525,10 +2536,21 @@ const compass = el(`<div id="compass" class="ui">
 const freeDock = el('<div id="freeDock" class="ui"></div>');
 app.appendChild(freeDock);
 const quickSfp = el('<button class="gbtn primary" style="border-radius:24px;padding:13px 30px;font-size:var(--fs-lg);letter-spacing:3px">选佛</button>');
-quickSfp.addEventListener('click', () => { // 与题屏主钮同一逻辑：有存局直接续掷，无则入大厅
+quickSfp.addEventListener('click', () => { // 有存局直接续掷，无则入大厅（文案随之改，一钮一义）
   if (save.sfp && SFP_BY[save.sfp.pos]) startSfp(true); else openPlaza();
 });
 freeDock.appendChild(quickSfp);
+// 星图上常驻大厅入口：从前观照期要进大厅只能走「⋯ → 共修大厅」，
+// 而「选佛」在有存局时直接续掷、根本到不了大厅——主干节点不该埋在二级菜单里。
+const quickHall = el('<button class="gbtn" style="border-radius:24px;padding:13px 20px;letter-spacing:2px" title="共修大厅">大厅</button>');
+quickHall.addEventListener('click', () => openPlaza());
+freeDock.appendChild(quickHall);
+// 底坞主钮一钮一义：有存局说「续掷」，没有才说「选佛」
+function syncFreeDock() {
+  const resume = !!(save.sfp && SFP_BY[save.sfp.pos]);
+  quickSfp.textContent = zh(resume ? '续掷' : '选佛');
+  quickSfp.title = zh(resume ? `续上局：现居「${SFP_BY[save.sfp.pos].name}」` : '入共修大厅择一人行谱或与人共修');
+}
 // 单菜单原则：自由观照期底坞也带「⋯」，谱务抽屉全程可达（局中入口在 sfpBar）
 const quickChat = el('<button class="gbtn netEntry" id="freeChat" style="border-radius:24px;padding:13px 15px" title="同修 · 名单与聊天"><span class="netDots"></span><i class="netUnread"></i></button>');
 quickChat.addEventListener('click', () => Net.togglePanel());
@@ -6693,6 +6715,7 @@ function openSfpMore() {
       ${row('smCanon', '原文', '六卷谱文逐字')}
       ${row('smSet', '设置', '声音 · 简繁 · 卡片')}
       ${Net.active ? row('smNetRound', '共同再局', '须待本局结算后共同准备') : row('smNew', '重开一局', '从头掷', 'warn')}
+      ${row('smExit', '退出', Net.active ? '离席并回题屏' : '行处已存 · 回题屏', 'warn')}
       </div>
     </div>
     <button class="gbtn primary" id="smBack">回到局中</button></div></div>`);
@@ -6706,6 +6729,16 @@ function openSfpMore() {
   on('smHall', () => { closeOverlay(); openPlaza(); });
   on('smSet', () => { closeOverlay(); openSettings(); });
   on('smNetRound', () => { closeOverlay(); Net.openPanel(); });
+  // 从前全站没有一处「退出」：局中只能靠及第或离席，观照期只能关标签页。
+  // 单机行处本就随时存档，退出即回题屏，随时可从「续掷」接上。
+  on('smExit', async () => {
+    if (Net.active && !await confirmLeaveMatch('离席并退出')) return;
+    closeOverlay();
+    if (Net.active) Net.leave({ notify: false });
+    endSfp('行处已存——回到题屏，点「续掷」可接上');
+    plazaStop();
+    openTitle();
+  });
   const newButton = p.querySelector('#smNew')               ;
   if (newButton) newButton.addEventListener('click', function (                 ) {
     if (sfpS.rolling || sfpTransit) { closeOverlay(); showToast('行棋中，稍候再新开'); return; }
@@ -6975,6 +7008,8 @@ function startSfp(resume         ) {
     return { x: r.left + (wp.x + 1) / 2 * r.width, y: r.top + (1 - (wp.y + 1) / 2) * r.height, z: wp.z };
   };
   if (tourStep >= 0) { tourStep = -1; }
+  stopChant();                       // 上一局的唱赞不带进新局
+  cometCancel();
   setModeInstant(0);
   sfpS.active = true; sfpS.rolling = false; sfpS.finished = false;
   sfpVictoryHandled = false;
@@ -7026,6 +7061,7 @@ function startSfp(resume         ) {
 }
 function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续掷') {
   if (!sfpS.active && !sfpS.finished) return;
+  stopChant();                       // 收局即止唱赞，免得人已离场声音还在
   document.body.classList.remove('sfpOn');
   sfpS.active = false;
   sfpS.finished = false;
@@ -7046,7 +7082,7 @@ function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续
   sfpS.rolling = false;
   netClockSync();
   (sfpBar.querySelector('#sfpRoll')               ).classList.remove('dis');
-  freeDock.style.display = '';
+  freeDock.style.display = ''; syncFreeDock();
   setFlight(true);
   updateLadder(); syncRollGlow();
   updateModeChip();
@@ -7078,7 +7114,7 @@ function sfpVictory(settled = false) {
   sfpBar.classList.remove('show'); conPill.classList.remove('show');
   setSfpFocus(0);
   sfpDice.classList.remove('on');
-  freeDock.style.display = '';
+  freeDock.style.display = ''; syncFreeDock();
   setFlight(true);
   updateLadder();
   updateModeChip();
@@ -7122,31 +7158,43 @@ function sfpVictory(settled = false) {
       <button class="gbtn" id="sfpLg" style="flex:1;min-width:110px">见闻录</button>
       ${Net.active ? '<button class="gbtn" id="sfpLeave" style="flex:1;min-width:110px">离席回大厅<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">让座给莲友</i></button>' : ''}
       <button class="gbtn" id="sfpFree" style="flex:1;min-width:110px">观照星图${Net.active ? '<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">留座旁观</i>' : ''}</button></div></div>`);
+  // 及第面板和别的卡一样可以被 ✕／点背景／滑动关掉，但从前只有卡上那几个钮会收尾——
+  // 手关就什么都不清：唱赞照唱、乘光流星挂在天上、局面停在「活局在终点」的僵尸态。
+  // 现在把「关掉这张卡」一律解释为「入自由观照」，与「观照星图」同一个出口。
+  const leaveVictory = (msg = '一局功圓——已入自由观照，点「选佛」可再入选佛场') => {
+    stopChant();
+    cometCancel();
+    endSfp(msg);
+    flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0), 1.4);
+  };
+  const takeAction = (fn) => () => { overlayOnClose = null; closeOverlay(); fn(); };
   const leaveBtn = p.querySelector('#sfpLeave')                      ;
-  if (leaveBtn) leaveBtn.addEventListener('click', () => { // 让座给候着的莲友
-    closeOverlay();
-    Net.leave();
-    endSfp('已离席——行处已存');
-    openPlaza();
-  });
+  if (leaveBtn) leaveBtn.addEventListener('click', takeAction(() => { // 让座给候着的莲友
+    stopChant();
+    cometCancel();
+    Net.leave();                       // onLeft 会收局并开大厅
+  }));
   const againBtn = p.querySelector('#sfpAgain')                      ;
-  if (againBtn) againBtn.addEventListener('click', () => {
-    closeOverlay();
+  if (againBtn) againBtn.addEventListener('click', takeAction(() => {
+    stopChant();
     if (Net.active) {
       Net.setReady(true);
       Net.openPanel();
       showToast('已准备下一局——待至少两位准备后由房主共同开局', 4200);
     } else startSfp(false);
-  });
-  (p.querySelector('#sfpLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
-  (p.querySelector('#lbView')               ).addEventListener('click', () => { closeOverlay(); openPlaza(); });
-  (p.querySelector('#sfpFree')               ).addEventListener('click', () => { // v212 修复：毕局后避免残留「活局在终点」僵尸态（归位钮反复钻回门15，全图回不去）
-    closeOverlay();
-    endSfp('一局功圓——已入自由观照，点「选佛」可再入选佛场');
-    flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0), 1.4);
-  });
+  }));
+  (p.querySelector('#sfpLg')               ).addEventListener('click', takeAction(() => openLogbook()));
+  (p.querySelector('#lbView')               ).addEventListener('click', takeAction(() => openPlaza()));
+  (p.querySelector('#sfpFree')               ).addEventListener('click', takeAction(() => leaveVictory()));
   // v220：等落位俯冲收尾再弹（原定时与门观转场赛跑，慢机上面板会被转场收窗吞掉）
-  const openV = () => { if (sfpTransit) { window.setTimeout(openV, 400); return; } openOverlay(p); };
+  // 兜底：转场若因故迟迟不结束，最多等六秒也要把面板放出来，不能让人对着一颗流星干瞪眼。
+  const openedAt = Date.now();
+  const openV = () => {
+    if (sfpTransit && Date.now() - openedAt < 6000) { window.setTimeout(openV, 400); return; }
+    if (sfpTransit) cometCancel();
+    openOverlay(p);
+    overlayOnClose = () => leaveVictory();
+  };
   window.setTimeout(openV, 2300);
   void Plaza.flush(); // 终局即补送不足十掷的尾数；上榜无需用户再操作
   // 及第只自动登记为大厅结算动态与“今日及第”统计，不形成第二套榜单或手动上榜步骤。
@@ -7192,20 +7240,17 @@ function openNetSettle(message         ) {
       <button class="gbtn" id="nsLeave" style="flex:1;min-width:110px">离席回大厅</button>
       <button class="gbtn" id="nsFree" style="flex:1;min-width:110px">观照星图</button>
     </div></div></div>`);
-  (p.querySelector('#nsAgain')               ).addEventListener('click', () => {
-    closeOverlay();
+  // 与及第面板同例：手关这张卡＝入自由观照，不留半死不活的局面
+  const settleFree = () => { stopChant(); cometCancel(); endSfp('已入自由观照——留座旁观，点「选佛」可回局中'); };
+  const act = (fn) => () => { overlayOnClose = null; closeOverlay(); fn(); };
+  (p.querySelector('#nsAgain')               ).addEventListener('click', act(() => {
     Net.setReady(true);
     Net.openPanel();
-  });
-  (p.querySelector('#nsLeave')               ).addEventListener('click', () => {
-    closeOverlay();
-    Net.leave();
-  });
-  (p.querySelector('#nsFree')               ).addEventListener('click', () => {
-    closeOverlay();
-    endSfp('已入自由观照——留座旁观，点「选佛」可回局中');
-  });
+  }));
+  (p.querySelector('#nsLeave')               ).addEventListener('click', act(() => Net.leave()));
+  (p.querySelector('#nsFree')               ).addEventListener('click', act(settleFree));
   openOverlay(p);
+  overlayOnClose = settleFree;
   zhDom(p);
 }
 // 同修及第：金色横幅一记磬声，不弹窗不打断——您可能正握着轮，及第是可随喜之事，不是要处理之事
@@ -7263,13 +7308,13 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
   } catch (e) {
     const msg = (e && e.message) || '';
     if (/密码|上锁/.test(msg)) { openPlazaSitKey(code, msg); return; } // 密码错：留在密码卡上重填
-    // 另一个页面持着「在房」标记。若那边已久无心跳（多半是崩溃或强退），
-    // 问一句就放行——否则用户只能干等两分钟，且完全不知道在等什么。
-    if (e?.code === 'other_tab' && e.stale) {
+    // 另一个页面持着「在别室」标记。微信里从聊天点开就是一个新 WebView，
+    // 旧的常留在后台不发 pagehide——所以一律问一句就放行，不叫人对着一句拒绝干等。
+    if (e?.code === 'other_tab') {
       plazaSetJoining(false);
       const go = await askConfirm(
         '另一个页面还占着座位',
-        '本机另一个页面登记为「在共修室中」，但已有一阵子没有动静了。<b>若那个页面已关闭</b>，可以从这里接管。',
+        '本机另一个页面登记为「在别的共修室中」。<b>若那个页面已经关了</b>，可以从这里接管入座。',
         '已关闭，接管入座', '再想想',
       );
       if (!go) { openPlaza(); return; }
@@ -7302,6 +7347,28 @@ function openPlazaSitName(code, keyArg = '') {
   zhDom(p);
 }
 
+// 取名／改名（从功课榜进）：只存本机名号，不涉入座
+function openPlazaRename() {
+  plazaStop();
+  const back = () => { overlayOnClose = null; openPlaza(); };
+  const p = Plaza.renderSitName('', {
+    el, esc, rename: true,
+    onSit: async (_c, name) => {
+      Plaza.saveName(name);
+      // 先把改名送达再重开大厅，否则大厅那一拉取比改名快，榜上还是旧名
+      await Plaza.flush();
+      await Plaza.pushName();
+      overlayOnClose = null;
+      openPlaza();
+      showToast(zh(`功课自此记在「${name}」名下`), 3600);
+    },
+    onBack: back,
+  });
+  openOverlay(p);
+  overlayOnClose = back;
+  zhDom(p);
+}
+
 function openPlazaSitKey(code, errText = '') {
   plazaStop();
   const p = Plaza.renderSitKey(code, {
@@ -7324,6 +7391,7 @@ function plazaRender(data) {
       startSfp(false);
     },
     onSit: (code, _n, locked) => plazaSit(code, '', !!locked),
+    onRename: () => openPlazaRename(),        // 功课榜里给一处取名/改名的路
     onQuick: (code) => {
       if (!code) { showToast(zh('本厅诸室皆满——请稍候或一人行谱'), 3200); return; }
       plazaSit(code);

@@ -429,11 +429,22 @@ export class RoomDO {
     catch { return json({ error: 'invalid json' }, 400); }
     // 只计实际落定的掷轮；单次上报上限 60，稳定匿名身份每日最多记一万念。
     let n = Math.min(60, Math.max(0, Math.floor(Number(body?.n) || 0)));
-    if (!n) return json({ ok: true, tosses: this.plazaGet('tosses') });
+    const actorId = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
+    if (!n) {
+      // 只改名不计数：刚在功课榜取了名号，本人那一行应当立刻换过来，不必等下一掷
+      const newName = this.safeName(body?.name);
+      if (actorId && newName) {
+        this.state.storage.sql.exec(
+          'UPDATE plaza_daily_practice SET name = ? WHERE day = ? AND actor = ?',
+          newName, dayKey(), actorId,
+        );
+      }
+      return json({ ok: true, tosses: this.plazaGet('tosses') });
+    }
     // 匿名身份由浏览器自生成，换一个就能重开一份额度；再按来源指纹压一道日上限
     n = this.quotaTake('tick', await this.sourceKey(request), PUBLIC_TICK_CAP, n);
     if (!n) return json({ ok: true, accepted: 0, tosses: this.plazaGet('tosses') });
-    const actor = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
+    const actor = actorId;
     const name = this.safeName(body?.name) || (actor ? `莲友·${actor.slice(-4).toUpperCase()}` : '莲友');
     const today = dayKey();
     let accepted = n;

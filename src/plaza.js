@@ -53,6 +53,16 @@ export async function tick(n = 1, force = false) {
   await flush();
 }
 
+// 改名后即便无待送掷数，也发一次空报让榜上那一行换名（服务端只认 actor，不改计数）
+export async function pushName() {
+  try {
+    await fetch('/api/plaza/tick', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ n: 0, actor: practiceId(), name: practiceName() }),
+    });
+  } catch (e) {}
+}
+
 export async function flush() {
   const n = pending();
   if (!n || sending) return;
@@ -177,12 +187,35 @@ function runLine(r, esc) {
   return `<div class="pzRun"><b>${esc(r.name)}</b><span>${bits.join(' · ')}</span><i>${when(r.ts)}</i></div>`;
 }
 
+// 榜上哪一行是「我」：服务端不外发匿名身份，故按本机上报的那个名号比对；
+// 重名时服务端会缀上「 · 尾号」，一并认。
+function isMine(name) {
+  const mine = practiceName();
+  return name === mine || String(name).startsWith(`${mine} · `);
+}
+
 function leaderRows(rows, esc) {
   if (!rows.length) return '<div class="pzRankEmpty">今日尚无人记入功课</div>';
-  return rows.slice(0, 10).map((row, i) => `<div class="pzRankRow">
-    <span class="no">${i + 1}</span><b>${esc(row.name)}</b>
+  return rows.slice(0, 10).map((row, i) => `<div class="pzRankRow${isMine(row.name) ? ' mine' : ''}">
+    <span class="no">${i + 1}</span><b>${esc(row.name)}</b>${isMine(row.name) ? '<i>您</i>' : ''}
     <span>${num(row.tosses)} 念</span>
   </div>`).join('');
+}
+
+// 一人行谱从不问名号，功课因此记在匿名莲号下——人翻遍榜单找不到自己，
+// 就以为「没进榜」。这里据实告诉他记在哪个名下，并给一处改名的入口。
+function selfRow(data, esc) {
+  const rows = data.practiceLeaders || [];
+  const me = rows.find(row => isMine(row.name));
+  const rank = me ? rows.indexOf(me) + 1 : 0;
+  const named = !!savedName();
+  const label = me
+    ? `今日您已称念 <b>${num(me.tosses)}</b> 声${rank <= 10 ? `，榜上第 ${rank}` : ''}`
+    : '今日您尚未记入功课';
+  return `<div class="pzRankSelf">
+    <div>${label}，记在 <b>${esc(practiceName())}</b> 名下</div>
+    <button type="button" id="pzRename">${named ? '改名号' : '取个名号'}</button>
+  </div>`;
 }
 
 function rankingHtml(data, esc) {
@@ -196,6 +229,7 @@ function rankingHtml(data, esc) {
       <div><b>${num(data.winsToday)}</b><span>今日及第</span></div>
       <div><b>${num(data.tosses)}</b><span>累计称念</span></div>
     </div>
+    ${selfRow(data, esc)}
     <div class="pzRankList">${leaderRows(today, esc)}</div>
     <div class="pzRankNote">每一掷记一声「南无阿弥陀佛」；只作随喜记录，不作修证高下；榜单每日零时（北京时间）重新开始。<br>
       称念数由各自本机记数汇总，共修室的及第由本室服务器出具。</div>`;
@@ -205,6 +239,7 @@ function openRanking(p, ui) {
   const layer = p.querySelector('.pzRankLayer');
   const card = layer.querySelector('.pzRankCard');
   card.innerHTML = rankingHtml(p._plazaData || {}, ui.esc);
+  card.querySelector('#pzRename')?.addEventListener('click', () => ui.onRename?.());
   layer.classList.add('on');
   layer.setAttribute('aria-hidden', 'false');
   const close = () => {
@@ -333,14 +368,17 @@ export function renderPlaza(data, ui) {
 }
 
 // 入座前问名（只在没有存名时出现一次；留空即「莲友」，此后自动带上）
+// 一张卡两用：入座前留名号，或单从功课榜来改名号（ui.rename）
 export function renderSitName(code, ui) {
   const { el } = ui;
+  const rename = !!ui.rename;
   const ord = TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
+  const verb = rename ? '记名' : '入座';
   const p = el(`<div class="panel pzAsk pzAskName center" role="dialog" aria-modal="true" aria-labelledby="pzNameTitle">
-    <div class="askEyebrow">共修室${ord} · 入座前一步</div>
-    <h2 id="pzNameTitle">留下共修名号</h2>
+    <div class="askEyebrow">${rename ? '念佛功课榜 · 记名' : `共修室${ord} · 入座前一步`}</div>
+    <h2 id="pzNameTitle">${rename ? (savedName() ? '改名号' : '取个共修名号') : '留下共修名号'}</h2>
     <form class="body" id="pzNameForm" novalidate>
-      <p class="lead">方便同座莲友认得您</p>
+      <p class="lead">${rename ? '功课与及第都记在这个名下' : '方便同座莲友认得您'}</p>
       <div class="nameField">
         <label for="pzName">名号 <span>选填</span></label>
         <input id="pzName" class="bigIn" maxlength="24" autocomplete="nickname" enterkeyhint="go"
@@ -352,9 +390,9 @@ export function renderSitName(code, ui) {
       </div>
       <p class="scope" id="pzNameScope">将显示在本室名单与念佛功课榜，并保存在本机。</p>
       <button class="gbtn primary big" id="pzNameSubmit" type="submit">
-        <span id="pzNameGo">以「莲友」入座</span>
+        <span id="pzNameGo">以「莲友」${verb}</span>
       </button>
-      <button class="pzAskBack" id="pzNameBack" type="button">返回大厅</button>
+      <button class="pzAskBack" id="pzNameBack" type="button">${rename ? '返回' : '返回大厅'}</button>
     </form></div>`);
   const input = p.querySelector('#pzName');
   const form = p.querySelector('#pzNameForm');
@@ -370,7 +408,7 @@ export function renderSitName(code, ui) {
     const value = Array.from(input.value);
     count.textContent = `${value.length} / 12`;
     const name = input.value.replace(/\s+/g, ' ').trim() || '莲友';
-    go.textContent = `以「${name}」入座`;
+    go.textContent = `以「${name}」${verb}`;
     note.classList.remove('err');
     note.textContent = '留空则显示「莲友」';
   };
@@ -385,7 +423,7 @@ export function renderSitName(code, ui) {
     input.disabled = true;
     submit.disabled = true;
     back.disabled = true;
-    go.textContent = '正在入座…';
+    go.textContent = rename ? '正在记名…' : '正在入座…';
     let failed = false;
     try {
       await ui.onSit(code, name);
@@ -402,12 +440,13 @@ export function renderSitName(code, ui) {
         input.disabled = false;
         submit.disabled = false;
         back.disabled = false;
-        if (failed) go.textContent = `以「${name}」入座`;
+        if (failed) go.textContent = `以「${name}」${verb}`;
         else syncName();
       }
     }
   });
   back.addEventListener('click', () => { if (!submitting) ui.onBack(); });
+  if (rename && savedName()) { input.value = savedName(); syncName(); }   // 改名先带出现名
   if (!matchMedia('(max-width:640px)').matches) setTimeout(() => input.focus(), 80);
   return p;
 }
@@ -537,6 +576,18 @@ export const PLAZA_CSS = `
 .pzRankStats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0 16px}
 .pzRankStats div{display:grid;gap:4px;padding:12px;border:1px solid rgba(216,197,139,.12);border-radius:11px;background:rgba(255,255,255,.025)}
 .pzRankStats b{color:#e8c766;font-size:20px;font-weight:500}.pzRankStats span{color:#7f7868;font-size:var(--fs-xs,11px);letter-spacing:1px}
+/* 一人行谱不问名号，功课记在匿名莲号下——人翻遍榜单找不到自己就以为没进榜。
+   这一条据实说明记在哪个名下，并给一处改名入口；榜上「我」那一行也标出来。 */
+.pzRankSelf{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin:12px 0 4px;padding:11px 13px;border:1px solid rgba(232,199,102,.22);border-radius:12px;
+  background:rgba(232,199,102,.06);font-size:var(--fs-sm,12.5px);line-height:1.6}
+.pzRankSelf>div{min-width:0;color:#bdb08c}
+.pzRankSelf b{color:#e8c766;font-weight:500}
+.pzRankSelf button{flex:none;min-height:36px;padding:0 14px;border-radius:9px;cursor:pointer;
+  border:1px solid rgba(216,197,139,.36);background:rgba(255,255,255,.05);color:#e0d3a6;font:inherit;font-size:var(--fs-sm,12.5px)}
+.pzRankSelf button:hover{border-color:rgba(232,199,102,.6);color:#f0dfa8}
+.pzRankRow.mine b{color:#f0dfa8}
+.pzRankRow i{font-style:normal;font-size:var(--fs-xs,11px);color:#e8c766;letter-spacing:1px}
 .pzRankList{border-top:1px solid rgba(216,197,139,.14)}
 .pzRankRow{display:grid;grid-template-columns:30px minmax(90px,1fr) auto;align-items:center;gap:10px;min-height:48px;
   border-bottom:1px solid rgba(216,197,139,.09);font-size:var(--fs-sm,12.5px)}

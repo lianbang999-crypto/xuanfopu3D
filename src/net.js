@@ -9,8 +9,10 @@ const OLD_NET_KEY = 'sm10.net.v1';
 const CLIENT_KEY = 'sm10.net.client.v1';
 const TAB_KEY = 'sm10.net.tab.v1';
 const ACTIVE_KEY = 'sm10.net.active.v1';
-const ACTIVE_LEASE_MS = 120_000; // 后台标签页计时会被节流；两分钟租约仍可可靠阻止跨页重复占房
-const ACTIVE_STALE_MS = 20_000;  // 心跳五秒一次；超过此数多半是那个页面已崩溃/强退，可提示用户接管
+// 占房租约：防的是「一个人同时占两间室的两个座位」。
+// 心跳五秒一次，超过 15 秒没动静就当那个页面已经没了——微信里每次从聊天点开都是新 WebView，
+// 旧的常留在后台不发 pagehide，两分钟的硬租约会把人直接锁在门外，这正是「微信进不了房间」的由来。
+const ACTIVE_LEASE_MS = 15_000;
 const CHAT_GAP_MS = 750;         // 与服务端 CHAT_GAP_MS 同刻度：在本地先拦，免得字被发丢
 const CHAT_STICK_PX = 48;        // 距底不足此数即视为「正贴着底看」，新消息才自动滚
 
@@ -186,27 +188,21 @@ export const Net = {
     return `${proto}//${location.host}/api/room/${code}/ws`;
   },
 
-  // 一人同时只占一座：另一个页面正在房里就不放行。
-  // 但持租的页面若是崩溃/强退（pagehide 没跑到），租约会白挂两分钟——
-  // 心跳是五秒一次，故超过 STALE 即视为那边已死，本页可直接接管，不叫人干等。
+  // 一人同时只占一座。但这道锁只该拦「跑去坐另一间室」，不该拦回到同一间室——
+  // 服务器本来就按 clientToken 认人，同室重进只是把原座接过来，没有多占。
   _claimLocalRoom(code, force = false) {
     const now = Date.now();
     try {
       const lease = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
-      const age = now - Number(lease?.ts || 0);
-      if (!force && lease?.tab && lease.tab !== this.tabToken && age < ACTIVE_LEASE_MS) {
-        this._staleLease = age >= ACTIVE_STALE_MS;   // 供上层提示「上个页面已关闭？」
-        return false;
-      }
+      const live = lease?.tab && lease.tab !== this.tabToken && now - Number(lease.ts || 0) < ACTIVE_LEASE_MS;
+      if (!force && live && String(lease.code || '') !== String(code || '')) return false;
       localStorage.setItem(ACTIVE_KEY, JSON.stringify({ code, tab: this.tabToken, ts: now }));
     } catch (e) {}
-    this._staleLease = false;
     return true;
   },
   // 用户确认另一页面已关闭后，强行接管本机的「在房」标记
   takeOverLocalRoom() {
     try { localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
-    this._staleLease = false;
   },
   _touchLocalRoom() {
     if (!this.code && !this._joinCode) return;
@@ -238,9 +234,8 @@ export const Net = {
       return Promise.reject(new Error(`正在进入${this.roomLabel(this._joinCode)}，请稍候`));
     }
     if (!this._claimLocalRoom(code)) {
-      const err = new Error('您已在另一个页面进入共修室；一个人同一时间只能进入一个房间');
-      err.code = 'other_tab';
-      err.stale = !!this._staleLease;   // 那个页面很可能已经关了，可询问后接管
+      const err = new Error('本机另一个页面正在别的共修室里；一个人同一时间只入一间室');
+      err.code = 'other_tab';   // 上层会问一句是否接管——那个页面很可能已经关了
       return Promise.reject(err);
     }
 
