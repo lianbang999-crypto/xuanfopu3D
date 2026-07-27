@@ -17,8 +17,13 @@ const moveAndGrantCount = grants.filter((item) => item.move).length;
 const pureGrantCount = grants.length - moveAndGrantCount;
 const expected = ontology.coverage;
 
-assert.equal(ontology.canonicalOperationPolicy.mode, 'self_continue');
-assert.equal(ontology.canonicalOperationPolicy.recipient, 'same_player');
+// 定稿操作规则 v2：贈掷由掷得者择一位同席莲友受之，无受赠者即作废（单机局同此）。
+// 这四条是操作层裁定，不是原谱逐字规定——答语口径见 ontology.answerPolicy。
+assert.equal(ontology.canonicalOperationPolicy.mode, 'gift_to_other');
+assert.equal(ontology.canonicalOperationPolicy.recipient, 'giver_selects_other_player');
+assert.equal(ontology.canonicalOperationPolicy.resolveAt, 'recipient_current_position');
+assert.equal(ontology.canonicalOperationPolicy.soloPolicy, 'void_without_recipient');
+assert.ok(ontology.evidenceBoundary.prohibitedProductionModes.includes('self_continue'));
 assert.equal(positionCount, expected.positionCount);
 assert.equal(grants.length, expected.ruleCellCount);
 assert.equal(pureGrantCount, expected.pureGrantCount);

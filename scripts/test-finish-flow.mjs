@@ -1,8 +1,8 @@
 // 终局交互回归：到佛位立即锁轮、每掷自动记念佛功课、大厅只有统一功课榜。
-// 用法：先启动 Vite，再 UI_BASE=http://127.0.0.1:5930 npm run test:finish
+// 用法：先启动 Vite，再 UI_BASE=http://localhost:5930 npm run test:finish
 import { chromium } from 'playwright-core';
 
-const UI_BASE = process.env.UI_BASE || 'http://127.0.0.1:5173';
+const UI_BASE = process.env.UI_BASE || 'http://localhost:5930';
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 let passed = 0;

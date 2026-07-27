@@ -12,7 +12,8 @@
 - **掷轮**：依谱「置輪掌心，仰手旁擲」——长按掷轮钮默念一句「南无阿弥陀佛」，念毕松手旁掷。
 - **行位**：两轮得字组合（那/謨表恶，阿/彌/陀/佛表善）决定从当前位升、降或安住；每掷出判词窗，交代去向与谱曰缘由（可读原谱原文）。
 - **世界即棋盘**：须弥山、四洲、诸天、净土是可遨游的 3D 星图；行棋之余随时拖动观照，点门星展位次。
-- **真人共修**：2–4 位真人入座准备后共同开局；按东南西北座次轮掷，贈掷由当前操作者续完；轮相与棋况由服务器裁定；聊天随时可用，断线重连回原座。
+- **真人共修**：2–4 位真人入座准备后共同开局；按座次轮掷，轮相与棋况由服务器裁定；聊天随时可用，断线重连回原座。
+- **贈掷施与同席**：掷得「贈N掷」者不自留，择一位同席莲友受之，受赠者在自身所在之位续掷；无人可受（含一人行谱）则此贈作废。此为本项目**定稿操作规则**（`data/grant-ontology-v1.json`，操作层裁定，非原谱逐字规定）。
 
 ## 本地开发
 
@@ -72,10 +73,12 @@ wrangler.jsonc        Cloudflare 部署配置（静态资源 + Durable Objects +
 ## 联机架构
 
 - 浏览器与 Worker 共用 `src/sfp-engine.js`；服务器生成轮相并提交权威棋况，客户端只负责动画与经据呈现。
-- 共同生命周期：`waiting → playing(waiting_toss/resolving) → finished → 再准备`；个人不能重开或覆盖他人棋况。
+- 共同生命周期：`waiting → playing(waiting_toss/resolving/choosing_grant) → finished → 再准备`；个人不能重开或覆盖他人棋况。
 - 每条掷轮命令携带 `requestId`，重复发送只返回原结果；非当前操作者和旧版 `move` 上报均被拒绝。
+- 贈掷走服务器施受队列：掷得者在 `choosing_grant` 相位择人（三十秒未择即按座次自动施与），受赠者续掷至队列用尽才轮转下一位；`p.bonus` 一律由队列重算，前台只镜像不另记账。
+- 本手限时：在线一分钟、断线三十秒、判词兜底一分钟、择人三十秒，均随 `room.turnDeadline` 下发，前台在掷轮钮与判词卡上呈现剩余秒数。连续两手未掷即「暂离」，可随时点掷轮钮或面板上的「我回来了」归队。
 - 每房一个 Durable Object（休眠式 WebSocket，空闲不计费）；房号即 DO 名。
-- 消息协议：`join / ready_set / start_match / toss_request / turn_done / chat / sync / leave`，详见 `worker/index.js`。
+- 消息协议：`join / ready_set / start_match / toss_request / turn_done / grant_choose / wake / chat / sync / leave`，详见 `worker/index.js`。
 
 ## 版权与依据
 

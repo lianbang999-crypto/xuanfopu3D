@@ -10,6 +10,9 @@ const CLIENT_KEY = 'sm10.net.client.v1';
 const TAB_KEY = 'sm10.net.tab.v1';
 const ACTIVE_KEY = 'sm10.net.active.v1';
 const ACTIVE_LEASE_MS = 120_000; // 后台标签页计时会被节流；两分钟租约仍可可靠阻止跨页重复占房
+const ACTIVE_STALE_MS = 20_000;  // 心跳五秒一次；超过此数多半是那个页面已崩溃/强退，可提示用户接管
+const CHAT_GAP_MS = 750;         // 与服务端 CHAT_GAP_MS 同刻度：在本地先拦，免得字被发丢
+const CHAT_STICK_PX = 48;        // 距底不足此数即视为「正贴着底看」，新消息才自动滚
 
 function stableId(storage, key, prefix) {
   try {
@@ -53,6 +56,9 @@ const EMPTY_ROOM = {
   round: 0,
   availableAt: 0,
   turnDeadline: 0,
+  startOpenAt: 0,
+  gift: null,
+  pendingGrant: null,
   finishing: false,
   finishedAt: 0,
   finishReason: '',
@@ -75,6 +81,11 @@ export const Net = {
   _retry: 0,
   _unread: 0,
   _pendingToss: '',
+  _pendingGrant: '',
+  _grantTick: 0,
+  _chatAt: 0,
+  _chatHint: null,
+  _startGate: 0,
   _pendingReady: null,
   _pendingStart: '',
   _connState: 'ok',
@@ -98,13 +109,45 @@ export const Net = {
   onLeft: null,
   zh: (s) => s,
   _toastCb: null,
+  // 确认由宿主提供站内卡片（见 game.js confirmLeaveMatch）；未接线时退回原生弹窗，不至于静默放行
+  _confirmCb: (what) => Promise.resolve(window.confirm(`${what}？`)),
 
   isHost() { return this.mySeat === 0; },
+  // 房主挂机不该锁死全房：房主离线、或人已齐备等够时长，任一已准备者都可开局
+  canStart() {
+    if (!this.me()?.ready) return false;
+    if (this.isHost()) return true;
+    const openAt = Number(this.room.startOpenAt || 0);
+    return !!openAt && Date.now() >= openAt;
+  },
+  // 全站只称「共修室N」；H1T2 这类内部码只在需要口报或手输处作次级信息
+  roomLabel(code = this.code) {
+    const at = /^H(\d+)T(\d+)$/i.exec(String(code || ''));
+    if (!at) return code ? `房间 ${code}` : '共修室';
+    const ord = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'][Number(at[2]) - 1];
+    return ord ? `共修室${ord}` : `共修室 ${at[2]}`;
+  },
   isPlaying() { return this.room.status === 'playing'; },
   isFinished() { return this.room.status === 'finished'; },
   me() { return this.players.find((p) => p.id === this.myId) || null; },
   turnPlayer() { return this.players.find((p) => p.id === this.room.turnId) || null; },
   myTurn() { return this.isPlaying() && this.room.turnId === this.myId; },
+  // 中途入室者不在本局行动序列里，只候下一局——不能拿轮次话术糊弄他
+  isSpectator() { return this.isPlaying() && !!this.me()?.spectator; },
+  // 「暂离」只在局中有意义：本局已结算还挂着「我回来了」，等于让人回一个已经不存在的局
+  isAway() { return this.isPlaying() && !!this.me()?.away; },
+  playerName(id) { return this.players.find((p) => p.id === id)?.name || '同修'; },
+  // 我是否正被请去择一位受赠莲友
+  myGrantChoice() {
+    const pending = this.room.pendingGrant;
+    if (!pending || this.room.phase !== 'choosing_grant') return null;
+    return pending.giverId === this.myId ? pending : null;
+  },
+  // 本手是不是在用受赠之掷
+  myGiftLeft() {
+    const gift = this.room.gift;
+    return gift && gift.recipientId === this.myId ? Math.max(0, Number(gift.remaining) || 0) : 0;
+  },
   canToss() {
     return this.active
       && this._connState === 'ok'
@@ -113,7 +156,8 @@ export const Net = {
       && Date.now() >= Number(this.room.availableAt || 0)
       && !this._pendingToss
       && !this.me()?.done
-      && !this.me()?.away;
+      && !this.me()?.away
+      && !this.me()?.spectator;
   },
   turnHint() {
     if (!this.active) return '请先进入共修室';
@@ -123,6 +167,13 @@ export const Net = {
       return this.room.finishReason === 'not_enough_players'
         ? '本局已中止，请准备下一局'
         : '本局已共同结算，请准备下一局';
+    }
+    if (this.isSpectator()) return '本局已开局 · 您在下一局入座';
+    if (this.isAway()) return '您已暂离本局 · 点此归队';
+    if (this.room.phase === 'choosing_grant') {
+      return this.myGrantChoice()
+        ? '请择一位莲友受此贈掷'
+        : `${this.playerName(this.room.pendingGrant?.giverId)}正在择人受贈`;
     }
     if (this.room.phase === 'resolving') return '上一掷正在行棋';
     if (Date.now() < Number(this.room.availableAt || 0)) return '共同开局倒计时中';
@@ -135,16 +186,27 @@ export const Net = {
     return `${proto}//${location.host}/api/room/${code}/ws`;
   },
 
-  _claimLocalRoom(code) {
+  // 一人同时只占一座：另一个页面正在房里就不放行。
+  // 但持租的页面若是崩溃/强退（pagehide 没跑到），租约会白挂两分钟——
+  // 心跳是五秒一次，故超过 STALE 即视为那边已死，本页可直接接管，不叫人干等。
+  _claimLocalRoom(code, force = false) {
     const now = Date.now();
     try {
       const lease = JSON.parse(localStorage.getItem(ACTIVE_KEY) || 'null');
-      if (lease?.tab && lease.tab !== this.tabToken && now - Number(lease.ts || 0) < ACTIVE_LEASE_MS) {
+      const age = now - Number(lease?.ts || 0);
+      if (!force && lease?.tab && lease.tab !== this.tabToken && age < ACTIVE_LEASE_MS) {
+        this._staleLease = age >= ACTIVE_STALE_MS;   // 供上层提示「上个页面已关闭？」
         return false;
       }
       localStorage.setItem(ACTIVE_KEY, JSON.stringify({ code, tab: this.tabToken, ts: now }));
     } catch (e) {}
+    this._staleLease = false;
     return true;
+  },
+  // 用户确认另一页面已关闭后，强行接管本机的「在房」标记
+  takeOverLocalRoom() {
+    try { localStorage.removeItem(ACTIVE_KEY); } catch (e) {}
+    this._staleLease = false;
   },
   _touchLocalRoom() {
     if (!this.code && !this._joinCode) return;
@@ -168,15 +230,18 @@ export const Net = {
     const reconnecting = this.active && !!playerId && this.code === code;
     if (this.active && !reconnecting) {
       return Promise.reject(new Error(
-        this.code === code ? '您已经在这个共修室' : `您已在共修室 ${this.code}，请先离开再换房`,
+        this.code === code ? '您已经在这个共修室' : `您已在${this.roomLabel()}，请先离开再换房`,
       ));
     }
     if (this._joinPromise) {
       if (this._joinCode === code) return this._joinPromise;
-      return Promise.reject(new Error(`正在进入共修室 ${this._joinCode}，请稍候`));
+      return Promise.reject(new Error(`正在进入${this.roomLabel(this._joinCode)}，请稍候`));
     }
     if (!this._claimLocalRoom(code)) {
-      return Promise.reject(new Error('您已在另一个页面进入共修室；一个人同一时间只能进入一个房间'));
+      const err = new Error('您已在另一个页面进入共修室；一个人同一时间只能进入一个房间');
+      err.code = 'other_tab';
+      err.stale = !!this._staleLease;   // 那个页面很可能已经关了，可询问后接管
+      return Promise.reject(err);
     }
 
     const attempt = ++this._joinSeq;
@@ -309,6 +374,8 @@ export const Net = {
     this._pendingToss = '';
     this._pendingReady = null;
     this._pendingStart = '';
+    this._pendingGrant = '';
+    this._grantSync();
     try {
       localStorage.removeItem(NET_KEY);
       localStorage.removeItem(OLD_NET_KEY);
@@ -387,8 +454,37 @@ export const Net = {
   finishTurn() {
     return this._send({ type: 'turn_done', requestId: requestId('done') });
   },
+  // 择受赠者：贈掷不归自己，由掷得者施与同席一位莲友（本项目定稿操作规则）
+  chooseGrant(recipientId) {
+    if (!this.myGrantChoice() || this._pendingGrant) return false;
+    const id = requestId('grant');
+    if (!this._send({ type: 'grant_choose', recipientId, requestId: id })) return false;
+    this._pendingGrant = id;
+    this._grantSync();
+    window.setTimeout(() => {
+      if (this._pendingGrant !== id) return;
+      this._pendingGrant = '';
+      this._grantSync();
+    }, 6000);
+    return true;
+  },
+  // 暂离归队：超时两手会被移出行动序列，这里给一条自助回来的路
+  wakeUp() {
+    if (!this.active || !this.isAway()) return false;
+    return this._send({ type: 'wake', requestId: requestId('wake') });
+  },
+  // 服务器每 750ms 才收一条。从前前台照发不误，被拒的那条连同用户敲的字一起没了，
+  // 只剩一句「说话稍慢一些」——所以限流改在发出之前判，字一直留在输入框里。
   sendChat(text) {
-    return this._send({ type: 'chat', text, requestId: requestId('chat') });
+    const now = Date.now();
+    const wait = CHAT_GAP_MS - (now - this._chatAt);
+    if (wait > 0) {
+      this._chatHint?.(`稍候 ${Math.ceil(wait / 100) / 10} 秒再发`);
+      return false;
+    }
+    if (!this._send({ type: 'chat', text, requestId: requestId('chat') })) return false;
+    this._chatAt = now;
+    return true;
   },
   setKey(key) { return this._send({ type: 'lock', key, requestId: requestId('lock') }); },
   clearKey() { return this._send({ type: 'lock', off: true, requestId: requestId('unlock') }); },
@@ -404,7 +500,9 @@ export const Net = {
       if (this._pendingReady && me.ready === this._pendingReady.value) this._pendingReady = null;
     }
     if (this.room.status === 'playing') this._pendingStart = '';
+    if (this.room.phase !== 'choosing_grant') this._pendingGrant = '';
     this._uiRoomSync();
+    this._grantSync();
     this._pillSync();
     this.onRoster?.(this.players);
     this.onState?.(this.room);
@@ -450,11 +548,35 @@ export const Net = {
         break;
       case 'turn_skipped':
         this._sysMsg(`${message.name || '同修'}本手超时${message.away ? '，已暂离行动序列' : '，轮次顺延'}`);
+        if (message.playerId === this.myId && message.away) {
+          this._toastCb?.(this.zh('您连续两手未掷，已暂离本局——点掷轮钮即可归队，下一轮接着掷'));
+        }
+        break;
+      case 'grant_pending':
+        this._applyState(message);
+        if (!this.myGrantChoice()) {
+          this._sysMsg(`${this.playerName(message.room?.pendingGrant?.giverId)}正在择一位莲友受贈`);
+        }
+        break;
+      case 'grant_given': {
+        const mine = message.recipientId === this.myId;
+        const byMe = message.giverId === this.myId;
+        const how = message.reason === 'timeout' ? '（择人超时，按座次施与）' : '';
+        this._sysMsg(`${message.giverName}将「贈${'一二三四'[Math.max(1, message.count) - 1]}掷」施与${message.recipientName}${how}`);
+        if (mine) this._toastCb?.(this.zh(`${message.giverName}把贈掷施与您——请在本位续掷`));
+        else if (byMe) this._toastCb?.(this.zh(`已施与${message.recipientName}`));
+        break;
+      }
+      case 'grant_void':
+        this._sysMsg(`${message.name || '同修'}掷得贈掷，然无人可施，此贈作废`);
+        break;
+      case 'player_back':
+        this._sysMsg(`${message.name || '同修'}已归队`);
         break;
       case 'match_finished':
         this._pendingToss = '';
         this._applyState(message);
-        this.openPanel();
+        // 结算画面由宿主给（及第面板／共同结算卡，各带下一步操作），此处不再自动掀开面板抢版面
         this.onMatchFinished?.(message);
         break;
       case 'command_error':
@@ -471,9 +593,10 @@ export const Net = {
     }
   },
 
-  init({ toast, zh }) {
+  init({ toast, zh, confirm }) {
     if (toast) this._toastCb = toast;
     if (zh) this.zh = zh;
+    if (confirm) this._confirmCb = confirm;
     this.clientToken = stableId(localStorage, CLIENT_KEY, 'person');
     this.tabToken = stableId(sessionStorage, TAB_KEY, 'tab');
     clearInterval(this._leaseTimer);
@@ -515,26 +638,25 @@ export const Net = {
 #netPanel.on{display:flex}
 #netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid rgba(216,197,139,.18);min-height:40px;flex:none}
 #netHead b{letter-spacing:2px;color:#d8c58b}
-#netHead .code{margin-left:auto;color:#96e1d6;letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
+#netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:#96e1d6;letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
+#netHead .code:hover,#netHead .code:focus-visible{color:#b9f0e6}
 #netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(217,136,115,.3);background:rgba(217,136,115,.08);color:#d9a08f;border-radius:10px;cursor:pointer}
 #netMinBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:#9aa3b5;border-radius:10px;cursor:pointer;font-size:20px}
 #netMinBtn:hover{background:rgba(255,255,255,.06);color:#e8e2d0}
 #netRoomState{flex:none;padding:8px 12px;color:#cfc7ad;line-height:1.5}
 #netRoomState b{color:#e8c766}
-#netGuide{flex:none;margin:0 12px 9px;padding:11px 12px;border:1px solid rgba(232,199,102,.24);border-radius:12px;background:rgba(232,199,102,.07)}
+/* 面板是定高的：名单、指引、聊天三处可压缩（flex:0 1 auto + min-height:0），
+   准备/开局、聊天输入、密码邀请大厅三排永远 flex:none——空间不够时宁可挤掉说明文字，
+   也不能把操作按钮挤出面板（overflow:hidden 会让它们彻底点不到）。
+   指引从一个带框两步图降为按钮下的一行小字：状态行已报人数、按钮上已写「共同开局 · N 人」，
+   同一件事说三遍徒占版面（§5.0b 信息只出一次）。 */
+#netGuide{flex:0 1 auto;min-height:0;overflow:hidden;padding:0 12px 9px}
 #netGuide[hidden]{display:none}
-#netGuide .netGuideTitle{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
-#netGuide .netGuideTitle b{color:#efe2b4;letter-spacing:1px}
-#netGuide .netGuideTitle span{color:#9aa3b5;font-size:var(--fs-xs)}
-#netGuide .netSteps{display:grid;grid-template-columns:1fr 18px 1fr;align-items:center;margin:9px 0 7px}
-#netGuide .netStep{display:flex;align-items:center;gap:7px;color:#9aa3b5;font-size:var(--fs-sm)}
-#netGuide .netStep i{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;border:1px solid rgba(216,197,139,.32);font-style:normal}
-#netGuide .netStep.done{color:#96e1d6}#netGuide .netStep.done i{background:rgba(92,184,169,.16);border-color:rgba(150,225,214,.55)}
-#netGuide .netStep.active{color:#e8c766}#netGuide .netStep.active i{background:rgba(232,199,102,.15);border-color:rgba(232,199,102,.62)}
-#netGuide .netStep.pending{color:#e8c766}#netGuide .netStep.pending i{border-color:rgba(232,199,102,.62)}
-#netGuide .netArrow{text-align:center;color:#6f7481}
-#netGuide p{margin:0;color:#cfc7ad;font-size:var(--fs-sm);line-height:1.5}
-#netRoster{display:flex;flex:none;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(216,197,139,.14);max-height:104px;overflow-y:auto}
+#netGuide p{margin:0;color:#9aa3b5;font-size:var(--fs-sm);line-height:1.5}
+#netGuideAct{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:10px;cursor:pointer;
+  border:1px solid rgba(232,199,102,.58);background:rgba(232,199,102,.2);color:#e8c766;font:inherit;font-size:var(--fs-sm);letter-spacing:2px}
+#netGuideAct[hidden]{display:none}
+#netRoster{display:flex;flex:0 1 auto;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(216,197,139,.14);min-height:0;max-height:104px;overflow-y:auto;overscroll-behavior:contain}
 .netP{display:flex;align-items:center;gap:5px;padding:6px 9px;min-height:30px;border-radius:15px;background:rgba(255,255,255,.05);border:1px solid transparent;max-width:100%}
 .netP.turn{border-color:rgba(232,199,102,.8);box-shadow:0 0 10px rgba(232,199,102,.22)}
 .netP.off{opacity:.48}.netP.away{opacity:.62}
@@ -548,9 +670,12 @@ export const Net = {
 #netRoundActions button{flex:1}
 #netRoundActions button.pri,#netBtns button.pri{background:rgba(232,199,102,.2);color:#e8c766;border-color:rgba(232,199,102,.58)}
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
-#netChatHead{display:flex;align-items:center;justify-content:space-between;flex:none;padding:8px 12px 5px;color:#9aa3b5;font-size:var(--fs-xs)}
-#netChatHead b{color:#cfc7ad;font-size:var(--fs-sm);font-weight:600;letter-spacing:1px}
-#netMsgs{flex:1;min-height:70px;overflow-y:auto;padding:5px 12px 8px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
+/* 聊天区不再另立标题：下面就是聊天，「共修聊天」四字是废话。这一行只留隐私说明，
+   翻历史时借同一位置报新消息（§5.0b 信息只出一次）。 */
+#netChatHead{display:flex;align-items:center;justify-content:flex-end;flex:none;padding:6px 12px 4px;
+  border-top:1px solid rgba(216,197,139,.14);color:#9aa3b5;font-size:var(--fs-xs)}
+#netMsgs{flex:1 1 0;min-height:0;overflow-y:auto;padding:5px 12px 8px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
+@media (min-height:640px){#netMsgs{min-height:70px}}
 #netPanel.is-waiting #netMsgs,#netPanel.is-finished #netMsgs{min-height:64px}
 .netM{display:flex;flex-direction:column;align-items:flex-start;line-height:1.45;word-break:break-word}
 .netM.mine{align-items:flex-end}.netM .who{margin:0 4px 3px;color:#9aa3b5;font-size:var(--fs-xs)}
@@ -561,7 +686,12 @@ export const Net = {
 #netQuick{display:flex;flex:none;gap:8px;padding:6px 12px 0;overflow-x:auto}
 #netPanel.is-waiting #netQuick,#netPanel.is-finished #netQuick{display:none}
 #netQuick button{min-height:44px;white-space:nowrap;border:1px solid rgba(216,197,139,.28);background:rgba(255,255,255,.04);color:#cfc7ad;border-radius:12px;padding:7px 12px;cursor:pointer}
-#netInput{display:flex;flex:none;gap:8px;padding:9px 10px;border-top:1px solid rgba(216,197,139,.18)}
+/* 翻看历史时新消息不抢滚动：提示就借聊天标题行右端那句话的位置，不另起浮层 */
+#netNew{border:0;background:none;padding:0;color:#9aa3b5;font:inherit;font-size:var(--fs-xs);cursor:default}
+#netNew.has{color:#e8c766;cursor:pointer;letter-spacing:1px}
+#netInput{position:relative;display:flex;flex:none;gap:8px;padding:9px 10px;border-top:1px solid rgba(216,197,139,.18)}
+#netChatHint{position:absolute;left:12px;bottom:calc(100% + 2px);color:#d9a08f;font-size:var(--fs-xs);letter-spacing:.5px;pointer-events:none}
+#netChatHint:empty{display:none}
 #netInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(216,197,139,.28);border-radius:10px;color:#efe9d8;padding:9px 11px;font-size:16px;outline:none}
 #netInput input:focus{border-color:rgba(232,199,102,.65);box-shadow:0 0 0 2px rgba(232,199,102,.1)}
 #netInput button{min-width:64px;min-height:44px;border:1px solid rgba(216,197,139,.4);background:rgba(216,197,139,.16);color:#d8c58b;border-radius:10px;cursor:pointer}
@@ -577,6 +707,28 @@ export const Net = {
 #netKeyCard .err{color:#d98873;font-size:var(--fs-sm);min-height:18px;margin-top:8px}
 #netKeyCard .big{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:11px;font-size:var(--fs-md);cursor:pointer;border:1px solid rgba(216,197,139,.4);background:rgba(255,255,255,.05);color:#cfc7ad}
 #netKeyCard .big.pri{background:rgba(232,199,102,.2);color:#e8c766;border-color:rgba(232,199,102,.6)}
+/* 择受赠者：贈掷不归自己，掷得者须择一位同席莲友受之（本项目定稿操作规则） */
+#netGrant{position:fixed;inset:0;z-index:62;display:none;align-items:center;justify-content:center;
+  padding:16px;background:rgba(8,10,15,.78);backdrop-filter:blur(5px);
+  font-family:'SmileySans',-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
+#netGrant.on{display:flex}
+#netGrantCard{width:min(360px,92vw);box-sizing:border-box;background:rgba(18,21,30,.98);
+  border:1px solid rgba(232,199,102,.5);border-radius:16px;padding:20px 18px 16px;color:#e8e2d0}
+#netGrantCard .ngEyebrow{color:#a99560;font-size:var(--fs-xs);letter-spacing:2px}
+#netGrantCard h3{margin:4px 0 6px;letter-spacing:3px;color:#f0dfa8;font-size:var(--fs-lg)}
+#netGrantCard .ngCount{color:#e8c766}
+#netGrantCard .ngSub{color:#9aa3b5;font-size:var(--fs-sm);line-height:1.65;margin-bottom:13px}
+#ngList{display:flex;flex-direction:column;gap:8px}
+.ngWho{display:flex;align-items:center;gap:9px;width:100%;min-height:52px;padding:9px 12px;cursor:pointer;
+  border:1px solid rgba(216,197,139,.32);border-radius:12px;background:rgba(255,255,255,.05);
+  color:#e8e2d0;font:inherit;text-align:left}
+.ngWho:hover:not(:disabled),.ngWho:focus-visible:not(:disabled){border-color:rgba(232,199,102,.7);background:rgba(232,199,102,.1)}
+.ngWho:disabled{opacity:.5;cursor:wait}
+.ngWho .dot{width:10px;height:10px;border-radius:50%;flex:none}
+.ngWho .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ngWho .st{color:#9aa3b5;font-size:var(--fs-xs);white-space:nowrap}
+#netGrantCard .ngNote{margin-top:11px;color:#8c93a1;font-size:var(--fs-xs);text-align:center;line-height:1.6}
+#netGrantCard .ngNote b{color:#e8c766;font-weight:500;font-variant-numeric:tabular-nums}
 .netDots{display:flex;gap:7px;align-items:center}.netDots .pd{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}.netDots .pd.off{opacity:.3}
 .netDots .pd.turn{animation:pdPulse 1.6s ease-in-out infinite}@keyframes pdPulse{0%,100%{box-shadow:0 0 3px currentColor}50%{box-shadow:0 0 10px currentColor,0 0 16px currentColor}}
 @media (prefers-reduced-motion:reduce){.netDots .pd.turn{animation:none}}
@@ -585,15 +737,15 @@ export const Net = {
   #netPanel.is-waiting,#netPanel.is-finished{height:min(84dvh,600px)}
   #netPanel.is-waiting #netMsgs,#netPanel.is-finished #netMsgs{min-height:36px}
   body.sfpOn #netPanel{bottom:calc(var(--kb,0px) + 92px);height:min(70dvh,520px);max-height:calc(100dvh - 112px)}
-  body.sfpOn #netPanel.full{bottom:var(--kb,0px)}
-  #netPanel.full{max-height:calc(100dvh - 28px);height:calc(100dvh - 28px)}
+  /* 上滑全屏必须压过 body.sfpOn 的定高，否则局中「全屏」只挪了位置、高度纹丝不动，
+     被挤掉的输入框和按钮也就永远回不来。两个选择器并列：局中那条特异性更高，稳赢。 */
+  body.sfpOn #netPanel.full,#netPanel.full{bottom:var(--kb,0px);height:calc(100dvh - 28px);max-height:calc(100dvh - 28px)}
   #netGrab{display:block}#netInput{padding-bottom:9px}
   #netRoster{max-height:74px}
   #netBtns{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
 }
 @media (max-width:520px) and (max-height:700px){
   #netQuick{display:none}
-  #netMsgs{min-height:0}
   #netRoster{max-height:58px;overflow-y:auto}
 }`;
     document.head.appendChild(css);
@@ -612,22 +764,15 @@ export const Net = {
 
     this.$panel = el(`<section id="netPanel" role="dialog" aria-modal="false" aria-label="真人共修室">
       <div id="netGrab" title="上滑全屏 · 下滑收起"></div>
-      <div id="netHead"><b>真人共修</b><span class="code" title="点按复制房号"></span><button id="netLeaveBtn" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
+      <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netLeaveBtn" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
       <div id="netRoomState" aria-live="polite"></div>
-      <div id="netGuide" aria-live="polite">
-        <div class="netGuideTitle"><b></b><span></span></div>
-        <div class="netSteps">
-          <span class="netStep ready"><i>1</i><span>我已准备</span></span><span class="netArrow">›</span>
-          <span class="netStep start"><i>2</i><span>房主开局</span></span>
-        </div>
-        <p></p>
-      </div>
       <div id="netRoster" aria-label="本室成员"></div>
       <div id="netRoundActions"><button id="netReadyBtn"></button><button id="netStartBtn" class="pri"></button></div>
-      <div id="netChatHead"><b>共修聊天</b><span>仅本室可见</span></div>
+      <div id="netGuide" aria-live="polite"><p></p><button id="netGuideAct" type="button" hidden></button></div>
+      <div id="netChatHead"><button id="netNew" type="button">仅本室可见</button></div>
       <div id="netMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天消息"></div>
       <div id="netQuick"><button>南無阿彌陀佛</button><button>隨喜讚歎 🙏</button></div>
-      <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="说一句…"><button aria-label="发送聊天">发送</button></div>
+      <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="说一句…"><button aria-label="发送聊天">发送</button><span id="netChatHint" aria-live="polite"></span></div>
       <div id="netBtns"><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请</button><button id="netHallBtn">大厅</button></div>
     </section>`);
     document.body.appendChild(this.$panel);
@@ -640,8 +785,8 @@ export const Net = {
     this.$code.addEventListener('click', (event) => {
       event.stopPropagation();
       navigator.clipboard?.writeText(this.code)
-        .then(() => this._toastCb?.(this.zh(`桌号 ${this.code} 已复制`)))
-        .catch(() => this._toastCb?.(this.zh(`桌号：${this.code}`)));
+        .then(() => this._toastCb?.(this.zh(`${this.roomLabel()} 房号 ${this.code} 已复制`)))
+        .catch(() => this._toastCb?.(this.zh(`${this.roomLabel()} 房号：${this.code}`)));
     });
     this.$panel.querySelector('#netMinBtn').addEventListener('click', () => this.closePanel());
 
@@ -684,11 +829,28 @@ export const Net = {
     }
 
     const input = this.$panel.querySelector('#netInput input');
+    const hintEl = this.$panel.querySelector('#netChatHint');
+    let hintTimer = 0;
+    this._chatHint = (text) => {
+      hintEl.textContent = this.zh(text);
+      clearTimeout(hintTimer);
+      hintTimer = window.setTimeout(() => { hintEl.textContent = ''; }, 1600);
+    };
     const sendNow = () => {
       const text = input.value.trim();
-      if (!text || !this.sendChat(text)) return;
+      if (!text || !this.sendChat(text)) return;   // 送不出就把字留在框里
       input.value = '';
+      hintEl.textContent = '';
     };
+    this.$msgs.addEventListener('scroll', () => {
+      if (this._atChatBottom() && this._chatMissed) { this._chatMissed = 0; this._chatNewSync(); }
+    }, { passive: true });
+    this.$panel.querySelector('#netNew').addEventListener('click', () => {
+      if (!this._chatMissed) return;               // 没有新消息时这里只是一句说明，不是按钮
+      this._chatMissed = 0;
+      this.$msgs.scrollTop = this.$msgs.scrollHeight;
+      this._chatNewSync();
+    });
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') sendNow();
       event.stopPropagation();
@@ -696,6 +858,9 @@ export const Net = {
     this.$panel.querySelector('#netInput button').addEventListener('click', sendNow);
     this.$panel.querySelectorAll('#netQuick button').forEach((button) => {
       button.addEventListener('click', () => this.sendChat(button.textContent));
+    });
+    this.$panel.querySelector('#netGuideAct').addEventListener('click', () => {
+      if (this.wakeUp()) this._toastCb?.(this.zh('已归队——下一轮轮到您时即可掷轮'));
     });
     this.$panel.querySelector('#netReadyBtn').addEventListener('click', () => this.setReady(!this.me()?.ready));
     this.$panel.querySelector('#netStartBtn').addEventListener('click', () => this.startMatch());
@@ -705,14 +870,8 @@ export const Net = {
       this.closePanel();
       this.onHall?.();
     });
-    this.$panel.querySelector('#netLeaveBtn').addEventListener('click', () => {
-      if (this.isPlaying()) {
-        const activePlayers = this.room.order.filter((id) => !this.players.find((player) => player.id === id)?.done).length;
-        const text = activePlayers <= 2
-          ? '离席后有效同修不足两位，本局会立即中止。确定离席并让出座位吗？'
-          : '离席后本局由其余同修继续，您的座位会立即让出。确定离席吗？';
-        if (!window.confirm(this.zh(text))) return;
-      }
+    this.$panel.querySelector('#netLeaveBtn').addEventListener('click', async () => {
+      if (this.isPlaying() && !await this._confirmCb('离开本局并让出座位')) return;
       this.leave();
     });
     window.addEventListener('keydown', (event) => {
@@ -760,6 +919,59 @@ export const Net = {
     this.$key.addEventListener('pointerdown', (event) => {
       if (event.target === this.$key) this.closeKey();
     });
+
+    // 择受赠者卡：不设关闭钮——此步非做不可，逾时服务器按座次代施，卡片随相位自行退去
+    this.$grant = el(`<div id="netGrant" role="dialog" aria-modal="true" aria-labelledby="ngTitle">
+      <div id="netGrantCard">
+        <div class="ngEyebrow">贈掷 · 施与同席</div>
+        <h3 id="ngTitle">掷得<span class="ngCount">贈掷</span>，请择一位莲友受之</h3>
+        <div class="ngSub">依本项目定稿操作规则：此贈不归自己，由受赠的莲友在他所在之位续掷。</div>
+        <div id="ngList"></div>
+        <div class="ngNote"></div>
+      </div></div>`);
+    document.body.appendChild(this.$grant);
+    this.$grant.querySelector('#ngList').addEventListener('click', (event) => {
+      const button = event.target.closest('.ngWho');
+      if (button && !button.disabled) this.chooseGrant(button.dataset.id);
+    });
+  },
+
+  _grantSync() {
+    const layer = this.$grant;
+    if (!layer) return;
+    const pending = this.myGrantChoice();
+    if (!pending) {
+      layer.classList.remove('on');
+      if (this._grantTick) { clearInterval(this._grantTick); this._grantTick = 0; }
+      return;
+    }
+    const count = Math.max(1, Math.min(4, Number(pending.count) || 1));
+    layer.querySelector('.ngCount').textContent = this.zh(`贈${'一二三四'[count - 1]}掷`);
+    const list = layer.querySelector('#ngList');
+    const key = `${pending.candidateIds.join(',')}|${this._pendingGrant ? 1 : 0}`;
+    if (list.dataset.key !== key) {
+      list.dataset.key = key;
+      list.innerHTML = pending.candidateIds.map((id) => {
+        const player = this.players.find((q) => q.id === id);
+        if (!player) return '';
+        const at = player.n ? this.zh(`第${player.n}掷`) : this.zh('尚未起行');
+        return `<button class="ngWho" type="button" data-id="${esc(id)}"${this._pendingGrant ? ' disabled' : ''}>
+          <span class="dot" style="background:${esc(player.color || '#e8c766')}"></span>
+          <span class="nm">${esc(player.name)}</span><span class="st">${at}</span></button>`;
+      }).join('');
+    }
+    const note = layer.querySelector('.ngNote');
+    const paint = () => {
+      if (this._pendingGrant) { note.innerHTML = this.zh('正在施与…'); return; }
+      const left = Math.max(0, Math.ceil((Number(this.room.turnDeadline || 0) - Date.now()) / 1000));
+      note.innerHTML = this.zh(`<b>${left}</b> 秒内未择，按座次自动施与`);
+    };
+    paint();
+    if (!this._grantTick) this._grantTick = window.setInterval(paint, 1000);
+    if (!layer.classList.contains('on')) {
+      layer.classList.add('on');
+      setTimeout(() => layer.querySelector('.ngWho')?.focus(), 60);
+    }
   },
 
   inviteUrl() { return shareUrl(this.key ? `${this.code}.${this.key}` : this.code); },
@@ -810,6 +1022,16 @@ export const Net = {
     const html = this.players.map((player) =>
       `<span class="pd${player.online ? '' : ' off'}${this.room.turnId === player.id ? ' turn' : ''}" style="color:${player.color}" title="${esc(player.name)}"></span>`).join('');
     document.querySelectorAll('.netDots').forEach((dots) => { dots.innerHTML = html; });
+    // 局中主视图原先只有几枚 8px 小点表示「轮到谁」，太隐晦。
+    // 借这枚钮已有的字位报当前操作者，不新增控件（§一1 中央永远留给星图）。
+    const turn = this.turnPlayer();
+    const label = this.isPlaying()
+      ? (this.myTurn() ? '该您' : Array.from(turn?.name || '同修').slice(0, 4).join(''))
+      : '聊';
+    document.querySelectorAll('.chatLabel').forEach((el2) => {
+      el2.textContent = this.zh(label);
+      el2.classList.toggle('mine', this.isPlaying() && this.myTurn());
+    });
   },
 
   _badge() {
@@ -839,6 +1061,13 @@ export const Net = {
       return `<b>共同结算</b>${winners.length ? ` · ${esc(winners.join('、'))}本局及第` : ''}`;
     }
     if (Date.now() < Number(this.room.availableAt || 0)) return '<b>共同开局</b> · 倒计时中';
+    if (this.room.phase === 'choosing_grant') {
+      return `<b>贈掷施与</b> · ${esc(this.playerName(this.room.pendingGrant?.giverId))}正在择人`;
+    }
+    const gift = this.room.gift;
+    if (gift && gift.remaining > 0) {
+      return `<b>受贈之掷</b> · ${esc(this.playerName(gift.recipientId))}续掷，余 ${gift.remaining} 掷`;
+    }
     const turn = this.turnPlayer();
     if (this.room.finishing) return `<b>补齐本轮</b> · 现在轮到${esc(turn?.name || '同修')}`;
     return `<b>第 ${this.room.round || 1} 轮</b> · 现在轮到${esc(turn?.name || '同修')}`;
@@ -862,7 +1091,10 @@ export const Net = {
     this.$panel.classList.toggle('is-waiting', waitingRoom);
     this.$panel.classList.toggle('is-finished', finishedRoom);
     this.$panel.classList.toggle('is-playing', playingRoom);
-    this.$code.textContent = `${this.locked ? '🔒 ' : ''}房号 ${this.code}`;
+    // 标题即室名（全站统一称谓），右侧小字才是可口报、可手输的内部房号
+    this.$panel.querySelector('#netHead b').textContent = this.zh(this.roomLabel());
+    this.$code.textContent = `${this.locked ? '🔒 ' : ''}${this.code}`;
+    this.$code.setAttribute('aria-label', this.zh(`房号 ${this.code}，点按复制`));
     this.$state.innerHTML = this.zh(this._stateText());
     this.$roster.innerHTML = '';
     for (const player of this.players) {
@@ -872,6 +1104,8 @@ export const Net = {
       else if (player.away) status = '暂离';
       else if (this.room.status === 'finished' && player.ready) status = '下局已准备';
       else if (player.done) status = '已及第';
+      else if (this.room.phase === 'choosing_grant' && this.room.pendingGrant?.giverId === player.id) status = '择人受贈';
+      else if (player.bonus > 0) status = `受贈${'一二三四'[Math.min(4, player.bonus) - 1]}掷`;
       else if (this.room.status === 'playing') status = player.n ? `第${player.n}掷` : '待起行';
       else if (player.ready) status = '已准备';
       const chip = el(`<div class="netP${player.online ? '' : ' off'}${player.away ? ' away' : ''}${this.room.turnId === player.id ? ' turn' : ''}">
@@ -904,32 +1138,45 @@ export const Net = {
     readyButton.setAttribute('aria-label', this.zh(readyPending
       ? (readyTarget ? '正在确认准备状态' : '正在取消准备状态')
       : (me?.ready ? '取消准备' : (finishedRoom ? '准备下一局' : '我已准备'))));
-    startButton.style.display = waiting && this.isHost() ? '' : 'none';
+    // 房主自然可开局；房主久未动手时，开局钮向已准备的诸位放开（服务器同一把尺子）
+    const mayStart = this.isHost() || this.canStart();
+    startButton.style.display = waiting && mayStart ? '' : 'none';
     startButton.textContent = this.zh(startPending
       ? '正在共同开局…'
       : (!me?.ready ? '请先准备' : (readyCount < 2 ? '还需 1 人准备' : `共同开局 · ${readyCount} 人`)));
-    startButton.disabled = startPending || !me?.ready || readyCount < 2 || this._connState !== 'ok';
+    startButton.disabled = startPending || !me?.ready || readyCount < 2
+      || this._connState !== 'ok' || !this.canStart();
     startButton.setAttribute('aria-busy', startPending ? 'true' : 'false');
 
-    this.$guide.hidden = !waiting;
+    // 指引只剩一行：说「下一步做什么」，不复述状态行的人数、也不图解正上方那两个按钮。
+    // 局中仍保留，专给两种「在室但不在局」的人：中途入室的旁观者、超时暂离者——
+    // 从前这两种人只在名单里多两个字，主视图却照旧提示「请候某某行谱」，等于骗他等一个永不到来的轮次。
+    const spectating = this.isSpectator();
+    const away = this.isAway();
+    const hint = this.$guide.querySelector('p');
+    const guideAct = this.$guide.querySelector('#netGuideAct');
+    this.$guide.hidden = !(waiting || spectating || away);
+    guideAct.hidden = !away;
+    if (away) {
+      hint.textContent = this.zh('您已暂离本局，轮次会跳过您。');
+      guideAct.textContent = this.zh('我回来了');
+    } else if (spectating) {
+      hint.textContent = this.zh('本局在您入座前已开始；待共同结算后一同准备即可入局。');
+    }
     if (waiting) {
-      const title = this.$guide.querySelector('.netGuideTitle b');
-      const role = this.$guide.querySelector('.netGuideTitle span');
-      const readyStep = this.$guide.querySelector('.netStep.ready');
-      const startStep = this.$guide.querySelector('.netStep.start');
-      const hint = this.$guide.querySelector('p');
-      title.textContent = this.zh(finishedRoom ? '准备下一局' : '先准备，再共同开局');
-      role.textContent = this.zh(this.isHost() ? '您是房主' : '房主开局');
-      readyStep.classList.toggle('done', !!me?.ready);
-      readyStep.classList.toggle('active', !me?.ready);
-      readyStep.classList.toggle('pending', readyPending);
-      startStep.classList.toggle('done', readyCount >= 2);
-      startStep.classList.toggle('active', !!me?.ready && readyCount >= 2);
+      const openIn = Math.ceil((Number(this.room.startOpenAt || 0) - Date.now()) / 1000);
       if (readyPending) hint.textContent = this.zh(readyTarget ? '正在确认您的准备状态…' : '正在取消准备，请稍候…');
-      else if (!me?.ready) hint.textContent = this.zh('点“我已准备”；准备后仍可取消。');
-      else if (readyCount < 2) hint.textContent = this.zh('您已准备，等待至少一位莲友。');
-      else if (this.isHost()) hint.textContent = this.zh('人员已齐，可以共同开局。');
-      else hint.textContent = this.zh('您已准备，等待房主开始。');
+      else if (!me?.ready) hint.textContent = this.zh('先准备，再共同开局；准备后仍可取消。');
+      else if (readyCount < 2) hint.textContent = this.zh('已准备，再候一位莲友即可开局。');
+      else if (mayStart) {
+        hint.textContent = this.zh(this.isHost() ? '人员已齐，可以共同开局。' : '房主久未开局，您也可以开局。');
+      } else if (openIn > 0) hint.textContent = this.zh(`已准备，候房主开局；${openIn} 秒后您也可以开局。`);
+      else hint.textContent = this.zh('已准备，候房主开局。');
+      // 开局权到点即放开：让倒计时自己走完，不必等下一条服务器消息
+      window.clearTimeout(this._startGate);
+      this._startGate = (!mayStart && Number(this.room.startOpenAt || 0) > Date.now())
+        ? window.setTimeout(() => this._uiRoomSync(), 1000)
+        : 0;
     }
 
     const keyButton = this.$panel.querySelector('#netKeyBtn');
@@ -938,13 +1185,38 @@ export const Net = {
     this._chatEmptySync();
   },
 
+  // 是否正贴着底看：贴底才让新消息自动滚，否则翻历史的人每来一条就被拽回去
+  _atChatBottom() {
+    const box = this.$msgs;
+    if (!box) return true;
+    return box.scrollHeight - box.scrollTop - box.clientHeight <= CHAT_STICK_PX;
+  },
+  _chatArrived(stick) {
+    if (stick) {
+      this.$msgs.scrollTop = this.$msgs.scrollHeight;
+      this._chatMissed = 0;
+    } else {
+      this._chatMissed = (this._chatMissed || 0) + 1;
+    }
+    this._chatNewSync();
+  },
+  _chatNewSync() {
+    const tag = this.$panel?.querySelector('#netNew');
+    if (!tag) return;
+    const missed = this._chatMissed || 0;
+    tag.classList.toggle('has', missed > 0);
+    tag.textContent = this.zh(missed > 0 ? `${missed > 9 ? '9+' : missed} 条新消息 ↓` : '仅本室可见');
+  },
   _chatFill(list) {
     this.$msgs.innerHTML = '';
     for (const message of list) this._chatPush(message, true);
     this._chatEmptySync();
+    this._chatMissed = 0;
     this.$msgs.scrollTop = this.$msgs.scrollHeight;
+    this._chatNewSync();
   },
   _chatPush(message, noCount = false) {
+    const stick = this._atChatBottom();
     this.$msgs.querySelector('.netEmpty')?.remove();
     const mine = message.id === this.myId;
     const row = el(`<div class="netM${mine ? ' mine' : ''}">
@@ -953,7 +1225,7 @@ export const Net = {
     </div>`);
     this.$msgs.appendChild(row);
     while (this.$msgs.children.length > 150) this.$msgs.removeChild(this.$msgs.firstChild);
-    this.$msgs.scrollTop = this.$msgs.scrollHeight;
+    this._chatArrived(stick || mine);   // 自己刚发的一定滚到底
     if (!noCount && !this.$panel.classList.contains('on')) {
       this._unread++;
       this._badge();
@@ -961,11 +1233,12 @@ export const Net = {
   },
   _sysMsg(text) {
     if (!this.$msgs) return;
+    const stick = this._atChatBottom();
     this.$msgs.querySelector('.netEmpty')?.remove();
     const row = el(`<div class="netM sys">${esc(this.zh(text))}</div>`);
     this.$msgs.appendChild(row);
     while (this.$msgs.children.length > 150) this.$msgs.removeChild(this.$msgs.firstChild);
-    this.$msgs.scrollTop = this.$msgs.scrollHeight;
+    this._chatArrived(stick);
   },
   _chatEmptySync() {
     if (!this.$msgs || this.$msgs.children.length) return;

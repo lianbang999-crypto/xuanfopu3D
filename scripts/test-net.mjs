@@ -1,5 +1,7 @@
 // 真人共修协议测试：对 wrangler dev 跑共同准备、权威掷轮、轮次与重连。
 // 用法：先 `npx wrangler dev --port 8787`，再 `node scripts/test-net.mjs`
+import { SFP_PROTOCOL_VERSION } from '../src/sfp-engine.js';
+
 const BASE = process.env.NET_BASE || 'http://localhost:8787';
 const WS_BASE = BASE.replace(/^http/, 'ws');
 const TABLE = 'H3T8';
@@ -51,7 +53,7 @@ const rid = (prefix) => `${prefix}:${crypto.randomUUID()}`;
 async function join(code, name, playerId = null, key = '', clientToken = '') {
   const client = connect(code);
   await client.opened;
-  client.send({ type: 'join', protocolVersion: 2, name, playerId, key, clientToken });
+  client.send({ type: 'join', protocolVersion: SFP_PROTOCOL_VERSION, name, playerId, key, clientToken });
   const joined = await client.next((message) => message.type === 'joined' || message.type === 'error');
   if (joined.type === 'joined') {
     client.playerId = joined.playerId;
@@ -70,7 +72,7 @@ for (const name of ['慧明', '慧安', '慧净', '慧觉']) {
 }
 const [east, south, west, north] = clients;
 ok(east.joined.seat === 0 && east.joined.host, '最先入室者是真人房主');
-ok(east.sync.protocolVersion === 2 && east.sync.room.status === 'waiting', '同步采用 v2 准备室协议');
+ok(east.sync.protocolVersion === SFP_PROTOCOL_VERSION && east.sync.room.status === 'waiting', '同步采用当前准备室协议');
 ok(east.sync.players.every((player) => player.n === 0 && !player.ready), '入座不会自动开始个人谱局');
 
 east.send({ type: 'ready_set', ready: true, requestId: rid('ready') });
@@ -115,13 +117,26 @@ first.send({ type: 'toss_request', requestId: tossId });
 const duplicate = await first.next((message) => message.type === 'toss_committed' && message.requestId === tossId);
 ok(duplicate.combo === toss.combo && duplicate.player.n === 1, '重复 requestId 返回原结果，不会重复行棋');
 
+// 掷得贈掷时不再自留：二人局只剩一位可施者，服务器径直施与对方，由对方续掷。
+// 两种情形轮次都落到第二位，差别在续掷标记与受赠计数。
+const grantGiven = toss.grant > 0
+  ? await first.next((message) => message.type === 'grant_given')
+  : null;
 first.send({ type: 'turn_done', requestId: rid('done') });
 const nextTurn = await first.next((message) => message.type === 'turn_started');
-if (toss.player.bonus > 0 && !toss.player.done) {
-  ok(nextTurn.room.turnId === firstId && nextTurn.continuation, '贈掷仍由当前操作者即时续掷');
-} else {
-  ok(nextTurn.room.turnId === second.playerId, '完整一手结束后才交下一位');
+ok(nextTurn.room.turnId === second.playerId,
+  toss.grant > 0 ? '贈掷施与同席莲友，由受赠者续掷' : '完整一手结束后才交下一位');
+if (toss.grant > 0) {
+  ok(grantGiven.recipientId === second.playerId && grantGiven.giverId === firstId, '贈掷记名：施者与受赠者分明');
+  const recipient = nextTurn.players.find((player) => player.id === second.playerId);
+  ok(recipient.bonus === toss.grant && nextTurn.players.find((p) => p.id === firstId).bonus === 0,
+    '受赠之掷记在受赠者身上，不归施者');
 }
+
+// 无待施之贈时 grant_choose 应被拒，不能凭空塞给别人
+first.send({ type: 'grant_choose', recipientId: second.playerId, requestId: rid('grant') });
+const badGrant = await first.next((message) => message.type === 'command_error' && message.code === 'no_grant');
+ok(!!badGrant, '无待施之贈时不能施与');
 
 console.log('\n【断线重连与服务器快照】');
 const reconnectTarget = south;

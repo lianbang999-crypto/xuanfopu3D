@@ -104,7 +104,7 @@ const glossByName = Object.fromEntries(SFP_GLOSS.map(([name, plain]) => [name, p
 assert.ok(glossByName['寂光'].includes('下下至上中八品'));
 assert.ok(glossByName['四無量心'].includes('四禅天王'));
 
-const operation = makeSfpOperationalEvidence('仍由当前操作者立即续掷。').items[0];
+const operation = makeSfpOperationalEvidence('由赠者选择同席他人，受赠者即时于自身所在位行谱。').items[0];
 assert.equal(operation.type, SFP_EVIDENCE_TYPE.operation);
 assert.equal(operation.authority, 'operational_interpretation');
 assert.equal(operation.attribution, '本项目定稿操作规则');

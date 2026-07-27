@@ -4,8 +4,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
+import { SFP_PROTOCOL_VERSION } from '../src/sfp-engine.js';
 
-const UI_BASE = process.env.UI_BASE || 'http://127.0.0.1:5173';
+const UI_BASE = process.env.UI_BASE || 'http://localhost:5930'; // 与 vite.config.js 的 server.port 一致
 const WS_BASE = (process.env.NET_BASE || 'http://127.0.0.1:8787').replace(/^http/, 'ws');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ARTIFACT_DIR = process.env.UI_ARTIFACT_DIR || '';
@@ -46,7 +47,7 @@ class Peer {
         this.ws.addEventListener('error', reject, { once: true });
       });
     }
-    this.send({ type: 'join', protocolVersion: 2, name: this.name });
+    this.send({ type: 'join', protocolVersion: SFP_PROTOCOL_VERSION, name: this.name });
     this.joined = await this.next((message) => message.type === 'joined');
     this.sync = await this.next((message) => message.type === 'sync');
     return this;
@@ -113,6 +114,15 @@ async function waitEnabled(page, selector, timeout = 8000) {
   }, selector, { timeout });
 }
 
+// 离席确认已由原生 window.confirm 改为站内卡片 #sfpConfirm：接下这张卡并回传它的原话
+async function takeLeaveConfirm(page) {
+  await page.locator('#sfpConfirm.on').waitFor({ state: 'visible', timeout: 12_000 });
+  const text = await page.locator('#sfpConfirm .cfCard').innerText();
+  await page.locator('#cfOk').evaluate((button) => button.click());
+  await page.locator('#sfpConfirm').waitFor({ state: 'hidden', timeout: 8_000 });
+  return text;
+}
+
 async function enterPlaza(page) {
   const entry = page.getByRole('button', { name: '开始行谱', exact: true });
   await entry.waitFor({ state: 'visible', timeout: 90_000 });
@@ -145,9 +155,10 @@ try {
     if (!url.searchParams.has('hall')) url.searchParams.set('hall', String(testHall));
     await route.continue({ url: url.toString() });
   });
-  let confirmText = '';
+  // 全站不应再出现原生弹窗；留个探针，出现即判失败
+  let nativeDialogSeen = '';
   page.on('dialog', async (dialog) => {
-    confirmText = dialog.message();
+    nativeDialogSeen = dialog.message();
     await dialog.accept();
   });
 
@@ -166,6 +177,20 @@ try {
   ok(await page.locator('.pzRankLayer.on').isVisible(), '桌况定时刷新不会关闭功课榜或重建大厅');
   await page.locator('.pzRankClose').evaluate((button) => button.click());
   await page.locator('.pzRankLayer').waitFor({ state: 'hidden' });
+  // 桌况刷新必须就地补写：整段重绘会把焦点掀回 body，键盘与读屏用户选不中房间，点击也会落空
+  const focusKept = await page.evaluate(async () => {
+    const cell = document.querySelector('.pzT');
+    cell.focus();
+    const before = document.activeElement?.getAttribute('aria-label') || '';
+    await new Promise((resolve) => setTimeout(resolve, 9000));
+    return {
+      before,
+      after: document.activeElement?.getAttribute('aria-label') || '',
+      sameNode: document.querySelector('.pzT') === cell,
+    };
+  });
+  ok(!!focusKept.before && focusKept.before === focusKept.after && focusKept.sameNode,
+    '大厅定时刷新就地补写桌况，不夺走键盘焦点');
   await capture(page, '00-plaza-desktop');
   await page.setViewportSize({ width: 390, height: 844 });
   const mobileHallBox = await page.locator('.pzPanel').boundingBox();
@@ -282,6 +307,14 @@ try {
   ok(await page.locator('#netLeaveBtn').isVisible()
     && await page.locator('#netInput').isVisible()
     && await page.locator('#netBtns').isVisible(), '小屏行谱中始终看得到离开、聊天和房间工具');
+  // 面板 overflow:hidden，固定行一旦超出定高就被裁掉且无法滚出来——曾令小屏根本点不到邀请与聊天输入
+  const inGamePanel = await page.locator('#netPanel').boundingBox();
+  const inGameInput = await page.locator('#netInput').boundingBox();
+  const inGameFooter = await page.locator('#netBtns').boundingBox();
+  ok(!!inGamePanel && !!inGameInput && !!inGameFooter
+    && inGameInput.y + inGameInput.height <= inGamePanel.y + inGamePanel.height + 1
+    && inGameFooter.y + inGameFooter.height <= inGamePanel.y + inGamePanel.height + 1,
+    '小屏行谱中聊天输入与房间工具完整留在面板内，不被裁掉');
   const mobileButtons = page.locator('#netBtns button');
   const buttonCount = await mobileButtons.count();
   let touchTargetsOk = true;
@@ -301,11 +334,12 @@ try {
   await page.setViewportSize({ width: 1440, height: 900 });
 
   console.log('\n【进行中主动离席】');
-  confirmText = '';
-  // 动态面板在确认框出现前可能被外部点按层先收起；直接触发按钮语义，稳定覆盖真正的离席流程。
+  // 动态面板在确认卡出现前可能被外部点按层先收起；直接触发按钮语义，稳定覆盖真正的离席流程。
   await page.locator('#netLeaveBtn').evaluate((button) => button.click());
+  const confirmText = await takeLeaveConfirm(page);
   await page.locator('.pzPanel').waitFor({ state: 'visible', timeout: 20_000 });
   ok(confirmText.includes('其余同修继续') && confirmText.includes('立即让出'), '三人局离席前明确告知其余玩家继续及立即让座');
+  ok(!nativeDialogSeen, '离席确认走站内卡片，不再弹原生对话框');
   const continued = await peerB.next((message) => message.type === 'sync'
     && message.room?.status === 'playing' && message.players.length === 2);
   ok(continued.room.order.length === 2, '一人离席后其余两位继续本局');
@@ -369,10 +403,10 @@ try {
   await twoPlayerHost.next((message) => message.type === 'match_started');
   await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 12_000 });
   await page.locator('#sfpChat').click({ force: true });
-  confirmText = '';
   await page.locator('#netLeaveBtn').evaluate((button) => button.click());
+  const twoPlayerConfirm = await takeLeaveConfirm(page);
   await page.locator('.pzPanel').waitFor({ state: 'visible', timeout: 20_000 });
-  ok(confirmText.includes('本局会立即中止'), '两人局离席前明确告知本局将立即中止');
+  ok(twoPlayerConfirm.includes('不足两位') && twoPlayerConfirm.includes('立即中止'), '两人局离席前明确告知本局将立即中止');
   const twoPlayerFinish = await twoPlayerHost.next((message) => message.type === 'match_finished');
   ok(twoPlayerFinish.reason === 'not_enough_players', '两人局一方主动离席后服务器共同中止');
   twoPlayerHost.leave();

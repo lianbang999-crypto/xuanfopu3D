@@ -34,8 +34,10 @@ console.log(`终局位：${terminals.map(p => p.name).join('、')}`);
 if (!terminals.length) { console.error('✗ 无终局位'); bad++; }
 
 // ---- 单局模拟 ----
+// 一人行谱：依定稿操作规则 grant-ontology v2（soloPolicy: void_without_recipient），
+// 贈掷须施与同席莲友，独行时无人可受即作废——不折回自己连掷。
 function playOne(maxRolls = 3000) {
-  let pos = null, n = 0, chainGuard = 0;
+  let pos = null, n = 0;
   const resolve = (combo, depth = 0) => {
     if (depth > 6) return;
     if (!pos) {
@@ -47,17 +49,12 @@ function playOne(maxRolls = 3000) {
     if (p.terminal) return;
     const mv = (p.moves || []).find(m => m.c.includes(combo));
     if (!mv) return;                       // 安住不行
-    if (!mv.to && mv.bonus) {              // 贈掷：同轮连掷
-      for (let i = 0; i < mv.bonus && chainGuard < 50; i++) { chainGuard++; n++; resolve(roll(), depth); }
-      return;
-    }
-    pos = mv.to;
-    if (mv.bonus) for (let i = 0; i < mv.bonus && chainGuard < 50; i++) { chainGuard++; n++; resolve(roll(), depth); }
+    if (!mv.to) return;                    // 纯贈之格：无受赠者，此贈作废，安住本位
+    pos = mv.to;                           // 移位兼贈者只取移位，贈同样作废
     if (mv.act && pos === mv.to) resolve(mv.act, depth + 1); // 依字连行（如彌勒內院依字行）
   };
   while (n < maxRolls) {
     n++;
-    chainGuard = 0;
     resolve(roll());
     if (pos && SFP_BY[pos].terminal) return { ok: true, n, at: SFP_BY[pos].name };
   }

@@ -6,7 +6,7 @@ import { SFP_POS } from './sfp-data.js';
 import { sfpDirOf } from './sfp-rules.js';
 
 export const SFP_FACE_ORDER = '那謨阿彌陀佛';
-export const SFP_PROTOCOL_VERSION = 2;
+export const SFP_PROTOCOL_VERSION = 3;
 
 const POS_ORDER = SFP_POS.map((p) => p.id);
 const POS_BY = Object.fromEntries(SFP_POS.map((p) => [p.id, p]));
@@ -28,8 +28,9 @@ export function emptySfpPlayerState() {
   return { pos: null, n: 0, bonus: 0, done: false, doneAt: 0 };
 }
 
-// 解析“一次实际掷轮”。act 是落位后的自动行法，不增加掷数；贈掷只增加
-// bonus 队列，仍由当前操作者继续掷，绝不转给下一位。
+// 解析“一次实际掷轮”。act 是落位后的自动行法，不增加掷数。
+// input.bonus 是操作者尚余的“受赠之掷”，本次实际掷轮先消耗一枚；
+// 本掷新得的“贈 N 擲”只作为 grant 返回，受赠人和施受队列由对局层决定。
 export function resolveSfpToss(input, combo, now = Date.now()) {
   if (!isSfpCombo(combo)) throw new Error(`invalid sfp combo: ${combo}`);
 
@@ -43,6 +44,7 @@ export function resolveSfpToss(input, combo, now = Date.now()) {
   if (state.bonus > 0) state.bonus--;
 
   const steps = [];
+  let grant = 0;
   const apply = (face, automatic = false, depth = 0) => {
     if (depth > 12) throw new Error('sfp automatic chain overflow');
 
@@ -72,7 +74,7 @@ export function resolveSfpToss(input, combo, now = Date.now()) {
     }
 
     const bonus = Math.max(0, Number(move.bonus) || 0);
-    state.bonus += bonus;
+    grant += bonus;
     if (!move.to) {
       steps.push({
         combo: face, automatic, kind: 'grant', from: from.id, to: from.id,
@@ -101,5 +103,5 @@ export function resolveSfpToss(input, combo, now = Date.now()) {
     state.bonus = 0;
   }
 
-  return { combo, state, steps };
+  return { combo, state, steps, grant };
 }

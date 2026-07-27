@@ -49,7 +49,15 @@ const LOCK_MAX_PER_HALL = 4;    // 一厅至多四室设密码（12 之三分一
 const OFFLINE_GRACE = 90 * 1000;      // 断线保座九十秒：够走完一次重连退避
 const TURN_MS = 60 * 1000;            // 在线等待一手的最长时间
 const DISCONNECT_TURN_MS = 30 * 1000; // 正轮到的同修断线，先等三十秒重连
-const RESOLVE_MS = 20 * 1000;         // 客户端动画/判词未确认时的服务端兜底
+// 判词卡是本谱的正经阅读界面（谱曰原文＋经证＋名相小签），二十秒读不完一段古文；
+// 兜底放宽到一分钟，与在线等待一手同刻度，前台另有倒计时提示。
+const RESOLVE_MS = 60 * 1000;         // 客户端动画/判词未确认时的服务端兜底
+const GIFT_CHOICE_MS = 30 * 1000;      // 三至四人局选择受赠者；超时按座次自动施与
+// 房主挂机不该锁死全房：人已齐备并等够这段时间，任一已准备者都可以开局
+const HOST_IDLE_MS = 45 * 1000;
+// 公开端点日上限（按 IP+UA 哈希计）：广场数字是给人看的随喜记录，不该谁都能随手灌
+const PUBLIC_RUN_CAP = 60;        // 单一来源每日至多登记的及第局数
+const PUBLIC_TICK_CAP = 20000;    // 单一来源每日至多计入的掷数
 const CHAT_GAP_MS = 750;              // 单连接聊天限速
 
 function json(data, status = 200) {
@@ -420,8 +428,11 @@ export class RoomDO {
     try { body = await request.json(); }
     catch { return json({ error: 'invalid json' }, 400); }
     // 只计实际落定的掷轮；单次上报上限 60，稳定匿名身份每日最多记一万念。
-    const n = Math.min(60, Math.max(0, Math.floor(Number(body?.n) || 0)));
+    let n = Math.min(60, Math.max(0, Math.floor(Number(body?.n) || 0)));
     if (!n) return json({ ok: true, tosses: this.plazaGet('tosses') });
+    // 匿名身份由浏览器自生成，换一个就能重开一份额度；再按来源指纹压一道日上限
+    n = this.quotaTake('tick', await this.sourceKey(request), PUBLIC_TICK_CAP, n);
+    if (!n) return json({ ok: true, accepted: 0, tosses: this.plazaGet('tosses') });
     const actor = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
     const name = this.safeName(body?.name) || (actor ? `莲友·${actor.slice(-4).toUpperCase()}` : '莲友');
     const today = dayKey();
@@ -450,11 +461,58 @@ export class RoomDO {
     return json({ ok: true, accepted, tosses: this.plazaGet('tosses') });
   }
 
+  // 来源指纹：只留哈希，不落原始 IP（与 /api/ask 同口径）
+  async sourceKey(request) {
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const ua = (request.headers.get('User-Agent') || 'unknown').slice(0, 240);
+    return (await sha256(`${ip}\n${ua}`)).slice(0, 24);
+  }
+
+  // 日配额：超出即拒，不静默丢——调用方据实告知
+  quotaTake(kind, who, cap, want = 1) {
+    const key = `lim:${kind}:${dayKey()}:${who}`;
+    const used = this.plazaGet(key);
+    const take = Math.max(0, Math.min(want, cap - used));
+    if (take > 0) this.plazaBump(key, take);
+    return take;
+  }
+
+  // 共修室的及第由本室 DO 直接登记（服务器权威），不经浏览器自报
+  async plazaRecordVerified(request) {
+    this.plazaInit();
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: 'invalid json' }, 400); }
+    const name = this.safeName(body?.name) || '同修';
+    const n = Math.max(1, Math.min(9999, Math.floor(Number(body?.n) || 0)));
+    const seat = /^table:([1-9]|1[0-2])$/.test(String(body?.seat || '')) ? String(body.seat) : 'private';
+    const ts = Date.now();
+    this.state.storage.sql.exec(
+      'INSERT INTO plaza_runs (name,n,doors,lowest,span,path,seat,ts) VALUES (?,?,?,?,?,?,?,?)',
+      name, n, '[]', '', 1, 'rise', seat, ts,
+    );
+    this.state.storage.sql.exec(
+      'DELETE FROM plaza_runs WHERE seq NOT IN (SELECT seq FROM plaza_runs ORDER BY seq DESC LIMIT ?)', RUN_KEEP,
+    );
+    this.plazaBump('wins', 1);
+    this.plazaBump(`wins:${dayKey(ts)}`, 1);
+    this.plazaPush('win', `${name} 第 ${n} 掷选佛及第`);
+    return json({ ok: true, wins: this.plazaGet('wins') });
+  }
+
   async plazaRecord(request) {
     this.plazaInit();
     let body;
     try { body = await request.json(); }
     catch { return json({ error: 'invalid json' }, 400); }
+    // 共修室的及第只认本室 DO 出具的那一份；浏览器自报不得声称自己坐在某间共修室
+    if (String(body?.seat || 'solo') !== 'solo') {
+      return json({ error: 'table runs are recorded by the room itself' }, 403);
+    }
+    const who = await this.sourceKey(request);
+    if (!this.quotaTake('run', who, PUBLIC_RUN_CAP)) {
+      return json({ error: 'daily record quota reached', wins: this.plazaGet('wins') }, 429);
+    }
     const name = this.safeName(body?.name) || '同修';
     const n = Math.max(1, Math.min(9999, Math.floor(Number(body?.n) || 0)));
     // 门号越界者剔除，不夹取——把 99 夹成 15 等于替人捏造「历十五门」，宁可少记不可虚记
@@ -497,7 +555,9 @@ export class RoomDO {
       p.done = !!p.done;
       p.doneAt = Number(p.doneAt) || 0;
       p.seenAt = Number(p.seenAt) || Date.now();
+      p.pendingGrantCount = Math.max(0, Math.min(4, Number(p.pendingGrantCount) || 0));
     }
+    this.normalizeGiftQueue();
     // 从旧“同桌自由掷”协议升级时，不把各自本地进度伪装成同一局。
     // 保留房间、座次、密码和聊天，统一回到真人准备室。
     if (previousProtocol !== SFP_PROTOCOL_VERSION) {
@@ -534,18 +594,65 @@ export class RoomDO {
       reportedAt: Number(base.reportedAt) || 0,
       revision: Math.max(0, Number(base.revision) || 0),
       status: ['waiting', 'playing', 'finished'].includes(base.status) ? base.status : 'waiting',
-      phase: ['waiting_toss', 'resolving', 'finished'].includes(base.phase) ? base.phase : 'waiting_toss',
+      phase: ['waiting_toss', 'resolving', 'choosing_grant', 'finished'].includes(base.phase) ? base.phase : 'waiting_toss',
       matchId: base.matchId || '',
       order: Array.isArray(base.order) ? base.order.slice(0, ROOM_MAX) : [],
       turnIdx: Math.max(0, Number(base.turnIdx) || 0),
       round: Math.max(0, Number(base.round) || 0),
       availableAt: Number(base.availableAt) || 0,
       turnDeadline: Number(base.turnDeadline) || 0,
+      actorId: String(base.actorId || ''),
+      giftQueue: Array.isArray(base.giftQueue)
+        ? base.giftQueue.slice(0, 24).map((gift) => ({
+          giverId: String(gift?.giverId || ''),
+          recipientId: String(gift?.recipientId || ''),
+          remaining: Math.max(0, Math.min(4, Number(gift?.remaining) || 0)),
+        }))
+        : [],
+      pendingGrant: base.pendingGrant && typeof base.pendingGrant === 'object'
+        ? {
+          giverId: String(base.pendingGrant.giverId || ''),
+          count: Math.max(0, Math.min(4, Number(base.pendingGrant.count) || 0)),
+          candidateIds: Array.isArray(base.pendingGrant.candidateIds)
+            ? base.pendingGrant.candidateIds.map(String).slice(0, ROOM_MAX - 1)
+            : [],
+        }
+        : null,
+      readySince: Number(base.readySince) || 0,
       finishing: !!base.finishing,
       finishedAt: Number(base.finishedAt) || 0,
       starterSeat: Math.max(0, Number(base.starterSeat) || 0) % ROOM_MAX,
       finishReason: base.finishReason || '',
     };
+  }
+
+  readyIds() {
+    const live = this.liveIds();
+    return Object.values(this.players).filter((p) => p.ready && live.has(p.id)).map((p) => p.id);
+  }
+
+  // 记下「人已齐备」的时刻：房主久久不开局时，据此把开局权让给在座诸位
+  syncReadyGate() {
+    if (this.meta.status === 'playing') { this.meta.readySince = 0; return; }
+    if (this.readyIds().length >= 2) {
+      if (!this.meta.readySince) this.meta.readySince = Date.now();
+    } else this.meta.readySince = 0;
+  }
+
+  // 房主挂机就没人能开局，全房干等——房主离线、或人齐等够 HOST_IDLE_MS，任一已准备者都可开局
+  startOpenAt() {
+    if (!this.meta.readySince) return 0;
+    const host = Object.values(this.players).find((p) => p.seat === 0);
+    if (!host || !this.liveIds().has(host.id)) return this.meta.readySince;
+    return this.meta.readySince + HOST_IDLE_MS;
+  }
+
+  canStartMatch(playerId) {
+    const me = this.players[playerId];
+    if (!me || !me.ready) return false;
+    if (me.seat === 0) return true;
+    const openAt = this.startOpenAt();
+    return !!openAt && Date.now() >= openAt;
   }
 
   bumpRevision() {
@@ -555,7 +662,127 @@ export class RoomDO {
 
   currentPlayerId() {
     if (this.meta.status !== 'playing' || !this.meta.order.length) return '';
+    if (['resolving', 'choosing_grant'].includes(this.meta.phase) && this.meta.actorId) {
+      return this.meta.actorId;
+    }
+    return this.activeGift()?.recipientId || this.regularPlayerId();
+  }
+
+  regularPlayerId() {
+    if (this.meta.status !== 'playing' || !this.meta.order.length) return '';
     return this.meta.order[this.meta.turnIdx] || '';
+  }
+
+  activeGift() {
+    return Array.isArray(this.meta.giftQueue) ? (this.meta.giftQueue[0] || null) : null;
+  }
+
+  normalizeGiftQueue() {
+    if (!this.meta || !this.players) return;
+    const activeIds = new Set(Array.isArray(this.meta.order) ? this.meta.order : []);
+    this.meta.giftQueue = (Array.isArray(this.meta.giftQueue) ? this.meta.giftQueue : [])
+      .filter((gift) => gift
+        && Number(gift.remaining) > 0
+        && activeIds.has(gift.giverId)
+        && activeIds.has(gift.recipientId)
+        && this.players[gift.recipientId]
+        && !this.players[gift.recipientId].done
+        && !this.players[gift.recipientId].away)
+      .slice(0, 24)
+      .map((gift) => ({
+        giverId: String(gift.giverId),
+        recipientId: String(gift.recipientId),
+        remaining: Math.max(1, Math.min(4, Number(gift.remaining) || 1)),
+      }));
+    for (const player of Object.values(this.players)) player.bonus = 0;
+    const gift = this.activeGift();
+    if (gift && this.players[gift.recipientId]) {
+      this.players[gift.recipientId].bonus = gift.remaining;
+    }
+  }
+
+  grantCandidates(giverId) {
+    const live = this.liveIds();
+    return this.meta.order.filter((id) => {
+      const player = this.players[id];
+      return id !== giverId && player && !player.done && !player.away && live.has(id);
+    });
+  }
+
+  // 施者离席、或候选者走空：待施之贈不能把整房卡在择人相位上
+  prunePendingGrant() {
+    const pending = this.meta.pendingGrant;
+    if (!pending) return false;
+    if (!this.players[pending.giverId]) { this.meta.pendingGrant = null; return true; }
+    pending.candidateIds = pending.candidateIds.filter(
+      (id) => this.players[id] && this.meta.order.includes(id));
+    if (!pending.candidateIds.length) { this.meta.pendingGrant = null; return true; }
+    return false;
+  }
+
+  // 施与：入施受队列，随后由受赠者接掷（timing: immediate）
+  async assignGrant(giverId, recipientId, count, reason = 'chosen') {
+    this.meta.pendingGrant = null;
+    this.meta.giftQueue.push({
+      giverId, recipientId, remaining: Math.max(1, Math.min(4, Number(count) || 1)),
+    });
+    if (this.meta.giftQueue.length > 24) this.meta.giftQueue = this.meta.giftQueue.slice(-24);
+    this.normalizeGiftQueue();
+    this.broadcast({
+      type: 'grant_given',
+      reason,
+      giverId,
+      giverName: this.players[giverId]?.name || '同修',
+      recipientId,
+      recipientName: this.players[recipientId]?.name || '同修',
+      count: Math.max(1, Math.min(4, Number(count) || 1)),
+    });
+    await this.continueOrAdvance();
+  }
+
+  // 择人超时：按座次自动施与——取施者之后座次最近的一位在局莲友，规则可预期，不掷骰
+  async autoAssignGrant() {
+    const pending = this.meta.pendingGrant;
+    if (!pending) return;
+    const giver = this.players[pending.giverId];
+    const listed = new Set(pending.candidateIds);
+    const fresh = this.grantCandidates(pending.giverId);
+    const pool = fresh.filter((id) => listed.has(id)).length
+      ? fresh.filter((id) => listed.has(id))
+      : fresh;
+    if (!pool.length) {
+      this.meta.pendingGrant = null;
+      this.broadcast({
+        type: 'grant_void', giverId: pending.giverId,
+        name: giver?.name || '同修', count: pending.count,
+      });
+      await this.continueOrAdvance();
+      return;
+    }
+    const giverSeat = Number(giver?.seat || 0);
+    const next = pool.slice().sort((a, b) =>
+      ((this.players[a].seat - giverSeat + ROOM_MAX) % ROOM_MAX)
+      - ((this.players[b].seat - giverSeat + ROOM_MAX) % ROOM_MAX))[0];
+    await this.assignGrant(pending.giverId, next, pending.count, 'timeout');
+  }
+
+  // 施受队列未尽则由受赠者接着掷，尽了才轮转到下一位
+  async continueOrAdvance() {
+    this.normalizeGiftQueue();
+    if (!this.activeGift()) {
+      await this.advanceTurn();
+      return;
+    }
+    const now = Date.now();
+    this.meta.phase = 'waiting_toss';
+    this.meta.actorId = '';
+    this.meta.availableAt = now;
+    this.meta.turnDeadline = now + TURN_MS;
+    this.bumpRevision();
+    await this.save();
+    await this.setRoomAlarm();
+    this.broadcast({ type: 'turn_started', continuation: true, room: this.roomState(), players: this.roster() });
+    this.broadcast(this.syncMsg());
   }
 
   roomState() {
@@ -571,6 +798,13 @@ export class RoomDO {
       round: this.meta.round,
       availableAt: this.meta.availableAt,
       turnDeadline: this.meta.turnDeadline,
+      startOpenAt: this.startOpenAt(),   // 此刻之后，非房主的已准备者也可开局
+      gift: this.activeGift() ? { ...this.activeGift() } : null,
+      pendingGrant: this.meta.pendingGrant ? {
+        giverId: this.meta.pendingGrant.giverId,
+        count: this.meta.pendingGrant.count,
+        candidateIds: this.meta.pendingGrant.candidateIds.slice(),
+      } : null,
       finishing: !!this.meta.finishing,
       finishedAt: this.meta.finishedAt,
       finishReason: this.meta.finishReason || '',
@@ -603,8 +837,8 @@ export class RoomDO {
   resetPlayerForMatch(p, spectator = false) {
     Object.assign(p, {
       spectator, away: false, skips: 0,
-      pos: null, n: 0, bonus: 0, done: false, doneAt: 0,
-      lastTossRequestId: '', lastTossEvent: null,
+      pos: null, n: 0, bonus: 0, done: false, doneAt: 0, pendingGrantCount: 0, recorded: false,
+      lastTossRequestId: '', lastTossEvent: null, lastGrantRequestId: '',
     });
   }
 
@@ -634,6 +868,9 @@ export class RoomDO {
       round: 1,
       availableAt: now + 3000,
       turnDeadline: now + 3000 + TURN_MS,
+      actorId: '',
+      giftQueue: [],
+      pendingGrant: null,
       finishing: false,
       finishedAt: 0,
       finishReason: '',
@@ -651,8 +888,20 @@ export class RoomDO {
     this.meta.finishedAt = Date.now();
     this.meta.turnDeadline = 0;
     this.meta.availableAt = 0;
+    this.meta.actorId = '';
+    this.meta.giftQueue = [];
+    this.meta.pendingGrant = null;
     this.meta.finishReason = reason;
-    for (const p of Object.values(this.players)) p.ready = false;
+    this.normalizeGiftQueue();
+    // 本局既已结算，暂离与超时计数一并归零：下一局人人从同一起点准备
+    for (const p of Object.values(this.players)) {
+      p.ready = false;
+      p.pendingGrantCount = 0;
+      p.away = false;
+      p.skips = 0;
+      p.spectator = false;   // 本局已了，旁观身份随之解除：下一局人人可入座
+    }
+    this.syncReadyGate();
     this.bumpRevision();
     await this.save();
     const event = {
@@ -665,6 +914,30 @@ export class RoomDO {
     this.broadcast(event);
     this.broadcast(this.syncMsg());
     this.state.waitUntil(this.plazaReport());
+    this.state.waitUntil(this.plazaRecordWinners());
+  }
+
+  // 共修室的及第由本室出具：掷数与名号都取服务器权威棋况，不采信浏览器自报
+  async plazaRecordWinners() {
+    const at = tableSeatOf(this.meta.code);
+    const winners = this.meta.order
+      .map((id) => this.players[id])
+      .filter((p) => p && p.done && !p.recorded);
+    if (!winners.length) return;
+    for (const p of winners) p.recorded = true;
+    await this.save();
+    for (const p of winners) {
+      try {
+        await this.env.ROOM.get(this.env.ROOM.idFromName(PLAZA_OBJECT)).fetch(
+          'https://plaza.internal/plaza/record-verified',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ name: p.name, n: p.n, seat: at ? `table:${at.no}` : 'private' }),
+          },
+        );
+      } catch (e) { /* 广场暂时不可达不影响本室结算 */ }
+    }
   }
 
   async advanceTurn() {
@@ -702,6 +975,7 @@ export class RoomDO {
     const nextOnline = this.liveIds().has(this.meta.order[nextIdx]);
     this.meta.turnIdx = nextIdx;
     this.meta.phase = 'waiting_toss';
+    this.meta.actorId = '';   // 相位锁解除：候掷相位的当前操作者由施受队列／座次推出
     this.meta.availableAt = now;
     this.meta.turnDeadline = now + (nextOnline ? TURN_MS : DISCONNECT_TURN_MS);
     this.bumpRevision();
@@ -716,18 +990,34 @@ export class RoomDO {
     const p = this.players[playerId];
     if (!p) return false;
     p.seenAt = Date.now();
-    if (p.bonus > 0 && !p.done) {
-      this.meta.phase = 'waiting_toss';
-      this.meta.availableAt = Date.now();
-      this.meta.turnDeadline = Date.now() + TURN_MS;
-      this.bumpRevision();
-      await this.save();
-      await this.setRoomAlarm();
-      this.broadcast({ type: 'turn_started', continuation: true, room: this.roomState(), players: this.roster() });
-      this.broadcast(this.syncMsg());
-      return true;
+    // 本手掷得的贈掷不归自己（本项目定稿操作规则 grant-ontology v2：giver_selects_other_player）：
+    // 判词行毕才请他择人，免得判词卡还没读完就被择人卡压在上面。
+    const pending = Math.max(0, Number(p.pendingGrantCount) || 0);
+    if (pending > 0) {
+      p.pendingGrantCount = 0;
+      const candidates = this.grantCandidates(p.id);
+      if (candidates.length === 1) {                 // 只剩一位可施者，不必多问一步
+        await this.assignGrant(p.id, candidates[0], pending, 'only_candidate');
+        return true;
+      }
+      if (candidates.length > 1) {
+        const now = Date.now();
+        this.meta.phase = 'choosing_grant';
+        this.meta.actorId = p.id;
+        this.meta.availableAt = 0;
+        this.meta.turnDeadline = now + GIFT_CHOICE_MS;
+        this.meta.pendingGrant = { giverId: p.id, count: pending, candidateIds: candidates };
+        this.bumpRevision();
+        await this.save();
+        await this.setRoomAlarm();
+        this.broadcast({ type: 'grant_pending', room: this.roomState(), players: this.roster() });
+        this.broadcast(this.syncMsg());
+        return true;
+      }
+      // 无人可施：依定稿规则此贈作废（soloPolicy: void_without_recipient），不折回自己续掷
+      this.broadcast({ type: 'grant_void', giverId: p.id, name: p.name, count: pending });
     }
-    await this.advanceTurn();
+    await this.continueOrAdvance();
     return true;
   }
 
@@ -774,6 +1064,11 @@ export class RoomDO {
     if (swept) {
       this.promoteHost();
       this.meta.order = this.meta.order.filter((id) => this.players[id]);
+      this.meta.giftQueue = (this.meta.giftQueue || []).filter(
+        (gift) => this.players[gift.giverId] && this.players[gift.recipientId]);
+      if (this.meta.actorId && !this.players[this.meta.actorId]) this.meta.actorId = '';
+      if (this.prunePendingGrant() && this.meta.phase === 'choosing_grant') this.meta.phase = 'waiting_toss';
+      this.normalizeGiftQueue();
       if (currentId && this.meta.order.includes(currentId)) this.meta.turnIdx = this.meta.order.indexOf(currentId);
       else if (this.meta.order.length) this.meta.turnIdx %= this.meta.order.length;
       else this.meta.turnIdx = 0;
@@ -869,6 +1164,8 @@ export class RoomDO {
     if (url.pathname === '/plaza/stat') return this.plazaStat();
     if (url.pathname === '/plaza/tick') return this.plazaTick(request);
     if (url.pathname === '/plaza/record') return this.plazaRecord(request);
+    // 只对 DO 之间开放：公共 Worker 的 /api/* 路由不会转到这里
+    if (url.pathname === '/plaza/record-verified') return this.plazaRecordVerified(request);
     if (url.pathname === '/plaza/table') return this.plazaTableReport(request);
     if (url.pathname === '/plaza/canlock') return this.plazaCanLock(url);
 
@@ -967,6 +1264,7 @@ export class RoomDO {
         p.skips = 0;
         p.seenAt = Date.now();
         ws.serializeAttachment({ playerId: p.id, table: !!att.table });
+        this.syncReadyGate();
         this.bumpRevision();
         await this.save();
         ws.send(JSON.stringify({
@@ -1032,6 +1330,7 @@ export class RoomDO {
         me.spectator = false;
         me.away = false;
         me.seenAt = Date.now();
+        this.syncReadyGate();
         this.bumpRevision();
         await this.save();
         this.broadcast(this.syncMsg());
@@ -1041,12 +1340,14 @@ export class RoomDO {
 
       case 'start_match': {
         const me = this.players[att.playerId];
-        if (!me || me.seat !== 0) {
-          this.commandError(ws, 'host_only', '由房主开始本局', msg.requestId);
-          return;
-        }
+        if (!me) return;
         if (this.meta.status === 'playing') {
           this.commandError(ws, 'already_started', '本局已经开始', msg.requestId);
+          return;
+        }
+        this.syncReadyGate();
+        if (!this.canStartMatch(me.id)) {
+          this.commandError(ws, 'host_only', '本局由房主开始；房主久未开局时诸位皆可开局', msg.requestId);
           return;
         }
         const ready = Object.values(this.players).filter((p) => p.ready && this.liveIds().has(p.id));
@@ -1097,11 +1398,23 @@ export class RoomDO {
           return;
         }
 
+        const gift = this.activeGift();
+        const usingGift = !!(gift && gift.recipientId === p.id);
         const combo = this.randomCombo();
         const resolved = resolveSfpToss(p, combo);
         Object.assign(p, resolved.state, { seenAt: Date.now(), skips: 0, away: false });
+        // 受赠之掷：本掷落定即从施受队列扣一枚。队列是唯一的账本，
+        // p.bonus 一律由 normalizeGiftQueue 依队列重算，不各记一本。
+        if (usingGift) {
+          gift.remaining = Math.max(0, Number(gift.remaining) - 1);
+          if (!gift.remaining) this.meta.giftQueue.shift();
+        }
+        // 本掷新得的「贈N掷」记在掷者身上，待判词行毕再请他择一位受赠莲友
+        p.pendingGrantCount = p.done ? 0 : Math.max(0, Math.min(4, Number(resolved.grant) || 0));
+        this.normalizeGiftQueue();
         if (p.done) this.meta.finishing = true;
         this.meta.phase = 'resolving';
+        this.meta.actorId = p.id;  // 相位锁在掷者：施受队列变动不会把「正在行棋的人」挪走
         this.meta.availableAt = 0;
         this.meta.turnDeadline = Date.now() + RESOLVE_MS;
         this.bumpRevision();
@@ -1113,6 +1426,8 @@ export class RoomDO {
           color: p.color,
           combo,
           steps: resolved.steps,
+          grant: p.pendingGrantCount,       // 待施与的贈掷数，供判词卡措辞
+          usedGift: usingGift,
           player: this.roster().find((q) => q.id === p.id),
           room: this.roomState(),
           players: this.roster(),
@@ -1134,6 +1449,31 @@ export class RoomDO {
         if (!await this.completeCurrentTurn(me.id)) {
           this.commandError(ws, 'turn_state', '当前没有待确认的本手', msg.requestId);
         }
+        break;
+      }
+
+      case 'grant_choose': {
+        // 掷得贈掷者择一位同席莲友受之；受赠者在自身所在位续掷（本项目定稿操作规则）
+        const me = this.players[att.playerId];
+        const requestId = String(msg.requestId || '').slice(0, 80);
+        if (!me) return;
+        if (requestId && me.lastGrantRequestId === requestId) return; // 重复提交：已办过
+        const pending = this.meta.pendingGrant;
+        if (this.meta.status !== 'playing' || this.meta.phase !== 'choosing_grant' || !pending) {
+          this.commandError(ws, 'no_grant', '此刻没有待施与的贈掷', requestId);
+          return;
+        }
+        if (pending.giverId !== me.id) {
+          this.commandError(ws, 'not_giver', '此贈由掷得者施与', requestId);
+          return;
+        }
+        const recipientId = String(msg.recipientId || '');
+        if (!pending.candidateIds.includes(recipientId) || !this.players[recipientId]) {
+          this.commandError(ws, 'bad_recipient', '这位莲友此刻不能受贈，请另择一位', requestId);
+          return;
+        }
+        me.lastGrantRequestId = requestId;
+        await this.assignGrant(me.id, recipientId, pending.count, 'chosen');
         break;
       }
 
@@ -1163,6 +1503,23 @@ export class RoomDO {
         break;
       }
 
+      case 'wake': {
+        // 暂离者自请归队。超时两手即被移出行动序列，在此之前唯一的复活路径是刷新页面重进——
+        // 那既无从发现，又白费一次重连；给一条明路，下一轮就能接着掷。
+        const me = this.players[att.playerId];
+        if (!me) return;
+        me.seenAt = Date.now();
+        if (!me.away) return;
+        me.away = false;
+        me.skips = 0;
+        this.bumpRevision();
+        await this.save();
+        this.broadcast({ type: 'player_back', playerId: me.id, name: me.name });
+        this.broadcast(this.syncMsg());
+        this.state.waitUntil(this.plazaReport());
+        break;
+      }
+
       case 'sync': {
         ws.send(JSON.stringify(this.syncMsg(true)));    // 主动求全量：名单 + 聊天
         break;
@@ -1181,6 +1538,7 @@ export class RoomDO {
     const p = this.players[att.playerId];
     if (p) {
       p.seenAt = Date.now();
+      this.syncReadyGate();   // 断线者不再计入齐备人数，等候门槛随之回退
       if (this.meta.status === 'playing' && this.currentPlayerId() === p.id) {
         this.meta.turnDeadline = Math.min(
           Number(this.meta.turnDeadline || Infinity),
@@ -1207,8 +1565,20 @@ export class RoomDO {
     } else {
       this.promoteHost();
       if (this.meta.status === 'playing') {
+        // 离席者身上挂着的施受关系一并清掉：施者或受赠者走了，那笔贈掷就不存在了
+        this.meta.giftQueue = (this.meta.giftQueue || []).filter(
+          (gift) => gift.giverId !== playerId && gift.recipientId !== playerId);
+        if (this.meta.actorId === playerId) this.meta.actorId = '';
+        const grantGone = this.prunePendingGrant();
+        this.normalizeGiftQueue();
         if (this.meta.order.length < 2) {
           await this.finishMatch('not_enough_players');
+        } else if (this.meta.phase === 'choosing_grant' && grantGone) {
+          // 施者已离席，待施之贈随之作废——不能把全房卡在择人相位上
+          this.meta.phase = 'waiting_toss';
+          this.meta.turnIdx %= this.meta.order.length;
+          this.meta.availableAt = Date.now();
+          this.meta.turnDeadline = Date.now() + TURN_MS;
         } else if (currentId === playerId) {
           this.meta.turnIdx %= this.meta.order.length;
           this.meta.phase = 'waiting_toss';
@@ -1219,6 +1589,7 @@ export class RoomDO {
         }
       }
     }
+    this.syncReadyGate();
     this.bumpRevision();
     await this.save();
     // 同一浏览器若曾因旧版并发入座留下多条连接，离开时一并关闭，避免幽灵连接。
@@ -1243,11 +1614,18 @@ export class RoomDO {
         const wasCurrent = this.currentPlayerId() === p.id;
         delete this.players[p.id];
         this.meta.order = this.meta.order.filter((id) => id !== p.id);
+        this.meta.giftQueue = (this.meta.giftQueue || []).filter(
+          (gift) => gift.giverId !== p.id && gift.recipientId !== p.id);
+        if (this.meta.actorId === p.id) this.meta.actorId = '';
         if (wasCurrent && this.meta.order.length) this.meta.turnIdx %= this.meta.order.length;
         removed = true;
       }
     }
-    if (removed) this.promoteHost();
+    if (removed) {
+      this.promoteHost();
+      if (this.prunePendingGrant() && this.meta.phase === 'choosing_grant') this.meta.phase = 'waiting_toss';
+      this.normalizeGiftQueue();
+    }
 
     if (!Object.keys(this.players).length) {
       await this.state.storage.deleteAll();
@@ -1262,7 +1640,9 @@ export class RoomDO {
       await this.finishMatch('not_enough_players');
     } else if (this.meta.status === 'playing' && now >= Number(this.meta.turnDeadline || Infinity)) {
       const current = this.players[this.currentPlayerId()];
-      if (this.meta.phase === 'resolving') {
+      if (this.meta.phase === 'choosing_grant') {
+        await this.autoAssignGrant();          // 择人超时：按座次自动施与，不让房间停摆
+      } else if (this.meta.phase === 'resolving') {
         if (current) await this.completeCurrentTurn(current.id);
       } else if (current) {
         current.skips = Math.max(0, Number(current.skips) || 0) + 1;

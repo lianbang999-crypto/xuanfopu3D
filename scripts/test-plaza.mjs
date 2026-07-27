@@ -80,9 +80,15 @@ ok(p1b.tosses === p1SameName.tosses, '负数上报不减总数');
 // ── 三、及第局录 ──
 console.log('\n【及第局录】');
 const winsBefore = p1b.wins;
+// 公开端点只收一人行谱的自报；共修室的及第由本室 DO 出具，浏览器不得声称自己坐在某间共修室
+const claimTable = await fetch(`${BASE}/api/plaza/record`, {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ name: '冒名', n: 1, doors: [15], span: 1, path: 'rise', seat: 'table:12' }),
+});
+ok(claimTable.status === 403, '自报共修室战绩被拒，房间战绩只认服务器出具');
 const rec = await fetch(`${BASE}/api/plaza/record`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ name: '慧明', n: 31, doors: [1, 3, 3, 8, 15], lowest: '無間地獄', span: 27, path: 'rise', seat: 'table:12' }),
+  body: JSON.stringify({ name: '慧明', n: 31, doors: [1, 3, 3, 8, 15], lowest: '無間地獄', span: 27, path: 'rise', seat: 'solo' }),
 }).then(r => r.json());
 ok(rec.wins === winsBefore + 1, '及第次数累加');
 const p2 = await plaza();
@@ -97,7 +103,7 @@ ok(leader && leader.wins >= 1 && leader.best <= 31, '及第录仍保留近局聚
 ok(todayLeader && todayLeader.wins >= 1 && p2.rankedRuns >= 1, '今日及第统计与样本数同步返回');
 const bad = await fetch(`${BASE}/api/plaza/record`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ name: '越界', n: 5, doors: [99, 0, 7], span: 1, path: 'x', seat: 'table:99' }),
+  body: JSON.stringify({ name: '越界', n: 5, doors: [99, 0, 7], span: 1, path: 'x' }),
 }).then(r => r.json());
 ok(bad.ok, '非法字段被夹取而非报错');
 const p2b = await plaza();

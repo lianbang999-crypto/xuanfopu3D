@@ -26,12 +26,12 @@ ok(inert.state.pos === '蒙光天子' && inert.steps[0].kind === 'stay', '无对
 console.log('\n【贈掷队列】');
 const pureGrant = resolveSfpToss({ pos: '蒙光天子', n: 5, bonus: 0 }, '彌佛', 1000);
 ok(pureGrant.state.pos === '蒙光天子', '纯贈保持当前谱位');
-ok(pureGrant.state.bonus === 2, '贈二掷进入当前操作者队列');
-const consumeOne = resolveSfpToss(pureGrant.state, '那那', 1001);
-ok(consumeOne.state.bonus === 1, '下一次实际掷轮消耗一枚贈掷');
+ok(pureGrant.grant === 2 && pureGrant.state.bonus === 0, '贈二掷交由对局层分配受赠者，不归当前操作者');
+const consumeOne = resolveSfpToss({ ...pureGrant.state, bonus: 2 }, '那那', 1001);
+ok(consumeOne.state.bonus === 1, '受赠者下一次实际掷轮消耗一枚受赠之掷');
 const moveGrant = resolveSfpToss({ pos: '圓十行位', n: 7, bonus: 0 }, '阿陀', 1000);
 ok(moveGrant.state.pos === '圓十迴向位', '移位兼贈先移动到目的位');
-ok(moveGrant.state.bonus === 1, '移位后贈掷仍归当前操作者');
+ok(moveGrant.grant === 1 && moveGrant.state.bonus === 0, '移位后贈掷交由对局层分配受赠者');
 
 console.log('\n【终点】');
 const terminal = resolveSfpToss({ pos: '圓等覺位', n: 20, bonus: 2 }, '佛佛', 2000);

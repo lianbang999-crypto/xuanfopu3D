@@ -2235,7 +2235,8 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .netEntry .netDots{display:flex;gap:4px}
 .netEntry .netDots .pd{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;transition:opacity .3s}
 .netEntry .netDots .pd.off{opacity:.3}
-.netEntry .chatLabel{margin-left:6px;font-size:var(--fs-sm);color:#dccf9f}
+.netEntry .chatLabel{margin-left:6px;font-size:var(--fs-sm);color:#dccf9f;max-width:4.4em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.netEntry .chatLabel.mine{color:#e8c766}
 .netEntry .netUnread{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;
   background:#d98873;color:#14161d;font-size:10px;font-style:normal;line-height:16px;text-align:center;display:none}
 .netEntry .netUnread.on{display:block}
@@ -2317,6 +2318,29 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .vbn{display:inline-block;margin-left:8px;font-size:var(--fs-xs);border:1px solid rgba(215,170,69,.6);border-radius:5px;padding:1px 6px;color:#e8d9a6;vertical-align:2px;font-weight:400}
 #vWhy.full{display:block;-webkit-line-clamp:unset;overflow:visible}
 #vGo{width:100%;margin-top:10px;min-height:44px;position:relative;overflow:hidden}
+/* 联机判词卡的本手剩余时间：服务器逾时会代为交轮，读谱注的人有权知道自己还剩多久 */
+#vClock{margin-left:8px;font-style:normal;font-size:var(--fs-xs);color:#b9b09a;font-variant-numeric:tabular-nums}
+#vClock:empty{display:none}
+#vClock.warn{color:#e8c766}
+/* 站内确认卡（替代 window.confirm）：自成一层，不占 overlay */
+#sfpConfirm{position:fixed;inset:0;z-index:64;display:none;align-items:center;justify-content:center;
+  padding:16px;background:rgba(8,10,15,.76);backdrop-filter:blur(4px)}
+#sfpConfirm.on{display:flex}
+#sfpConfirm .cfCard{width:min(340px,92vw);box-sizing:border-box;padding:20px 18px 16px;color:#e8e2d0;
+  background:rgba(18,21,30,.98);border:1px solid rgba(216,197,139,.42);border-radius:16px}
+#sfpConfirm h3{margin:0 0 8px;letter-spacing:2px;color:#f0dfa8;font-size:var(--fs-lg)}
+#sfpConfirm .cfBody{color:#b9b09a;font-size:var(--fs-sm);line-height:1.7}
+#sfpConfirm .cfBody b{color:#e8c766;font-weight:500}
+#sfpConfirm .gbtn{display:block;width:100%;min-height:46px;margin-top:10px}
+/* 共同结算卡：一句结果 + 一句本座 + 同座行处，三层看完即知本局如何 */
+.nsPanel .nsHead{margin-top:6px;color:#f0dfa8;font-size:var(--fs-lg);letter-spacing:2px}
+.nsPanel .nsMine{margin-top:3px;color:#cfc7ad;font-size:var(--fs-sm)}
+.nsPanel .nsList{margin-top:11px;border-top:1px solid rgba(216,197,139,.16)}
+.nsPanel .nsRow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:9px;
+  min-height:40px;border-bottom:1px solid rgba(216,197,139,.09);font-size:var(--fs-sm)}
+.nsPanel .nsRow .dot{width:10px;height:10px;border-radius:50%}
+.nsPanel .nsRow b{color:#dcd0ad;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nsPanel .nsRow span{color:#9d9170;white-space:nowrap}
 #vBody{margin-top:8px;font-size:var(--fs-md);line-height:1.6}
 #vWhy{margin-top:6px;font-size:var(--fs-sm);color:#dccf9f;line-height:1.7;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #verdict[data-dir="up"]{border-left-color:#e8c766}
@@ -2587,6 +2611,50 @@ function showToast(msg        , ms = 2600) {
   toast.textContent = zh(msg); toast.style.opacity = '1';
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => { toast.style.opacity = '0'; }, ms);
+}
+
+// ── 站内确认卡 ──
+// 取代 window.confirm：原生弹窗与全站自绘卡片调性割裂，手机上尤其突兀，且不受简繁转换管辖。
+// 自成一层（不走 overlay），所以身后的大厅或同修面板不会被顶掉，取消即原样回去。
+const confirmEl = el(`<div id="sfpConfirm" class="ui"><div class="cfCard" role="dialog" aria-modal="true" aria-labelledby="cfT">
+  <h3 id="cfT"></h3><div class="cfBody"></div>
+  <button class="gbtn primary" id="cfOk"></button><button class="gbtn" id="cfNo"></button></div></div>`);
+app.appendChild(confirmEl);
+let confirmResolve                              = null;
+function closeConfirm(result         ) {
+  if (!confirmResolve) return;
+  const done = confirmResolve;
+  confirmResolve = null;
+  confirmEl.classList.remove('on');
+  done(result);
+}
+function askConfirm(title        , body        , okText = '确定', noText = '再想想')                   {
+  closeConfirm(false);                              // 同时只留一张，免叠卡
+  (confirmEl.querySelector('#cfT')               ).textContent = zh(title);
+  (confirmEl.querySelector('.cfBody')               ).innerHTML = zh(body);
+  (confirmEl.querySelector('#cfOk')               ).textContent = zh(okText);
+  (confirmEl.querySelector('#cfNo')               ).textContent = zh(noText);
+  confirmEl.classList.add('on');
+  setTimeout(() => (confirmEl.querySelector('#cfNo')                      )?.focus(), 60);
+  return new Promise((resolve) => { confirmResolve = resolve; });
+}
+(confirmEl.querySelector('#cfOk')               ).addEventListener('click', () => closeConfirm(true));
+(confirmEl.querySelector('#cfNo')               ).addEventListener('click', () => closeConfirm(false));
+confirmEl.addEventListener('pointerdown', (e) => { if (e.target === confirmEl) closeConfirm(false); });
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !confirmResolve) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+  closeConfirm(false);
+}, true);
+
+// 局中离席会波及全房：不足两位即中止整局。换室、改一人行谱与「离席」钮一律先问这一句。
+function confirmLeaveMatch(what        )                   {
+  if (!Net.active || !Net.isPlaying()) return Promise.resolve(true);
+  const stillIn = Net.room.order.filter(id => !Net.players.find(p => p.id === id)?.done).length;
+  const body = stillIn <= 2
+    ? '您一走，本局有效同修不足两位，<b>全房这一局会立即中止</b>。'
+    : '本局由其余同修继续，您的座位立即让出，本局进度不再保留。';
+  return askConfirm(`${what}？`, body, '确定，让出座位', '再想想');
 }
 
 // ---------------- 状态 ----------------
@@ -2982,7 +3050,7 @@ function openTitle() {
     <div style="display:flex;justify-content:center;gap:22px;margin-top:13px;flex-wrap:wrap">
       ${act || hasSfp ? '<span class="tlink" id="tiNew">新开一局</span>' : ''}
       <span class="tlink" id="tiHow">玩法</span>
-      ${Net.active ? `<span class="tlink" id="tiNet">联机 · ${esc(Net.code)}</span>`
+      ${Net.active ? `<span class="tlink" id="tiNet">${esc(Net.roomLabel())}</span>`
         : (act || hasSfp ? '<span class="tlink" id="tiHall">共修大厅</span>' : '')}
       <span class="tlink" id="tiShare">分享</span></div></div>`);
   // 主钮三态：局中→回局；有存局→直接续掷；无局→全屏大厅选择一人或与人共修。
@@ -3952,7 +4020,26 @@ const SFP_D1_GROUPS                                    = [
   ['出世因', '入聖道之門，雜染則流弊', ['意見參禪', '利名習教', '出世福業', '出世戒學', '出世定學', '出世慧學']],
 ];
 const sfpS = { active: false, pos: null                 , n: 0, rolling: false, finished: false, seenD: []            , trail: []             };
-let sfpBonusLeft = 0; // 贈掷余数前置，供掷轮状态与徽标共同读取。
+// 受赠之掷余数：联机时一律镜像服务器 me.bonus（施受队列是唯一账本，本地不另记一笔）；
+// 单机恒为 0——贈掷须施与同席莲友，一人行谱无人可受即作废。
+let sfpBonusLeft = 0;
+function netMirrorBonus() {
+  const next = Net.active ? Math.max(0, Number(Net.me()?.bonus) || 0) : 0;
+  if (next === sfpBonusLeft) return;
+  sfpBonusLeft = next;
+  syncRollGlow();
+}
+// 本局此刻有没有可受贈的莲友（判词措辞用；服务器另有权威候选判定）
+function sfpGrantHasTaker() {
+  return Net.active && Net.isPlaying()
+    && Net.players.some(q => q.id !== Net.myId && q.online && !q.done && !q.away && !q.spectator);
+}
+// 贈掷操作规则一句话——本项目定稿操作规则（grant-ontology v2），非原谱逐字，故走 operational_interpretation
+function sfpGrantRule() {
+  return sfpGrantHasTaker()
+    ? '此贈不归自己：由掷得者择一位同席莲友受之，受赠者在自身所在之位续掷。'
+    : '此贈须施与同席莲友；无人可受时依定稿规则作废，不折回自己续掷。';
+}
 
 // —— 谱位上图：220 位以念珠环绕各自锚定的法界节点（同门同色） ——
 const SFP_AT                        = {};
@@ -4839,6 +4926,32 @@ function setTransit(v         ) {
   (b.querySelector('#rollTxt')               ).textContent = zh(v ? '行棋中…' : '长按掷轮');
   syncRollGlow();
 }
+// ── 本手限时呈现 ──
+// 服务器给每一手 turnDeadline（在线一分钟、断线三十秒、判词兜底一分钟、择人三十秒），
+// 逾时即代为跳手或交轮。从前这个刻度前台一处都没用，人读着谱注忽然就被跳了，事后才在聊天里看到一行。
+let netClockTimer = 0;
+function netTurnLeft() {
+  if (!Net.active || !Net.isPlaying()) return -1;
+  const deadline = Number(Net.room.turnDeadline || 0);
+  if (!deadline) return -1;
+  return Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+}
+function netVerdictClock() {
+  const clock = verdictEl.querySelector('#vClock')                      ;
+  if (!clock) return;
+  const mine = verdictFn && Net.active && Net.isPlaying()
+    && Net.room.phase === 'resolving' && Net.room.turnId === Net.myId;
+  const left = mine ? netTurnLeft() : -1;
+  if (left < 0 || left > 30) { clock.textContent = ''; clock.classList.remove('warn'); return; }
+  clock.textContent = zh(`剩 ${left} 秒`);
+  clock.classList.toggle('warn', left <= 10);
+}
+function netClockSync() {
+  const on = Net.active && Net.isPlaying() && sfpS.active;
+  if (on && !netClockTimer) netClockTimer = window.setInterval(() => { syncRollGlow(); netVerdictClock(); }, 1000);
+  if (!on && netClockTimer) { clearInterval(netClockTimer); netClockTimer = 0; }
+  if (!on) netVerdictClock();
+}
 function syncRollGlow() {
   const terminal = sfpS.finished || !!(sfpS.pos && SFP_BY[sfpS.pos]?.terminal);
   const localReady = sfpS.active && !terminal && !sfpS.rolling && !sfpTransit && !verdictFn;
@@ -4850,9 +4963,14 @@ function syncRollGlow() {
   button.classList.toggle('dis', !canRoll && !sfpS.rolling);
   const txt = button.querySelector('#rollTxt')               ;
   if (!sfpS.rolling && !sfpTransit) {
-    txt.textContent = zh(terminal
+    let label = terminal
       ? (Net.active && !Net.isFinished() ? '本座已及第 · 等待结算' : '本局已结束')
-      : (waiting ? Net.turnHint() : '长按掷轮'));
+      : (waiting ? Net.turnHint() : '长按掷轮');
+    if (canRoll && Net.active) {
+      const left = netTurnLeft();                       // 只在快到点时提示，平时不催人
+      if (left >= 0 && left <= 20) label = `${label} · 剩 ${left} 秒`;
+    }
+    txt.textContent = zh(label);
   }
   const bn = sfpBar.querySelector('#rollBn')               ;
   const on = sfpS.active && sfpBonusLeft > 0;
@@ -5391,7 +5509,7 @@ function posReveal(name        , dir         , pid         ) {
 }
 
 // ── 行棋判词卡（白话优先）：玩家玩游戏不读谱——主句用白话直告，谱曰逐字原文退居「出处」一点即达；不自动关 ──
-const verdictEl = el(`<div id="verdict" class="ui panel"><button id="vX" title="收起（棋照行）">✕</button><div id="vTop"><div id="vChips"></div><span id="vN"></span></div><div id="vBody"></div><div id="vWhy"></div><div id="vSrc"></div><button class="gbtn primary" id="vGo"><span id="vGoTxt"></span></button></div>`);
+const verdictEl = el(`<div id="verdict" class="ui panel"><button id="vX" title="收起（棋照行）">✕</button><div id="vTop"><div id="vChips"></div><span id="vN"></span></div><div id="vBody"></div><div id="vWhy"></div><div id="vSrc"></div><button class="gbtn primary" id="vGo"><span id="vGoTxt"></span><i id="vClock"></i></button></div>`);
 app.appendChild(verdictEl);
 let verdictFn                      = null;
 let vdAskCtx                                                                 = null;
@@ -6342,7 +6460,9 @@ function sfpApply(combo        , chain = false) {
     sfpS.rolling = false;
     sfpRollBtn.classList.toggle('dis', sfpTransit || sfpS.finished);
     syncRollGlow();
-    if (moreAutomatic || sfpBonusLeft > 0) return;
+    if (moreAutomatic) return;
+    // 判词行毕即交回服务器裁夺：是续掷（受赠之掷未尽）、是择人施贈、还是轮转下一位，
+    // 一律由服务器判。从前这里因本地 sfpBonusLeft 扣着不发，服务器只能等兜底闹钟，白晾一分钟。
     if (Net.active) Net.finishTurn();
   };
   if (!sfpS.pos) {
@@ -6391,12 +6511,15 @@ function sfpApply(combo        , chain = false) {
     vib([15, 60, 15]);
     const grantEvidence = mergeSfpEvidence(
       why(p.id, combo),
-      makeSfpOperationalEvidence(Net.active ? '仍由本手当前同修立即续掷；赠掷完毕后才交下一位。' : '仍由当前操作者立即续掷。'),
+      makeSfpOperationalEvidence(sfpGrantRule()),
     );
-    showVerdict(`获贈<b class="vdst">${'一二三四'[mv.bonus - 1]}掷</b> · 可再掷而行`, grantEvidence, '再掷 ▸', () => {
-      sfpBonusLeft += mv.bonus;
-      sfpLog(combo, `贈${'一二三四'[mv.bonus - 1]}掷`);
-      sfpShowMsg(`贈${'一二三四'[mv.bonus - 1]}掷，可连掷而行`, undefined, combo);
+    const cn = '一二三四'[mv.bonus - 1];
+    const head = sfpGrantHasTaker()
+      ? `掷得<b class="vdst">贈${cn}掷</b> · 请施与一位莲友`
+      : `掷得<b class="vdst">贈${cn}掷</b> · 无人可施，此贈作废`;
+    showVerdict(head, grantEvidence, sfpGrantHasTaker() ? '择人 ▸' : '知道了', () => {
+      sfpLog(combo, sfpGrantHasTaker() ? `贈${cn}掷 · 施与同席` : `贈${cn}掷 · 无人可施作废`);
+      sfpShowMsg(sfpGrantHasTaker() ? `贈${cn}掷，请择一位莲友受之` : `贈${cn}掷，无人可施，此贈作废`, undefined, combo);
       playSfx('sfx-fav', 0.4); sfpStatus(); sfpSave();
       done();
     }, combo, undefined, askQFor(combo, '', undefined, undefined), 'bonus', true);
@@ -6406,12 +6529,11 @@ function sfpApply(combo        , chain = false) {
   let msg = `「${dest.name}」`;
   if (mv.bonus) msg += `，贈${'一二三四'[mv.bonus - 1]}掷`;
   let w = why(p.id, combo); // 原文、释义与操作规则只呈于判词卡，消息栏不复述（v151 静场）
-  if (mv.bonus) w = mergeSfpEvidence(w, makeSfpOperationalEvidence('先移至目的位，再由当前操作者从目的位立即续掷。'));
+  if (mv.bonus) w = mergeSfpEvidence(w, makeSfpOperationalEvidence(`先移至目的位，${sfpGrantRule()}`));
   // 升降判定（通例）
   const dir = sfpDirOf(p, dest, combo);
   vib(dir === 'down' ? 110 : dir === 'pure' ? [20, 50, 20, 50, 80] : [15, 45, 15]); // 降一记长振，升短双振，横超一串
   showVerdict(`${SFP_DIR_BADGE[dir] || ''}往<b class="vdst">「${dest.name}」</b>${mv.bonus ? `<span class="vbn">贈${'一二三四'[mv.bonus - 1]}掷</span>` : ''}`, w || '', '行 ▸', () => {
-    if (mv.bonus) sfpBonusLeft += mv.bonus;
     sfpLog(combo, `「${p.name}」→「${dest.name}」${mv.bonus ? `，贈${'一二三四'[mv.bonus - 1]}掷` : ''}`, dir, p.id, mv.to);
     sfpGoto(mv.to, msg, dir, combo);
     if (dir === 'pure') setTimeout(() => { // 横超落定后点明净土行法（「永離退緣」为净土疑城谱注原文；净土诸位行法确无下行）
@@ -6445,6 +6567,13 @@ function sfpPalmDown() {
     showToast(zh(Net.active && !Net.isFinished()
       ? '本座已经及第，正等待本轮补齐并共同结算'
       : '本局已经结束，请从结算面板开始下一局'), 3000);
+    syncRollGlow();
+    return;
+  }
+  // 暂离者点掷轮即视为自请归队：从前这里只反复提示「请候某某行谱」，
+  // 而暂离者永远等不到轮次，唯一出路是刷新页面重进——没人猜得到。
+  if (Net.active && Net.isAway()) {
+    if (Net.wakeUp()) showToast(zh('已归队——下一轮轮到您时即可掷轮'), 3200);
     syncRollGlow();
     return;
   }
@@ -6494,7 +6623,7 @@ function sfpAnimateCommittedToss(combo        , authoritativeN                ) 
   save.lg.tos++;
   persist();
   void Plaza.tick(1); // 只计服务器已承诺或单机已落定的真实一掷
-  if (sfpBonusLeft > 0) sfpBonusLeft--;
+  // 受赠之掷的扣减由服务器施受队列记账，前台只镜像，不自行加减（免两本账对不上）
   const ia = SFP_ORDER.indexOf(combo[0]), ib = SFP_ORDER.indexOf(combo[1]);
   if (ia < 0 || ib < 0) {
     sfpS.rolling = false;
@@ -6888,8 +7017,12 @@ function startSfp(resume         ) {
   freeDock.style.display = 'none';
   updateModeChip();
   playBell(196, 0.05);
-  // 首次开局：自动弹白话玩法速览
-  if (!(save       ).sfpHelp) { (save       ).sfpHelp = true; persist(); openSfpHelp(); }
+  // 首次开局：自动弹白话玩法速览。
+  // 但联机已开局时绝不弹——共同开局后轮次限时立刻开始跑，满屏教程压在掷轮台上，
+  // 新人读完往往已超时被跳，两次即被移出行动序列。联机的教程改在准备室里出（见 Net.onJoined）。
+  if (!(save       ).sfpHelp && !(Net.active && Net.isPlaying())) {
+    (save       ).sfpHelp = true; persist(); openSfpHelp();
+  }
 }
 function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续掷') {
   if (!sfpS.active && !sfpS.finished) return;
@@ -6911,6 +7044,7 @@ function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续
   exitStarView(false);
   posRevealEl.classList.remove('show');
   sfpS.rolling = false;
+  netClockSync();
   (sfpBar.querySelector('#sfpRoll')               ).classList.remove('dis');
   freeDock.style.display = '';
   setFlight(true);
@@ -7016,17 +7150,63 @@ function sfpVictory(settled = false) {
   window.setTimeout(openV, 2300);
   void Plaza.flush(); // 终局即补送不足十掷的尾数；上榜无需用户再操作
   // 及第只自动登记为大厅结算动态与“今日及第”统计，不形成第二套榜单或手动上榜步骤。
-  const seat = Net.active
-    ? (/^H\d+T\d+$/i.test(Net.code) ? `table:${String(Net.code).split(/[Tt]/)[1]}` : 'private')
-    : 'solo';
+  // 联机局的及第由本室服务器出具（掷数取权威棋况），前台不再自报——自报的房间战绩无从核实。
+  if (Net.active) return;
   const depthOf = (pid) => {
     const anchor = SFP_BY[pid] && byId[SFP_BY[pid].anchor];
     return anchor ? anchor.d.pos[1] : NaN;
   };
   void Plaza.record({
-    ...Plaza.runSummary(trailSnapshot, SFP_BY, n, seat, depthOf),
+    ...Plaza.runSummary(trailSnapshot, SFP_BY, n, 'solo', depthOf),
     name: Plaza.practiceName(),
   });
+}
+// 共同结算卡：本局了结时，未及第者与旁观者也该看到一张交代结果的卡。
+// 从前只有及第者有面板，其余人只在掷轮钮下多一行小字，共修最该共有的一刻反而没有画面。
+function openNetSettle(message         ) {
+  if (!Net.active) return;
+  const aborted = message?.reason === 'not_enough_players';
+  const winners = Net.players.filter(q => q.done);
+  const me = Net.me();
+  const mine = me?.done
+    ? `本座第 ${me.n} 掷选佛及第`
+    : (me?.spectator ? '本局您在旁观，下一局即可入座'
+      : (me?.n ? `本座行至第 ${me.n} 掷${sfpS.pos && SFP_BY[sfpS.pos] ? `，现居「${esc(SFP_BY[sfpS.pos].name)}」` : ''}` : '本座本局未起行'));
+  const roster = Net.players.map(q => `<div class="nsRow">
+      <span class="dot" style="background:${esc(q.color || '#e8c766')}"></span>
+      <b>${esc(q.name)}${q.id === Net.myId ? '（我）' : ''}</b>
+      <span>${q.done ? `第 ${q.n} 掷及第` : (q.spectator ? '候下局' : (q.n ? `第 ${q.n} 掷` : '未起行'))}</span>
+    </div>`).join('');
+  const head = aborted ? '本局中止' : (winners.length
+    ? `${winners.map(q => esc(q.name)).join('、')}本局及第`
+    : '本局已共同结算');
+  const p = el(`<div class="panel nsPanel"><h2>共同结算</h2><div class="body">
+    <div class="cMeta">${esc(Net.roomLabel())} · 第 ${Net.room.round || 1} 轮</div>
+    <div class="nsHead">${head}</div>
+    <div class="nsMine">${mine}</div>
+    ${aborted ? '<div class="cNote">有效同修不足两位，本局未及结算即止。</div>' : ''}
+    <div class="nsList">${roster}</div>
+    <div class="cNote">本谱纯由掷相所至，同座只陈行处，不较先后。</div>
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+      <button class="gbtn primary" id="nsAgain" style="flex:1;min-width:110px">准备下一局</button>
+      <button class="gbtn" id="nsLeave" style="flex:1;min-width:110px">离席回大厅</button>
+      <button class="gbtn" id="nsFree" style="flex:1;min-width:110px">观照星图</button>
+    </div></div></div>`);
+  (p.querySelector('#nsAgain')               ).addEventListener('click', () => {
+    closeOverlay();
+    Net.setReady(true);
+    Net.openPanel();
+  });
+  (p.querySelector('#nsLeave')               ).addEventListener('click', () => {
+    closeOverlay();
+    Net.leave();
+  });
+  (p.querySelector('#nsFree')               ).addEventListener('click', () => {
+    closeOverlay();
+    endSfp('已入自由观照——留座旁观，点「选佛」可回局中');
+  });
+  openOverlay(p);
+  zhDom(p);
 }
 // 同修及第：金色横幅一记磬声，不弹窗不打断——您可能正握着轮，及第是可随喜之事，不是要处理之事
 let peerWinT = 0;
@@ -7067,6 +7247,8 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
   const ord = Plaza.TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
   if (Net.active) {
     if (Net.code === code) { plazaStop(); closeOverlay(); Net.openPanel(); return; } // 点的就是自己那室
+    // 换室＝先让出原座。正在行谱时这一走可能中止全房的局，不能无声无息。
+    if (!await confirmLeaveMatch(`离开本局，换到共修室${ord}`)) return;
   }
   plazaSetJoining(true);
   try {
@@ -7074,10 +7256,26 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
     await Net.joinRoom(code, name, null, keyArg);
     plazaStop(); closeOverlay();
     Net.openPanel();
-    showToast(zh(`已入共修室${ord}——两位准备即可开局`), 4200);
+    // 中途入室是旁观，不是入局：别拿「两位准备即可开局」糊弄他等一个不属于他的轮次
+    showToast(zh(Net.isSpectator()
+      ? `已入共修室${ord}——本局已开始，您在下一局入座`
+      : `已入共修室${ord}——两位准备即可开局`), 4200);
   } catch (e) {
     const msg = (e && e.message) || '';
     if (/密码|上锁/.test(msg)) { openPlazaSitKey(code, msg); return; } // 密码错：留在密码卡上重填
+    // 另一个页面持着「在房」标记。若那边已久无心跳（多半是崩溃或强退），
+    // 问一句就放行——否则用户只能干等两分钟，且完全不知道在等什么。
+    if (e?.code === 'other_tab' && e.stale) {
+      plazaSetJoining(false);
+      const go = await askConfirm(
+        '另一个页面还占着座位',
+        '本机另一个页面登记为「在共修室中」，但已有一阵子没有动静了。<b>若那个页面已关闭</b>，可以从这里接管。',
+        '已关闭，接管入座', '再想想',
+      );
+      if (!go) { openPlaza(); return; }
+      Net.takeOverLocalRoom();
+      return plazaSit(code, nameArg, needKey, keyArg);
+    }
     showToast(zh(msg || '此室暂时坐不下，请换一室'), 3200);
     openPlaza();                                    // 满座/断线：退回大厅重看桌况
   } finally {
@@ -7119,7 +7317,8 @@ function plazaRender(data) {
     el, esc, zh,
     seatedAt: Net.active ? Net.code : '',
     backText: sfpS.active ? '回到局中' : '返回',
-    onSolo: () => {                                 // 一人行谱：不占座，若在房先离席
+    onSolo: async () => {                           // 一人行谱：不占座，若在房先离席
+      if (!await confirmLeaveMatch('离开本局，改为一人行谱')) return;
       plazaStop(); closeOverlay();
       if (Net.active) Net.leave({ notify: false });
       startSfp(false);
@@ -7129,7 +7328,6 @@ function plazaRender(data) {
       if (!code) { showToast(zh('本厅诸室皆满——请稍候或一人行谱'), 3200); return; }
       plazaSit(code);
     },
-    onPrivate: () => { showToast(zh('入座后可设四位数密码，把邀请链接发给莲友，即成熟人局'), 4600); },
     onClose: () => { plazaStop(); closeOverlay(); if (!sfpS.active) openTitle(); },
   });
   zhDom(p);
@@ -8598,7 +8796,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   else window.addEventListener('load', () => setTimeout(startLoop, 50), { once: true });
   (window       ).__gpReady = true;
   // ---------------- 联机接线 ----------------
-  Net.init({ toast: showToast, zh });
+  Net.init({ toast: showToast, zh, confirm: confirmLeaveMatch });
   let netHydrateMode = '';
   let netTurnWake = 0;
   const hydrateNetGame = (force = false) => {
@@ -8648,6 +8846,12 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     if (!reconnecting) {
       closeOverlay();
       Net.openPanel();
+      // 首次入座：趁准备室还没有任何计时，把玩法速览看完；开局后就不再打断了
+      if (!(save       ).sfpHelp) {
+        (save       ).sfpHelp = true;
+        persist();
+        setTimeout(() => { if (Net.active && !Net.isPlaying()) openSfpHelp(); }, 400);
+      }
     }
   };
   let rosterRoom = '';
@@ -8671,6 +8875,9 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     }
   };
   Net.onState = () => {
+    netMirrorBonus();
+    netClockSync();
+    netVerdictClock();
     scheduleNetTurnUi();
     if (Net.isFinished() && Net.me()?.done && sfpS.active) sfpVictory(true);
   };
@@ -8679,6 +8886,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     Net.closePanel();
     startSfp(false);
     showToast('真人共修共同开局——依入座次序轮流掷轮', 4200);
+    netClockSync();
     scheduleNetTurnUi();
   };
   Net.onToss = (message) => {
@@ -8703,7 +8911,9 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     sfpShowMsg(message.reason === 'not_enough_players'
       ? '有效同修不足两位，本局已中止'
       : (winners.length ? `${winners.join('、')}本局及第——已共同结算` : '本局已共同结算'));
+    // 及第者走及第面板（内含同座现况）；其余人与旁观者走共同结算卡，两者不并出
     if (Net.me()?.done) sfpVictory(true);
+    else openNetSettle(message);
   };
   Net.onCommandError = () => {
     if (!palmHeld && sfpS.rolling && !verdictFn && !sfpTransit) {
@@ -8736,8 +8946,10 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     const savedNet = Net.savedRoom();
     if (savedNet?.code && savedNet?.playerId && savedNet?.name) {
       Net.joinRoom(savedNet.code, savedNet.name, savedNet.playerId, savedNet.key || '')
-        .then(() => showToast(zh(`已重回共修室 ${savedNet.code}`), 3600))
-        .catch(() => showToast(zh('原共修室暂时连不上，可从大厅重新入座'), 4200));
+        .then(() => showToast(zh(`已重回${Net.roomLabel()}`), 3600))
+        // 据实报因：满座、密码、协议不符、另一页面占着——从前一律塌缩成「连不上」，
+        // 用户照着提示反复重试，其实原因根本不在网络。
+        .catch((e) => showToast(zh((e && e.message) || '原共修室暂时连不上，可从大厅重新入座'), 4600));
     }
   }
   setInterval(persist, 10000);

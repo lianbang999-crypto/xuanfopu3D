@@ -5,7 +5,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
-const UI_BASE = process.env.UI_BASE || 'http://127.0.0.1:5173';
+const UI_BASE = process.env.UI_BASE || 'http://localhost:5930';
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ARTIFACT_DIR = process.env.UI_ARTIFACT_DIR || '';
 

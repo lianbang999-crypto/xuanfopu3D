@@ -1,11 +1,11 @@
 // MakePlay V90 内容校正与既有视觉/场景移植回归。
 // 先启动 `npm run dev`，再运行：
-// UI_BASE=http://127.0.0.1:5173 UI_ARTIFACT_DIR=/tmp/xuanfopu-v90 npm run test:v90
+// UI_BASE=http://localhost:5930 UI_ARTIFACT_DIR=/tmp/xuanfopu-v90 npm run test:v90
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright-core';
 
-const UI_BASE = process.env.UI_BASE || 'http://127.0.0.1:5173';
+const UI_BASE = process.env.UI_BASE || 'http://localhost:5930';
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ARTIFACT_DIR = process.env.UI_ARTIFACT_DIR || '';
 

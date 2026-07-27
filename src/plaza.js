@@ -131,19 +131,42 @@ function when(ts) {
   return `${Math.max(1, Math.floor(d / 86400000))}天前`;
 }
 
-function tableCell(t, esc, here) {
-  const dots = Array.from({ length: t.max }, (_, i) => (i < t.live ? '●' : '○')).join('');
+// 房间格只建一次空壳，此后就地补写——整段 innerHTML 重绘会吞掉键盘焦点与正在进行的点击。
+function tableShell(t, esc) {
+  return `<button class="pzT" data-code="${esc(t.code)}">
+    <span class="ord"></span><span class="dots"></span><span class="st"></span><span class="who"></span></button>`;
+}
+
+// 只在内容真的变了才写 DOM：dataset.raw 记的是转换前的原文，
+// 免得简繁转换（zhDom）把已转好的字又被这里的简体原文覆盖回去、每八秒闪一次。
+function setCell(host, selector, html) {
+  const node = host.querySelector(selector);
+  if (!node || node.dataset.raw === html) return;
+  node.dataset.raw = html;
+  node.innerHTML = html;
+}
+
+function paintTable(button, t, esc, here) {
   const who = t.seats.filter(s => s.online).map(s =>
     `<i style="color:${esc(s.color || '#dccf9f')}">${esc(s.name)}</i>`).join(' ');
   // 上锁的室照样列出（藏起来反而让人纳闷"为什么这桌空着没人坐"），点了再问密码
   const mine = t.code === here;
-  const state = mine ? '您在此' : (t.locked ? '凭密码入座' : (STATE_TEXT[t.state] || ''));
-  return `<button class="pzT s-${t.state}${t.locked ? ' locked' : ''}${mine ? ' mine' : ''}" data-code="${esc(t.code)}"
-    aria-label="共修室${TABLE_ORD[t.no - 1]}，${state}，${t.live}/${t.max}位在线"${t.state === 'full' && !mine ? ' disabled' : ''}>
-    <span class="ord">${TABLE_ORD[t.no - 1]}${t.locked ? '<em>🔒</em>' : ''}</span>
-    <span class="dots">${dots}</span>
-    <span class="st">${mine ? '您在此' : (t.locked ? '凭密码' : (STATE_TEXT[t.state] || ''))}</span>
-    <span class="who">${who || '&nbsp;'}</span></button>`;
+  const full = t.state === 'full' && !mine;
+  const label = mine ? '您在此' : (t.locked ? '凭密码入座' : (STATE_TEXT[t.state] || ''));
+  const className = `pzT s-${t.state}${t.locked ? ' locked' : ''}${mine ? ' mine' : ''}`;
+  if (button.className !== className) button.className = className;
+  button.disabled = full;
+  // 读屏仍报全状态；眼睛看到的则按「有人才说话」减负
+  button.setAttribute('aria-label',
+    `共修室${TABLE_ORD[t.no - 1]}，${label}，${t.live}/${t.max}位在线`);
+  setCell(button, '.ord', `${TABLE_ORD[t.no - 1]}${t.locked ? '<em>🔒</em>' : ''}`);
+  // 空室不画四个空圈、也不写「空室」——十二格里常有十格是空的，两套记号说同一件「没人」，
+  // 反把「哪里有人」淹没了。空室只留一个淡序号，人一坐进来才长出点阵与名号。
+  const quiet = t.live === 0 && !t.locked && !mine;
+  setCell(button, '.dots', quiet ? ''
+    : Array.from({ length: t.max }, (_, i) => (i < t.live ? '●' : '○')).join(''));
+  setCell(button, '.st', quiet ? '' : (mine ? '您在此' : (t.locked ? '凭密码' : (STATE_TEXT[t.state] || ''))));
+  setCell(button, '.who', quiet ? '' : (who || '&nbsp;'));
 }
 
 function runLine(r, esc) {
@@ -174,7 +197,8 @@ function rankingHtml(data, esc) {
       <div><b>${num(data.tosses)}</b><span>累计称念</span></div>
     </div>
     <div class="pzRankList">${leaderRows(today, esc)}</div>
-    <div class="pzRankNote">每一掷记一声「南无阿弥陀佛」；只作随喜记录，不作修证高下；榜单每日零时（北京时间）重新开始</div>`;
+    <div class="pzRankNote">每一掷记一声「南无阿弥陀佛」；只作随喜记录，不作修证高下；榜单每日零时（北京时间）重新开始。<br>
+      称念数由各自本机记数汇总，共修室的及第由本室服务器出具。</div>`;
 }
 
 function openRanking(p, ui) {
@@ -201,14 +225,14 @@ function openRanking(p, ui) {
   layer.querySelector('.pzRankClose').focus();
 }
 
+// 动态只呈最新一条：从前是 34 秒一轮的无限跑马灯，想读某条得等它滚过来，
+// 而它常驻大厅、在静观期一直烧帧（§七之二 功耗规范）。静态一条反而一眼可读。
 function tickerHtml(data, esc) {
-  const feed = (data.feed || []).slice(0, 8);
-  const items = feed.length ? feed : [{
-    text: `此刻 ${num(data.online)} 位在座 · 今日 ${num(data.tossesToday)} 念 · ${num(data.winsToday)} 次及第`,
-    ts: Date.now(),
-  }];
-  const set = items.map(item => `<span>${esc(item.text)}<i>${when(item.ts)}</i></span>`).join('');
-  return `<span class="pzTickerSet">${set}</span>${items.length > 1 ? `<span class="pzTickerSet" aria-hidden="true">${set}</span>` : ''}`;
+  const latest = (data.feed || [])[0];
+  if (!latest) {
+    return `<span class="pzTickerSet"><span>${esc(`此刻 ${num(data.online)} 位在座 · 今日 ${num(data.tossesToday)} 念 · ${num(data.winsToday)} 次及第`)}</span></span>`;
+  }
+  return `<span class="pzTickerSet"><span>${esc(latest.text)}<i>${when(latest.ts)}</i></span></span>`;
 }
 
 // 只补写会变化的桌况与数字，不销毁大厅本身；保住滚动、焦点和已打开的功课榜。
@@ -217,13 +241,26 @@ export function updatePlaza(p, data, ui) {
   p._plazaUi = ui || p._plazaUi;
   const activeUi = p._plazaUi;
   const tables = data.tables || [];
-  p.querySelector('.pzGrid').innerHTML = tables.map(t => tableCell(t, activeUi.esc, activeUi.seatedAt)).join('');
+  const grid = p.querySelector('.pzGrid');
+  const codes = tables.map(t => t.code).join(',');
+  if (grid.dataset.codes !== codes) {        // 只有房间集合本身变了（换厅）才重建空壳
+    grid.dataset.codes = codes;
+    grid.innerHTML = tables.map(t => tableShell(t, activeUi.esc)).join('');
+  }
+  const cells = grid.querySelectorAll('.pzT');
+  tables.forEach((t, i) => { if (cells[i]) paintTable(cells[i], t, activeUi.esc, activeUi.seatedAt); });
   p.querySelector('.pzOnline').textContent = num(data.online);
   p.querySelector('.pzPlaying').textContent = num(data.playingTables);
-  p.querySelector('.pzTodayToss').textContent = num(data.tossesToday);
-  p.querySelector('.pzTodayWins').textContent = num(data.winsToday);
-  p.querySelector('.pzTickerTrack').innerHTML = tickerHtml(data, activeUi.esc);
-  p.querySelector('.pzTickerTrack').classList.toggle('move', (data.feed || []).length > 1);
+  // 跑马灯只在动态条目本身变了才重写：每次重写都会把 34 秒的滚动动画打回起点，
+  // 八秒一刷则后面的条目永远滚不出来。比对用条目身份（时刻＋正文），
+  // 不用渲染结果——「几分钟前」每分钟都在变，拿它比对等于白比。
+  const track = p.querySelector('.pzTickerTrack');
+  const latest = (data.feed || [])[0];
+  const feedKey = latest ? `${latest.ts}:${latest.text}` : '';
+  if (!feedKey || track.dataset.feed !== feedKey) {
+    track.dataset.feed = feedKey;
+    track.innerHTML = tickerHtml(data, activeUi.esc);
+  }
   const seat = p.querySelector('.pzSeatNote');
   const no = Number(String(activeUi.seatedAt || '').split('T')[1]);
   seat.hidden = !activeUi.seatedAt;
@@ -260,24 +297,12 @@ export function renderPlaza(data, ui) {
 
       <main class="pzMain">
         <section class="pzRooms">
-          <div class="pzSectionHead"><div><span>选择共修室</span><h3>十二室</h3></div>
+          <div class="pzSectionHead"><h3>十二室</h3>
             <p>自行选室 · 两位准备即可开局</p></div>
           <div class="pzGrid"></div>
-          <div class="pzSeatNote" hidden></div>
         </section>
-        <aside class="pzAside">
-          <div class="pzToday">
-            <span>今日共修</span>
-            <div><b class="pzTodayToss">0</b><i>称念</i></div>
-            <div><b class="pzTodayWins">0</b><i>及第</i></div>
-          </div>
-          <div class="pzGuide">
-            <b>入座后</b>
-            <p>两位准备即可开局，不必等满四人。最先入室者为房主，可邀请莲友或设置密码。</p>
-            <button type="button" id="pzPriv">邀请说明</button>
-          </div>
-          <button class="pzBack" id="pzClose" type="button">${ui.backText || '返回'}</button>
-        </aside>
+        <div class="pzSeatNote" hidden></div>
+        <button class="pzBack" id="pzClose" type="button">${ui.backText || '返回'}</button>
       </main>
     </div>
     <div class="pzRankLayer" aria-hidden="true">
@@ -293,14 +318,15 @@ export function renderPlaza(data, ui) {
   p.querySelector('#pzSolo').addEventListener('click', () => ui.onSolo());
   p.querySelector('#pzQuick').addEventListener('click', () => {
     const tables = p._plazaData?.tables || [];
-    // 优先坐进人最多但未满且未上锁的室，让同修更快凑齐开局。
     const open = tables.filter(t => t.state !== 'full' && !t.locked);
     if (!open.length) return ui.onQuick(null);
-    const best = open.slice().sort((a, b) => b.live - a.live)[0];
+    // 「随喜入座」是要立刻开始共修，不是要旁观：先取还在候莲友的室（其中人最多者最快凑齐），
+    // 全都在行谱中才退而求其次——否则人越多的室越可能正打到一半，点进去只能干等一整局。
+    const rank = (t) => (t.state === 'waiting' ? 0 : (t.state === 'empty' ? 1 : 2));
+    const best = open.slice().sort((a, b) => rank(a) - rank(b) || b.live - a.live)[0];
     ui.onQuick(best.code);
   });
   p.querySelector('#pzRank').addEventListener('click', () => openRanking(p, ui));
-  p.querySelector('#pzPriv').addEventListener('click', () => ui.onPrivate());
   p.querySelector('#pzClose').addEventListener('click', () => ui.onClose());
   updatePlaza(p, data, ui);
   return p;
@@ -441,13 +467,11 @@ export const PLAZA_CSS = `
   background:rgba(255,255,255,.025);color:#cfc7ad;font:inherit;cursor:pointer;text-align:left}
 .pzTicker:hover,.pzTicker:focus-visible{border-color:rgba(232,199,102,.48);background:rgba(232,199,102,.07)}
 .pzTickerLabel{color:#e8c766;font-size:var(--fs-xs,11px);letter-spacing:2px;white-space:nowrap}
-.pzTickerViewport{min-width:0;flex:1;overflow:hidden;mask-image:linear-gradient(90deg,transparent,#000 3%,#000 97%,transparent)}
-.pzTickerTrack{display:flex;width:max-content;white-space:nowrap}
-.pzTickerTrack.move{animation:pzMarquee 34s linear infinite}
-.pzTickerSet{display:flex;align-items:center;gap:48px;padding-right:48px}
-.pzTickerSet span{font-size:var(--fs-sm,12.5px);letter-spacing:1px}
+.pzTickerViewport{min-width:0;flex:1;overflow:hidden;mask-image:linear-gradient(90deg,#000 92%,transparent)}
+.pzTickerTrack{display:flex;min-width:0;white-space:nowrap}
+.pzTickerSet{display:flex;align-items:center;min-width:0}
+.pzTickerSet span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-sm,12.5px);letter-spacing:1px}
 .pzTickerSet i{font-style:normal;color:#746d5d;font-size:var(--fs-xs,11px);margin-left:9px}
-@keyframes pzMarquee{to{transform:translateX(-50%)}}
 .pzTickerMore{flex:none;color:#a99c79;font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
 .pzTickerMore b{font-size:18px;font-weight:400;margin-left:4px}
 .pzModes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -465,12 +489,13 @@ export const PLAZA_CSS = `
 .pzMode em{font-style:normal;color:#c8b988;font-size:var(--fs-sm,12.5px);letter-spacing:2px}
 .pzPanel.joining .pzMode,.pzPanel.joining .pzT{pointer-events:none;opacity:.56}
 .pzPanel.joining #pzQuick{border-color:rgba(232,199,102,.7);opacity:1}
-.pzMain{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:18px;min-height:0}
+/* 右侧原有「今日共修／入座后／邀请说明」三块已撤：数字在功课榜里已有一份，
+   入座说明在房内指引里已有一份，同一句话不在大厅再说一遍（§5.0b）。房间格因此拿到整幅宽度。 */
+.pzMain{display:grid;grid-template-rows:minmax(0,1fr) auto auto;gap:12px;min-height:0}
 .pzRooms{min-height:0;display:flex;flex-direction:column;padding:18px;border:1px solid rgba(216,197,139,.13);
   border-radius:16px;background:rgba(255,255,255,.018);overflow:auto}
-.pzSectionHead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:14px}
-.pzSectionHead span,.pzToday>span{display:block;color:#8f856d;font-size:var(--fs-xs,11px);letter-spacing:2px}
-.pzSectionHead h3{margin:2px 0 0;color:#d9ccaa;font-size:var(--fs-lg,16px);font-weight:500;letter-spacing:4px}
+.pzSectionHead{display:flex;align-items:baseline;justify-content:space-between;gap:20px;margin-bottom:14px}
+.pzSectionHead h3{margin:0;color:#d9ccaa;font-size:var(--fs-lg,16px);font-weight:500;letter-spacing:4px}
 .pzSectionHead p{margin:0;color:#77705f;font-size:var(--fs-xs,11px);letter-spacing:1px}
 .pzGrid{display:grid;grid-template-columns:repeat(4,minmax(108px,1fr));gap:10px}
 .pzT{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:92px;padding:13px 14px;cursor:pointer;
@@ -482,22 +507,21 @@ export const PLAZA_CSS = `
 .pzT .st{font-size:var(--fs-xs,11px);color:#8f8774;letter-spacing:1px}
 .pzT .who{font-size:var(--fs-xs,11px);line-height:1.35;color:#9d9170;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pzT .who i{font-style:normal}
+.pzT .dots:empty,.pzT .st:empty,.pzT .who:empty{display:none}
+/* 空室退到背景里：一个淡序号即可，视线自然落在有人的那几间 */
+.pzT.s-empty{justify-content:center;align-items:center;border-color:rgba(216,197,139,.09);background:rgba(255,255,255,.012)}
+.pzT.s-empty .ord{color:#6d6754;font-size:var(--fs-lg,16px)}
+.pzT.s-empty:hover:not(:disabled),.pzT.s-empty:focus-visible:not(:disabled){border-color:rgba(232,199,102,.4);background:rgba(232,199,102,.05)}
 .pzT .ord em{font-style:normal;font-size:9px;margin-left:3px}
 .pzT.locked{border-style:dashed}.pzT.locked .st{color:#b9a7e0}
 .pzT.mine{border-color:rgba(232,199,102,.86);background:rgba(232,199,102,.12)}.pzT.mine .st{color:#e8c766}
 .pzT.s-playing{border-color:rgba(150,225,214,.38)}.pzT.s-playing .st{color:#96e1d6}
 .pzT.s-waiting{border-color:rgba(232,199,102,.48)}.pzT.s-waiting .st{color:#e8c766}
-.pzSeatNote{margin-top:12px;color:#a99c79;font-size:var(--fs-sm,12.5px);text-align:center;letter-spacing:1px}
-.pzAside{display:flex;flex-direction:column;gap:12px;min-height:0}
-.pzToday,.pzGuide{border:1px solid rgba(216,197,139,.14);border-radius:14px;background:rgba(255,255,255,.025);padding:16px}
-.pzToday{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-.pzToday>span{grid-column:1/-1}
-.pzToday div{display:grid;gap:3px}.pzToday b{color:#e8c766;font-size:24px;font-weight:500}.pzToday i{font-style:normal;color:#7e7766;font-size:var(--fs-xs,11px);letter-spacing:1px}
-.pzGuide{color:#9a927f;line-height:1.7;font-size:var(--fs-sm,12.5px)}
-.pzGuide b{color:#d8cba8;letter-spacing:2px}.pzGuide p{margin:7px 0 10px}
-.pzGuide button,.pzBack{border:0;background:none;color:#c8b988;font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:1px;cursor:pointer;padding:8px 0}
-.pzGuide button:hover,.pzBack:hover{color:#f0dfa8}
-.pzBack{margin-top:auto;min-height:44px;border:1px solid rgba(216,197,139,.16);border-radius:10px}
+.pzSeatNote{color:#a99c79;font-size:var(--fs-sm,12.5px);text-align:center;letter-spacing:1px}
+.pzSeatNote[hidden]{display:none}
+.pzBack{width:100%;min-height:44px;border:1px solid rgba(216,197,139,.16);border-radius:10px;background:none;
+  color:#c8b988;font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:1px;cursor:pointer;padding:0 14px}
+.pzBack:hover{color:#f0dfa8}
 /* 大厅内层榜单：不销毁大厅，所以返回后桌况、滚动和焦点都还在。 */
 .pzRankLayer{position:absolute;inset:0;z-index:6;display:none;align-items:center;justify-content:center;
   padding:20px;background:rgba(6,7,14,.78);backdrop-filter:blur(5px)}
@@ -520,11 +544,10 @@ export const PLAZA_CSS = `
 .pzRankRow span{color:#e8c766}
 .pzRankEmpty{padding:38px 12px;text-align:center;color:#77705f;letter-spacing:2px}
 .pzRankNote{margin-top:12px;color:#6e685a;text-align:center;font-size:var(--fs-xs,11px)}
-@media (prefers-reduced-motion:reduce){.pzTickerTrack.move{animation:none}.pzMode{transition:none}}
+@media (prefers-reduced-motion:reduce){.pzMode{transition:none}}
 @media (max-width:820px){
   .pzShell{padding-left:16px;padding-right:16px;gap:12px}
-  .pzMain{grid-template-columns:1fr}.pzAside{display:grid;grid-template-columns:1fr 1fr auto}.pzToday,.pzGuide{padding:12px}
-  .pzBack{margin:0;align-self:stretch;padding:0 14px}.pzGrid{grid-template-columns:repeat(4,minmax(92px,1fr))}
+  .pzGrid{grid-template-columns:repeat(4,minmax(92px,1fr))}
 }
 @media (max-width:640px){
   .overlay .pzPanel{width:100vw;max-width:none;height:100dvh;max-height:none;border:0;border-radius:0;padding:0;animation:pzIn .2s ease}
@@ -536,8 +559,7 @@ export const PLAZA_CSS = `
   .pzModes{gap:8px}.pzMode{grid-template-columns:1fr;gap:4px;min-height:78px;padding:11px 12px}
   .pzModeNo{display:none}.pzMode span:nth-child(2){gap:2px}.pzMode b{font-size:14px;letter-spacing:2px}
   .pzMode i{font-size:10.5px;line-height:1.35}.pzMode em{font-size:11px;margin-top:4px}
-  .pzMain{display:block;overflow:auto}.pzRooms{padding:12px;overflow:visible}.pzAside{display:grid;grid-template-columns:1fr auto;margin-top:10px}
-  .pzToday{display:none}.pzGuide{padding:12px}.pzGuide p{margin:5px 0}.pzBack{padding:0 14px}
+  .pzMain{display:block;overflow:auto}.pzRooms{padding:12px;overflow:visible}.pzBack{margin-top:10px}
   .pzSectionHead{align-items:flex-start;margin-bottom:10px}.pzSectionHead p{max-width:160px;text-align:right;line-height:1.5}
   .pzGrid{grid-template-columns:repeat(3,1fr);gap:7px}.pzT{min-height:78px;padding:10px 9px}.pzT .who{font-size:10px}
   .pzRankLayer{padding:0;align-items:flex-end}.pzRankCard{width:100%;max-width:none;max-height:88dvh;border-radius:18px 18px 0 0;
