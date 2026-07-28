@@ -1938,7 +1938,7 @@ html.paperCards .panel .profRow .psrc,html.paperCards .panel .smItem .sub{color:
 /* 顶签金 → 纸上朱砂墨 */
 html.paperCards .panel .citeItem .src,html.paperCards .panel .citeD .src,
 html.paperCards .panel .profRow .pk,
-html.paperCards .panel .smItem .ic,html.paperCards .panel #sfpTop,
+html.paperCards .panel .smItem .ic,
 html.paperCards .panel .vaskC,html.paperCards .panel #vX,
 html.paperCards .panel .sfpTrailRow .tc,html.paperCards .panel .sfpMoves .mv b{color:var(--ck-meta)!important}
 /* 朱砂警示（警示签 / 何因生此题 / 恶趣 / 惡↓ 签） */
@@ -2026,6 +2026,12 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
   background:linear-gradient(rgba(22,18,38,.85),transparent);pointer-events:none}
 #topbar>*{pointer-events:auto}
 #title{font-size:var(--fs-xl);letter-spacing:4px;color:#f0dfa8;font-weight:600;text-shadow:0 1px 6px #000}
+/* 右上角大厅：与题字分踞两角，安静地待着，不与中央星图争。
+   position:static 是必须的——.ui 基类是绝对定位，不还原就会掉出顶栏的 flex 流（同 #backBtn 之例）。 */
+#hallBtn{position:static;flex:none;margin-left:auto;min-height:36px;padding:7px 15px;border-radius:18px;letter-spacing:2px;
+  font-size:var(--fs-sm);color:#cbbb8d;border:1px solid rgba(215,170,69,.34);background:rgba(20,17,34,.62);
+  backdrop-filter:blur(6px);cursor:pointer}
+#hallBtn:hover,#hallBtn:focus-visible{color:#f0dfa8;border-color:rgba(232,199,102,.62);background:rgba(30,25,50,.78)}
 #compass{top:58px;right:12px;width:74px;height:74px;border-radius:50%;pointer-events:none;
   border:1px solid rgba(215,170,69,.5);background:rgba(23,20,38,.5)}
 #compass span{position:absolute;left:50%;top:50%;font-size:var(--fs-xs);color:#e9dcae;transform:translate(-50%,-50%)}
@@ -2219,22 +2225,24 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #backBtn.show{display:block}
 #sfpBar{box-sizing:border-box;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(540px,96vw);padding:9px 12px;display:none;text-align:center} /* v327 border-box：旧 content-box 宽+padding 在竖屏撑出视口 */
 #sfpBar.show{display:block}
-#conMinBtn{position:absolute;top:-13px;right:2px;width:36px;height:36px;border-radius:50%;background:rgba(18,15,32,.92);border:1px solid rgba(231,214,166,.3);color:#c8b988;font-size:var(--fs-lg);line-height:34px;text-align:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.55);z-index:2} /* v327 收进栏内：旧 right:-6 在竖屏 96vw 栏下出画被剪 */
+/* 收起钮收进面板内角：原先半悬在上边框外，像一颗脱落的泡泡；
+   状态行右侧留出让位，免得位名跑到它底下。 */
+#conMinBtn{position:absolute;top:5px;right:7px;width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(231,214,166,.22);color:#9d9170;font-size:var(--fs-md);line-height:28px;text-align:center;cursor:pointer;opacity:.75;z-index:2}
+#conMinBtn:hover,#conMinBtn:focus-visible{opacity:1;color:#e8c766;border-color:rgba(232,199,102,.5)}
 #conPill{position:absolute;right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:radial-gradient(circle at 34% 30%,#a4713a,#6b4522 58%,#4a2f16);border:2px solid rgba(215,170,69,.65);box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 18px rgba(215,170,69,.25);color:#f4e6b8;font-size:var(--fs-lg);font-weight:700;letter-spacing:1px;line-height:1.15;text-shadow:0 1px 3px #000;animation:pillBreath 3.2s ease-in-out infinite}
 #conPill.show{display:flex}
 @keyframes pillBreath{0%,100%{box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 12px rgba(215,170,69,.18)}50%{box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 24px rgba(215,170,69,.4)}}
-#sfpTop{display:flex;justify-content:space-between;font-size:var(--fs-xs);color:#d7aa45;letter-spacing:1px}
-#sfpName{font-size:var(--fs-lg);letter-spacing:2px;color:#f4e6b8;margin:2px 0;cursor:pointer;text-decoration:underline dotted rgba(215,170,69,.55);text-underline-offset:4px}
-#sfpDoors{display:flex;gap:4px;justify-content:center;margin:4px 0 1px;cursor:pointer;padding:2px 0}
-#sfpDoors i{width:7px;height:7px;border-radius:50%;border:1px solid rgba(215,170,69,.45);display:block}
-#sfpDoors i.past{background:rgba(215,170,69,.4);border-color:rgba(215,170,69,.6)}
-#sfpDoors i.on{background:#d7aa45;box-shadow:0 0 7px #d7aa45;border-color:#f4e6b8}
 .gbtn.dis{opacity:.45;pointer-events:none}
-#sfpMsg{font-size:var(--fs-sm);line-height:1.55;color:#dccf9f;min-height:2.4em;max-height:4.8em;overflow-y:auto;cursor:pointer}
-#sfpFaces{display:flex;gap:6px;align-items:center;cursor:pointer}
+/* 状态行：左轮相牌、右现居位名；棋讯来时借同一行说话，说完退回位名。
+   十五门进度不在此处再报一遍——右侧天梯常驻且更细（§5.0b 信息只出一次）。 */
+#sfpState{display:flex;align-items:center;gap:10px;text-align:left;padding:1px 40px 7px 2px}
+#sfpName{flex:1;min-width:0;font-size:var(--fs-md);letter-spacing:1px;color:#f4e6b8;cursor:pointer;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#sfpName.msg{color:#dccf9f;letter-spacing:.5px}
+#sfpFaces{display:flex;gap:5px;align-items:center;cursor:pointer;flex:none}
 #sfpFaces .fcap{writing-mode:vertical-rl;font-style:normal;font-size:9.5px;letter-spacing:2px;color:rgba(215,170,69,.5);line-height:1;margin-right:1px} /* v327 状态正名：牌非钮，点开行迹 */
 .smIt[data-arm]{border-color:rgba(176,90,66,.75)!important;background:rgba(176,90,66,.12)!important} /* v327 弃局待确认态枣红警示 */
-#sfpFaces b{width:38px;height:52px;display:flex;align-items:center;justify-content:center;font-size:var(--fs-display);font-weight:700;color:#341a0e;
+#sfpFaces b{width:26px;height:34px;display:flex;align-items:center;justify-content:center;font-size:var(--fs-lg);font-weight:700;color:#341a0e;
   background:linear-gradient(160deg,#b5793a,#8a5a2b);border:1px solid rgba(58,28,14,.85);border-radius:7px;
   box-shadow:inset 0 0 6px rgba(255,230,170,.28),0 1px 4px rgba(0,0,0,.4);text-shadow:0 1px 0 rgba(244,230,184,.35)}
 #sfpFaces b:empty::before{content:'·';color:rgba(52,26,14,.55)}
@@ -2367,7 +2375,6 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
   mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
 #sfpRoll.hold #rollRing{opacity:1}
-#sfpTop{display:none!important}
 #sfpName .nSub{margin-left:8px;font-size:var(--fs-xs);color:#9d9170;letter-spacing:.5px;font-weight:400}
 #posReveal i{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:1px;margin-top:8px;color:#e8dcb2;text-shadow:0 1px 8px #000;opacity:.95}
 #tierDots{position:absolute;left:22px;top:calc(50% + max(21vh,90px) + 14px);display:flex;flex-direction:column;gap:5px;align-items:center;padding:7px 4px;background:rgba(14,18,26,.5);border:1px solid rgba(215,170,69,.18);border-radius:9px;pointer-events:none;z-index:9} /* v328 用户误读为杂点：离开天梯右列，归左侧截面滑杆下方成控制簇，胶囊＋竖排档名自证身份 */
@@ -2520,6 +2527,8 @@ function el(html        )              {
   const t = document.createElement('div'); t.innerHTML = zh(html.trim());
   return t.firstElementChild               ;
 }
+// 右上角常驻大厅入口：进出共修是主干节点，不该藏在底部控制台或二级菜单里。
+// 题字（左）＝观照全图，大厅（右）＝进出共修，一屏两角各管一件事。
 const topbar = el(`<div id="topbar" class="ui">
   <div id="title">选佛谱 <span style="font-size:11px;color:#d7aa45;opacity:.85">⊙</span></div></div>`);
 app.appendChild(topbar);
@@ -2540,12 +2549,7 @@ quickSfp.addEventListener('click', () => { // 有存局直接续掷，无则入�
   if (save.sfp && SFP_BY[save.sfp.pos]) startSfp(true); else openPlaza();
 });
 freeDock.appendChild(quickSfp);
-// 星图上常驻大厅入口：从前观照期要进大厅只能走「⋯ → 共修大厅」，
-// 而「选佛」在有存局时直接续掷、根本到不了大厅——主干节点不该埋在二级菜单里。
-const quickHall = el('<button class="gbtn" style="border-radius:24px;padding:13px 20px;letter-spacing:2px" title="共修大厅">大厅</button>');
-quickHall.addEventListener('click', () => openPlaza());
-freeDock.appendChild(quickHall);
-// 底坞主钮一钮一义：有存局说「续掷」，没有才说「选佛」
+// 底坞主钮一钮一义：有存局说「续掷」，没有才说「选佛」（大厅入口已移至右上角）
 function syncFreeDock() {
   const resume = !!(save.sfp && SFP_BY[save.sfp.pos]);
   quickSfp.textContent = zh(resume ? '续掷' : '选佛');
@@ -2605,9 +2609,13 @@ const secHandle = secWrap.querySelector('#secHandle')               ;
 const secZero = secWrap.querySelector('#secZero')               ;
 
 const backBtn = el('<button id="backBtn" class="ui gbtn">娑婆</button>')                     ;
-// 顶栏题字旁小钱（用户点单）：门观中显「全图」、极乐显「娑婆」，不再悬浮突兀
-backBtn.style.marginLeft = 'auto'; // 右上☰已撤（单菜单原则），小钱右靠
+// 顶栏题字旁小签（用户点单）：门观中显「全图」、极乐显「娑婆」，不再悬浮突兀
 topbar.appendChild(backBtn);
+// 右上角常驻大厅入口：进出共修是主干节点，不该藏在底部控制台或二级菜单里。
+// 题字与状态小签在左，大厅独占右角，一屏两端各管一件事。
+const hallBtn = el('<button id="hallBtn" class="ui gbtn" title="共修大厅 · 一人行谱或与人共修">大厅</button>')                     ;
+hallBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.22); openPlaza(); });
+topbar.appendChild(hallBtn);
 
 const card = el(`<div id="card" class="panel">
   <div id="cardHead">
@@ -5803,13 +5811,17 @@ function sfpLocate(pid        ) {
   showToast(`已定位「${p.name}」——第${SFP_CN[p.door - 1]}门；点小珠可读谱注`);
 }
 
+// 控制台＝两行制（2026-07-28 重设计）：
+//   行一「状态」——左轮相牌（点开行迹）、右现居位名与掷数（点开位卡，长按飞回棋子）；棋讯瞬时借用同一行。
+//   行二「操作」——掷轮为主，聊／问／⋯ 为辅。
+// 原先六层里有四层是死的：#sfpTop 被 display:none!important 钉死、#sfpDoors 与右侧天梯重复报十五门、
+// #sfpName 与 #sfpMsg 从未显示（sfpShowMsg 一直在往看不见的元素里写，连「消息回看」都点不到）。
 const sfpBar = el(`<div id="sfpBar" class="ui panel">
-  <div id="sfpTop" style="display:none"><span id="sfpDoor"></span><span id="sfpCnt"></span></div>
-  <div id="sfpDoors" style="display:none">${Array.from({ length: 15 }, () => '<i></i>').join('')}</div>
-  <div id="sfpName" style="display:none" title="点击读本位谱注"></div>
-  <div id="sfpMsg" style="display:none"></div>
-  <div id="sfpBtns">
+  <div id="sfpState" style="display:none">
     <div id="sfpFaces" title="上一掷轮相 · 点看本局行迹" style="display:none"><i class="fcap">上一掷</i><b></b><b></b></div>
+    <div id="sfpName" title="点击读本位谱注 · 长按飞回棋子"></div>
+  </div>
+  <div id="sfpBtns">
     <button class="gbtn primary" id="sfpRoll" style="flex:1;min-height:52px;font-size:var(--fs-lg);font-weight:700;letter-spacing:2px;position:relative"><span id="rollTxt">长按掷轮</span><span id="rollBn"></span><span id="rollRing"></span></button>
     <button class="gbtn netEntry" id="sfpChat" style="min-height:52px;padding:8px 11px" title="同修 · 名单与聊天" aria-label="打开共修聊天与成员"><span class="netDots"></span><span class="chatLabel">聊</span><i class="netUnread"></i></button>
     <button class="gbtn" id="sfpAsk" style="min-height:52px;padding:8px 15px;font-size:var(--fs-lg)" title="问 · 与本谱对话（本地检证）">问</button>
@@ -6027,27 +6039,28 @@ function updateWheelToss(dt        ) {
     wheelAnim = null;
   }
 }
-const sfpDoorEl = sfpBar.querySelector('#sfpDoor')               ;
-const sfpCntEl = sfpBar.querySelector('#sfpCnt')               ;
+const sfpStateEl = sfpBar.querySelector('#sfpState')               ;
 const sfpNameEl = sfpBar.querySelector('#sfpName')               ;
-const sfpMsgEl = sfpBar.querySelector('#sfpMsg')               ;
 const sfpFaceEls = sfpBar.querySelectorAll('#sfpFaces b')                           ;
 
 function sfpComboKey(a        , b        ) {
   return canonicalSfpCombo(a, b);
 }
 const SFP_CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五'];
-function sfpStatus() {
+// 状态行：现居位名＋掷数。门名不在此复述——右侧天梯常驻报十五门，位卡里也有。
+let sfpMsgHold = 0;
+function sfpNameHtml() {
   const p = sfpS.pos ? SFP_BY[sfpS.pos] : null;
-  sfpDoorEl.textContent = zh(p ? `第${SFP_CN[p.door - 1]}门 · ${SFP_DOOR_BY[p.door].title}` : '發始因地');
-  sfpCntEl.textContent = zh(`第 ${sfpS.n} 掷`);
-  sfpNameEl.innerHTML = p
-    ? zh(`${esc(p.name)}<span class="nSub">第${SFP_CN[p.door - 1]}门·${esc(SFP_DOOR_BY[p.door].title)} · 第 ${sfpS.n} 掷</span>`)
-    : zh('未定——先掷發始因地');
-  const dots = sfpBar.querySelectorAll('#sfpDoors i');
-  dots.forEach((d, i) => {
-    d.className = p ? (i + 1 === p.door ? 'on' : (i + 1 < p.door ? 'past' : '')) : '';
-  });
+  return p
+    ? zh(`${esc(p.name)}<span class="nSub">第 ${sfpS.n} 掷</span>`)
+    : zh('未起行<span class="nSub">先掷發始因地</span>');
+}
+function sfpStatus() {
+  sfpStateEl.style.display = sfpS.active ? '' : 'none';
+  if (!sfpMsgHold) {                       // 棋讯正占着这一行时不抢回去
+    sfpNameEl.classList.remove('msg');
+    sfpNameEl.innerHTML = sfpNameHtml();
+  }
   updateLadder();
   syncRollGlow();
   updateModeChip();
@@ -6323,7 +6336,12 @@ function sfpShowMsg(msg        , dir         , combo         ) {
   if (dir && SFP_DIR_SND[dir]) SFP_DIR_SND[dir]();
   // v319 行棋减噪：短式棋讯「第N掷 · 轮字 ▲ 升｜去处」——不再整句复述判词卡
   const h = (combo ? `<span style="color:#9d9170">第 ${sfpS.n} 掷 · </span><b style="color:#efe0b4;letter-spacing:2px">${combo}</b>　` : '') + (dir ? SFP_DIR_BADGE[dir] || '' : '') + esc(msg);
-  sfpMsgEl.innerHTML = zh(h);
+  // 棋讯借状态行说一会儿话，说完退回位名——不为它单开一层常驻栏。
+  // （从前写进一个 display:none 的元素，等于没说；连「消息回看」也因此点不到。）
+  sfpNameEl.innerHTML = zh(h);
+  sfpNameEl.classList.add('msg');
+  window.clearTimeout(sfpMsgHold);
+  sfpMsgHold = window.setTimeout(() => { sfpMsgHold = 0; sfpStatus(); }, 5200);
   sfpMsgLog.push(h); if (sfpMsgLog.length > 12) sfpMsgLog.shift();
 }
 function openSfpMsgLog() {
@@ -6755,10 +6773,7 @@ function openSfpMore() {
   if (overlayEl) overlayEl.classList.add('ovsheet'); // 手机：底部抽屉呈现
 }
 (sfpBar.querySelector('#sfpMore')               ).addEventListener('click', () => openSfpMore());
-(sfpBar.querySelector('#sfpDoors')               ).addEventListener('click', () => { if (sfpS.active && !sfpS.rolling && !sfpTransit) openSfpMap(); });
-(sfpBar.querySelector('#sfpDoors')               ).title = '十五门进度 · 点开全谱';
 (sfpBar.querySelector('#sfpAsk')               ).addEventListener('click', () => openSfpReading());
-sfpMsgEl.addEventListener('click', () => openSfpMsgLog());
 let nmHoldT = 0, nmHeldFired = false;
 sfpNameEl.addEventListener('pointerdown', () => {
   nmHeldFired = false; clearTimeout(nmHoldT);
@@ -6768,8 +6783,12 @@ sfpNameEl.addEventListener('pointerdown', () => {
   }, 550);
 });
 ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => sfpNameEl.addEventListener(ev, () => clearTimeout(nmHoldT)));
-sfpNameEl.title = '点击读本位谱注 · 长按飞回棋子';
-sfpNameEl.addEventListener('click', () => { if (nmHeldFired) { nmHeldFired = false; return; } openSfpNote(); });
+// 这一行身兼两职：显位名时点开位卡，显棋讯时点开消息回看（回看从前根本无处可点）
+sfpNameEl.addEventListener('click', () => {
+  if (nmHeldFired) { nmHeldFired = false; return; }
+  if (sfpNameEl.classList.contains('msg')) { openSfpMsgLog(); return; }
+  if (sfpS.pos) openSfpNote();
+});
 
 // 第一视角观星：相机入驻当前珠位，锁定距离环顾四周（OrbitControls 近距定点技巧）
 let starView = false;
