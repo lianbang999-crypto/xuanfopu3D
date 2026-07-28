@@ -2351,6 +2351,43 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #sfpConfirm .cfBody{color:#b9b09a;font-size:var(--fs-sm);line-height:1.7}
 #sfpConfirm .cfBody b{color:#e8c766;font-weight:500}
 #sfpConfirm .gbtn{display:block;width:100%;min-height:46px;margin-top:10px}
+/* 我的功课：全站与个人共用同一组列（累计／今日），上下一对照就懂 */
+.myPanel .myLoad{padding:36px 0;text-align:center;color:#77705f;letter-spacing:2px}
+.myPanel .myWho{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:#9d9170}
+.myPanel .myWho b{color:#e8c766;font-weight:500}
+.myPanel .myWho .gbtn{margin-left:auto;min-height:32px;padding:5px 12px;font-size:var(--fs-xs)}
+.myPanel .myGrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:11px;
+  background:rgba(215,170,69,.16);border:1px solid rgba(215,170,69,.16);border-radius:12px;overflow:hidden}
+.myPanel .myGrid div{padding:12px 13px;background:#15121f}
+.myPanel .myGrid.me,.myPanel .myGrid div.me{background:rgba(232,199,102,.05)}
+.myPanel .myGrid i{display:block;font-style:normal;color:#8b8471;font-size:var(--fs-xs);letter-spacing:1px}
+.myPanel .myGrid b{display:block;margin-top:3px;color:#e8c766;font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.myPanel .myGrid .me b{color:#f4e6b8}
+.myPanel .myLine{margin-top:9px;text-align:center;color:#a99c79;font-size:var(--fs-sm);letter-spacing:1px}
+.myPanel .myLine2{margin:16px 0 7px;color:#a4936c;font-size:var(--fs-xs);letter-spacing:3px}
+.myPanel .myCal{margin-top:14px;border:1px solid rgba(215,170,69,.14);border-radius:12px;padding:10px 10px 12px}
+.myPanel .myCalHead{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.myPanel .myCalHead b{color:#e0d3a6;font-weight:500;font-size:var(--fs-md)}
+.myPanel .myCalHead span{margin-left:auto;color:#8b8471;font-size:var(--fs-xs)}
+.myPanel .myCalHead .gbtn{min-height:30px;padding:2px 11px;font-size:var(--fs-md)}
+.myPanel .myWk,.myPanel .myDays{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.myPanel .myWk span{text-align:center;color:#6e685a;font-size:var(--fs-xs);padding-bottom:3px}
+.myPanel .myCell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  min-height:40px;border-radius:8px;background:rgba(255,255,255,.025)}
+.myPanel .myCell.pad{background:none}
+.myPanel .myCell i{font-style:normal;font-size:var(--fs-xs);color:#7e7562}
+.myPanel .myCell b{font-size:10px;font-weight:400;color:transparent;line-height:1}
+.myPanel .myCell.on{background:rgba(232,199,102,.16)}
+.myPanel .myCell.on i{color:#f0dfa8}
+.myPanel .myCell.on b{color:#c8a94e}
+.myPanel .myCell.now{outline:1px solid rgba(232,199,102,.55);outline-offset:-1px}
+.myPanel .myRow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-size:var(--fs-sm);min-height:44px}
+.myPanel .myRow i{margin-left:auto;font-style:normal;color:#d7aa45}
+.myPanel .myRun{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;
+  padding:8px 2px;border-bottom:1px solid rgba(215,170,69,.1);font-size:var(--fs-sm)}
+.myPanel .myRun b{color:#e0d3a6;font-weight:500;white-space:nowrap}
+.myPanel .myRun span{color:#9d9170;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.myPanel .myRun em{font-style:normal;color:#6e685a;font-size:var(--fs-xs);white-space:nowrap}
 /* 共同结算卡：一句结果 + 一句本座 + 同座行处，三层看完即知本局如何 */
 .nsPanel .nsHead{margin-top:6px;color:#f0dfa8;font-size:var(--fs-lg);letter-spacing:2px}
 .nsPanel .nsMine{margin-top:3px;color:#cfc7ad;font-size:var(--fs-sm)}
@@ -6716,37 +6753,22 @@ function openSfpMore() {
   const p = el(`<div class="panel smPanel"><div class="grab"></div><h2>行谱菜单</h2><div class="body">
     <div class="smStat"><span>当前行处</span><b>${currentName}</b><i>${currentMeta}</i></div>
     <div class="smSection">
-      <div class="smLabel">常用</div>
-      <div class="smGrid">
-      ${row('smMap', '全谱', '十五门二百二十位')}
-      ${row('smTrail', '行迹', '本局升沉记录')}
-      ${Net.active
-        ? row('smNet', '同修面板', `${Net.locked ? '🔒 ' : ''}共修室 · 名单与聊天`)
-        : row('smNet', '共修大厅', '一人或与人共修')}
-      ${Net.active ? row('smHall', '共修大厅', '看动态 · 换一室') : ''}
-      </div>
-    </div>
-    <div class="smSection">
-      <div class="smLabel">更多</div>
       <div class="smList">
-      ${row('smLg', '见闻录', '历局所见次第与行程账')}
+      ${row('smMine', '我的', '功课 · 日历 · 行谱记录')}
+      ${Net.active ? row('smNet', '同修面板', `${Net.locked ? '🔒 ' : ''}名单与聊天`) : ''}
       ${row('smCanon', '原文', '六卷谱文逐字')}
       ${row('smSet', '设置', '声音 · 简繁 · 卡片')}
-      ${Net.active ? row('smNetRound', '共同再局', '须待本局结算后共同准备') : row('smNew', '重开一局', '从头掷', 'warn')}
+      ${row('smNew', '重开一局', '从头掷', 'warn')}
       ${row('smExit', '退出', Net.active ? '离席并回题屏' : '行处已存 · 回题屏', 'warn')}
       </div>
     </div>
     <button class="gbtn primary" id="smBack">回到局中</button></div></div>`);
   const on = (id, fn) => { const b = p.querySelector('#' + id); if (b) b.addEventListener('click', fn); };
   on('smBack', closeOverlay);
-  on('smMap', () => { closeOverlay(); openSfpMap(); });
-  on('smTrail', () => { closeOverlay(); openSfpTrail(); });
-  on('smLg', () => { closeOverlay(); openLogbook(); });
+  on('smMine', () => { closeOverlay(); openMine(); });
   on('smCanon', () => { closeOverlay(); openCanon(cur ? cur.door : 1, cur ? cur.name : undefined); });
-  on('smNet', () => { closeOverlay(); if (Net.active) Net.openPanel(); else openPlaza(); });
-  on('smHall', () => { closeOverlay(); openPlaza(); });
+  on('smNet', () => { closeOverlay(); Net.openPanel(); });
   on('smSet', () => { closeOverlay(); openSettings(); });
-  on('smNetRound', () => { closeOverlay(); Net.openPanel(); });
   // 从前全站没有一处「退出」：局中只能靠及第或离席，观照期只能关标签页。
   // 单机行处本就随时存档，退出即回题屏，随时可从「续掷」接上。
   on('smExit', async () => {
@@ -7366,7 +7388,100 @@ function openPlazaSitName(code, keyArg = '') {
   zhDom(p);
 }
 
-// 取名／改名（从功课榜进）：只存本机名号，不涉入座
+// ── 我的功课 ──
+// 全站与个人用同一组列（累计 / 今日），上下一对照就懂——这是「一眼看懂」的机关所在。
+// 月历沿用念佛计数器的做法：格里是日期，格下是当日掷数，能直接读出数，不只看深浅。
+const MY_WEEK = ['一', '二', '三', '四', '五', '六', '日'];
+const dayKeyOf = (d          ) => {
+  const bj = new Date(d.getTime() + (8 * 60 + d.getTimezoneOffset()) * 60000); // 北京时区日界，与服务器同口径
+  return `${bj.getFullYear()}-${String(bj.getMonth() + 1).padStart(2, '0')}-${String(bj.getDate()).padStart(2, '0')}`;
+};
+function myMonthHtml(daily                          , year        , month        ) {
+  const first = new Date(year, month, 1);
+  const lead = (first.getDay() + 6) % 7;                 // 周一起头
+  const last = new Date(year, month + 1, 0).getDate();
+  const today = dayKeyOf(new Date());
+  let sum = 0;
+  let cells = '';
+  for (let i = 0; i < lead; i++) cells += '<span class="myCell pad"></span>';
+  for (let d = 1; d <= last; d++) {
+    const key = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const n = Number(daily[key] || 0);
+    sum += n;
+    cells += `<span class="myCell${n ? ' on' : ''}${key === today ? ' now' : ''}">
+      <i>${d}</i><b>${n || ''}</b></span>`;
+  }
+  return { html: cells, sum };
+}
+function openMine() {
+  const lg = save.lg;
+  const p = el(`<div class="panel myPanel"><h2>我的功课</h2><div class="body">
+    <div class="myLoad">正在取功课……</div></div></div>`);
+  openOverlay(p);
+  zhDom(p);
+  const body = p.querySelector('.body')               ;
+  let cursor = new Date();                            // 月历当前月
+  let mine                    = null;
+
+  const paint = () => {
+    if (!mine) return;
+    const { html, sum } = myMonthHtml(mine.daily || {}, cursor.getFullYear(), cursor.getMonth());
+    const runs = (mine.runs || []).slice(0, 8).map(r => `<div class="myRun">
+      <b>第 ${r.n} 掷及第</b>
+      <span>${r.path === 'pure' ? '横超净土' : '竖出'}${r.lowest ? ` · 最深 ${esc(r.lowest)}` : ''}${r.doors?.length ? ` · 历 ${r.doors.length} 门` : ''}</span>
+      <em>${r.seat === 'solo' ? '一人行谱' : '共修室'}</em>
+    </div>`).join('');
+    body.innerHTML = `
+      <div class="myWho"><span>功课记在</span><b>${esc(Plaza.practiceName())}</b><button class="gbtn" id="myRename">改名号</button></div>
+      <div class="myGrid">
+        <div><i>全站累计</i><b>${myNum(mine.siteTosses)}</b></div>
+        <div><i>全站今日</i><b>${myNum(mine.siteToday)}</b></div>
+        <div class="me"><i>我的累计</i><b>${myNum(mine.tosses)}</b></div>
+        <div class="me"><i>我的今日</i><b>${myNum(mine.today)}</b></div>
+      </div>
+      <div class="myLine">共修 ${myNum(mine.days)} 天 · 连续 ${myNum(mine.streak)} 日 · 及第 ${myNum(mine.wins)}</div>
+      <div class="myCal">
+        <div class="myCalHead">
+          <button class="gbtn" id="myPrev" aria-label="上一月">‹</button>
+          <b>${cursor.getFullYear()} 年 ${cursor.getMonth() + 1} 月</b>
+          <button class="gbtn" id="myNext" aria-label="下一月">›</button>
+          <span>本月 ${myNum(sum)}</span>
+        </div>
+        <div class="myWk">${MY_WEEK.map(w => `<span>${w}</span>`).join('')}</div>
+        <div class="myDays">${html}</div>
+      </div>
+      <div class="myLine2">行谱见闻 · 本机</div>
+      <button class="gbtn myRow" id="myLg">
+        <span>开局 ${lg.games} · 升 ${lg.up} · 沉 ${lg.back} · 见 ${lg.seen.length}/${(SFP_POS         ).length} 位</span><i>›</i></button>
+      ${runs ? `<div class="myLine2">我的行谱记录</div><div class="myRuns">${runs}</div>` : ''}
+      <div class="cNote">一掷一称念「南无阿弥陀佛」，只作随喜记录，不作修证高下。功课记在本机莲号下，换设备会另计。</div>
+      <button class="gbtn primary" id="myOk" style="margin-top:12px;width:100%">${sfpS.active ? '回到局中' : '关闭'}</button>`;
+    zhDom(p);
+    (body.querySelector('#myPrev')               ).addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1); paint(); });
+    (body.querySelector('#myNext')               ).addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); paint(); });
+    (body.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
+    (body.querySelector('#myLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
+    (body.querySelector('#myRename')               ).addEventListener('click', () => { closeOverlay(); openPlazaRename(); });
+  };
+
+  (async () => {
+    try {
+      await Plaza.flush();                            // 先把本机未送达的掷数补上，数字才是最新的
+      const [me, site] = await Promise.all([Plaza.fetchMine(), Plaza.fetchPlaza()]);
+      if (!p.isConnected) return;
+      mine = { ...me, siteTosses: site.tosses, siteToday: site.tossesToday };
+      paint();
+    } catch (e) {
+      if (!p.isConnected) return;
+      body.innerHTML = `<div class="cNote">${zh('功课暂时取不到，请稍后再看。')}</div>`
+        + `<button class="gbtn primary" id="myOk" style="margin-top:10px;width:100%">${zh('关闭')}</button>`;
+      (body.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
+    }
+  })();
+}
+const myNum = (n         ) => Number(n || 0).toLocaleString('en-US');
+
+// 取名／改名（从「我的」进）：只存本机名号，不涉入座
 function openPlazaRename() {
   plazaStop();
   const back = () => { overlayOnClose = null; openPlaza(); };
@@ -7410,7 +7525,6 @@ function plazaRender(data) {
       startSfp(false);
     },
     onSit: (code, _n, locked) => plazaSit(code, '', !!locked),
-    onRename: () => openPlazaRename(),        // 功课榜里给一处取名/改名的路
     onQuick: (code) => {
       if (!code) { showToast(zh('本厅诸室皆满——请稍候或一人行谱'), 3200); return; }
       plazaSit(code);

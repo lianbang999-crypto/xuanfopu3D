@@ -89,15 +89,25 @@ export function flushOnExit() {
   } catch (e) {}
 }
 
-// 及第结算动态只用于今日及第统计与大厅公报；前台不把它渲染成第二套榜单。
+// 一人行谱的及第：带莲号上报，才记得到本人名下（共修室的由本室服务器出具）
 export async function record(run) {
   try {
     const r = await fetch('/api/plaza/record', {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(run),
+      body: JSON.stringify({ ...run, actor: practiceId() }),
     });
     return r.ok;
   } catch (e) { return false; }
+}
+
+// 我的功课：累计·及第·共修天数·连续日·逐日（月历）·逐局记录
+export async function fetchMine() {
+  const r = await fetch('/api/plaza/me', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ actor: practiceId() }),
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
 }
 
 export async function fetchPlaza(hall = 0) {
@@ -187,59 +197,36 @@ function runLine(r, esc) {
   return `<div class="pzRun"><b>${esc(r.name)}</b><span>${bits.join(' · ')}</span><i>${when(r.ts)}</i></div>`;
 }
 
-// 榜上哪一行是「我」：服务端不外发匿名身份，故按本机上报的那个名号比对；
+// 哪一行是「我」：服务端不外发匿名莲号，故按本机上报的那个名号比对；
 // 重名时服务端会缀上「 · 尾号」，一并认。
 function isMine(name) {
   const mine = practiceName();
   return name === mine || String(name).startsWith(`${mine} · `);
 }
 
-function leaderRows(rows, esc) {
-  if (!rows.length) return '<div class="pzRankEmpty">今日尚无人记入功课</div>';
-  return rows.slice(0, 10).map((row, i) => `<div class="pzRankRow${isMine(row.name) ? ' mine' : ''}">
-    <span class="no">${i + 1}</span><b>${esc(row.name)}</b>${isMine(row.name) ? '<i>您</i>' : ''}
-    <span>${num(row.tosses)} 念</span>
+// 共修动态：一人一行，按最近用功时刻倒序。**不列名次**——
+// 念佛记录上不该比高下，时间先后本身就是次序。
+function streamRows(rows, esc) {
+  if (!rows.length) return '<div class="pzRankEmpty">此刻还没有莲友在行谱</div>';
+  return rows.map(row => `<div class="pzRankRow${isMine(row.name) ? ' mine' : ''}">
+    <b>${esc(row.name)}</b>${isMine(row.name) ? '<i>您</i>' : ''}
+    <span>${num(row.tosses)} 掷${row.wins ? ` · 及第 ${num(row.wins)}` : ''}</span>
+    <em>${when(row.at)}</em>
   </div>`).join('');
 }
 
-// 一人行谱从不问名号，功课因此记在匿名莲号下——人翻遍榜单找不到自己，
-// 就以为「没进榜」。这里据实告诉他记在哪个名下，并给一处改名的入口。
-function selfRow(data, esc) {
-  const rows = data.practiceLeaders || [];
-  const me = rows.find(row => isMine(row.name));
-  const rank = me ? rows.indexOf(me) + 1 : 0;
-  const named = !!savedName();
-  const label = me
-    ? `今日您已称念 <b>${num(me.tosses)}</b> 声${rank <= 10 ? `，榜上第 ${rank}` : ''}`
-    : '今日您尚未记入功课';
-  return `<div class="pzRankSelf">
-    <div>${label}，记在 <b>${esc(practiceName())}</b> 名下</div>
-    <button type="button" id="pzRename">${named ? '改名号' : '取个名号'}</button>
-  </div>`;
-}
-
 function rankingHtml(data, esc) {
-  const today = data.practiceLeaders || [];
-  return `<button class="pzRankClose" type="button" aria-label="关闭功课榜">✕</button>
-    <div class="pzRankHead"><span>今日共修</span><h3>念佛功课榜</h3>
-      <p>一掷一称念 · 至心称念「南无阿弥陀佛」</p></div>
-    <div class="pzRankStats">
-      <div><b>${num(data.tossesToday)}</b><span>今日称念</span></div>
-      <div><b>${num(data.practicePeople)}</b><span>今日莲友</span></div>
-      <div><b>${num(data.winsToday)}</b><span>今日及第</span></div>
-      <div><b>${num(data.tosses)}</b><span>累计称念</span></div>
-    </div>
-    ${selfRow(data, esc)}
-    <div class="pzRankList">${leaderRows(today, esc)}</div>
-    <div class="pzRankNote">每一掷记一声「南无阿弥陀佛」；只作随喜记录，不作修证高下；榜单每日零时（北京时间）重新开始。<br>
-      称念数由各自本机记数汇总，共修室的及第由本室服务器出具。</div>`;
+  return `<button class="pzRankClose" type="button" aria-label="关闭共修动态">✕</button>
+    <div class="pzRankHead"><span>本站共修第 ${num(data.days || 1)} 天</span><h3>共修动态</h3>
+      <p>已参加 ${num(data.people || 0)} 人 · 累计掷轮 ${num(data.tosses || 0)}</p></div>
+    <div class="pzRankList">${streamRows(data.stream || [], esc)}</div>
+    <div class="pzRankNote">按最近用功先后列出，不排名次 · 一掷一称念「南无阿弥陀佛」</div>`;
 }
 
 function openRanking(p, ui) {
   const layer = p.querySelector('.pzRankLayer');
   const card = layer.querySelector('.pzRankCard');
   card.innerHTML = rankingHtml(p._plazaData || {}, ui.esc);
-  card.querySelector('#pzRename')?.addEventListener('click', () => ui.onRename?.());
   layer.classList.add('on');
   layer.setAttribute('aria-hidden', 'false');
   const close = () => {
@@ -260,14 +247,16 @@ function openRanking(p, ui) {
   layer.querySelector('.pzRankClose').focus();
 }
 
-// 动态只呈最新一条：从前是 34 秒一轮的无限跑马灯，想读某条得等它滚过来，
-// 而它常驻大厅、在静观期一直烧帧（§七之二 功耗规范）。静态一条反而一眼可读。
+// 顶条一句叙述：本站共修多久、多少人来过、一共掷了多少轮——共修的规模一眼可知。
+function sayHtml(data) {
+  return `本站共修第 <b>${num(data.days || 1)}</b> 天 · 已参加 <b>${num(data.people || 0)}</b> 人 · 累计掷轮 <b>${num(data.tosses || 0)}</b>`;
+}
+// 顶条第二行：最近在用功的几位莲友。与「共修动态」同一份数据，不另起一套。
 function tickerHtml(data, esc) {
-  const latest = (data.feed || [])[0];
-  if (!latest) {
-    return `<span class="pzTickerSet"><span>${esc(`此刻 ${num(data.online)} 位在座 · 今日 ${num(data.tossesToday)} 念 · ${num(data.winsToday)} 次及第`)}</span></span>`;
-  }
-  return `<span class="pzTickerSet"><span>${esc(latest.text)}<i>${when(latest.ts)}</i></span></span>`;
+  const rows = (data.stream || []).slice(0, 3);
+  if (!rows.length) return '<span class="pzTickerSet"><span>此刻还没有莲友在行谱——您可以是第一位</span></span>';
+  return `<span class="pzTickerSet">${rows.map(r =>
+    `<span>${esc(r.name)}<i>${when(r.at)}</i></span>`).join('')}</span>`;
 }
 
 // 只补写会变化的桌况与数字，不销毁大厅本身；保住滚动、焦点和已打开的功课榜。
@@ -289,11 +278,11 @@ export function updatePlaza(p, data, ui) {
   // 跑马灯只在动态条目本身变了才重写：每次重写都会把 34 秒的滚动动画打回起点，
   // 八秒一刷则后面的条目永远滚不出来。比对用条目身份（时刻＋正文），
   // 不用渲染结果——「几分钟前」每分钟都在变，拿它比对等于白比。
+  p.querySelector('.pzTickerSay').innerHTML = sayHtml(data);
   const track = p.querySelector('.pzTickerTrack');
-  const latest = (data.feed || [])[0];
-  const feedKey = latest ? `${latest.ts}:${latest.text}` : '';
-  if (!feedKey || track.dataset.feed !== feedKey) {
-    track.dataset.feed = feedKey;
+  const key = (data.stream || []).slice(0, 3).map(r => `${r.at}:${r.name}`).join('|');
+  if (!key || track.dataset.feed !== key) {
+    track.dataset.feed = key;
     track.innerHTML = tickerHtml(data, activeUi.esc);
   }
   const seat = p.querySelector('.pzSeatNote');
@@ -316,9 +305,9 @@ export function renderPlaza(data, ui) {
       </header>
 
       <button class="pzTicker" id="pzRank" type="button" aria-haspopup="dialog">
-        <span class="pzTickerLabel">共修动态</span>
+        <span class="pzTickerSay"></span>
         <span class="pzTickerViewport"><span class="pzTickerTrack"></span></span>
-        <span class="pzTickerMore">功课榜 <b>›</b></span>
+        <span class="pzTickerMore">共修动态 <b>›</b></span>
       </button>
 
       <section class="pzModes" aria-label="选择行谱方式">
@@ -505,7 +494,9 @@ export const PLAZA_CSS = `
   overflow:hidden;border:1px solid rgba(216,197,139,.18);border-radius:12px;
   background:rgba(255,255,255,.025);color:#cfc7ad;font:inherit;cursor:pointer;text-align:left}
 .pzTicker:hover,.pzTicker:focus-visible{border-color:rgba(232,199,102,.48);background:rgba(232,199,102,.07)}
-.pzTickerLabel{color:#e8c766;font-size:var(--fs-xs,11px);letter-spacing:2px;white-space:nowrap}
+/* 顶条主句：本站共修第几天·多少人来过·一共掷了多少轮 */
+.pzTickerSay{flex:none;color:#a99c79;font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
+.pzTickerSay b{color:#e8c766;font-weight:500}
 .pzTickerViewport{min-width:0;flex:1;overflow:hidden;mask-image:linear-gradient(90deg,#000 92%,transparent)}
 .pzTickerTrack{display:flex;min-width:0;white-space:nowrap}
 .pzTickerSet{display:flex;align-items:center;min-width:0}
@@ -573,26 +564,16 @@ export const PLAZA_CSS = `
 .pzRankHead span{color:#a4936c;font-size:var(--fs-xs,11px);letter-spacing:3px}
 .pzRankHead h3{margin:3px 0 6px;color:#f0dfa8;font-family:var(--f-display);font-size:26px;letter-spacing:6px;font-weight:500}
 .pzRankHead p{margin:0;color:#7f7868;font-size:var(--fs-xs,11px);letter-spacing:1px}
-.pzRankStats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:20px 0 16px}
-.pzRankStats div{display:grid;gap:4px;padding:12px;border:1px solid rgba(216,197,139,.12);border-radius:11px;background:rgba(255,255,255,.025)}
-.pzRankStats b{color:#e8c766;font-size:20px;font-weight:500}.pzRankStats span{color:#7f7868;font-size:var(--fs-xs,11px);letter-spacing:1px}
-/* 一人行谱不问名号，功课记在匿名莲号下——人翻遍榜单找不到自己就以为没进榜。
-   这一条据实说明记在哪个名下，并给一处改名入口；榜上「我」那一行也标出来。 */
-.pzRankSelf{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
-  margin:12px 0 4px;padding:11px 13px;border:1px solid rgba(232,199,102,.22);border-radius:12px;
-  background:rgba(232,199,102,.06);font-size:var(--fs-sm,12.5px);line-height:1.6}
-.pzRankSelf>div{min-width:0;color:#bdb08c}
-.pzRankSelf b{color:#e8c766;font-weight:500}
-.pzRankSelf button{flex:none;min-height:36px;padding:0 14px;border-radius:9px;cursor:pointer;
-  border:1px solid rgba(216,197,139,.36);background:rgba(255,255,255,.05);color:#e0d3a6;font:inherit;font-size:var(--fs-sm,12.5px)}
-.pzRankSelf button:hover{border-color:rgba(232,199,102,.6);color:#f0dfa8}
-.pzRankRow.mine b{color:#f0dfa8}
-.pzRankRow i{font-style:normal;font-size:var(--fs-xs,11px);color:#e8c766;letter-spacing:1px}
-.pzRankList{border-top:1px solid rgba(216,197,139,.14)}
-.pzRankRow{display:grid;grid-template-columns:30px minmax(90px,1fr) auto;align-items:center;gap:10px;min-height:48px;
+/* 共修动态一行三段：名号 · 掷数 · 何时。没有名次列——不排名次就不给序号留位置。 */
+.pzRankList{margin-top:14px;border-top:1px solid rgba(216,197,139,.14)}
+.pzRankRow{display:grid;grid-template-columns:minmax(72px,1fr) auto auto;align-items:center;gap:12px;min-height:48px;
   border-bottom:1px solid rgba(216,197,139,.09);font-size:var(--fs-sm,12.5px)}
-.pzRankRow .no{color:#7e7562}.pzRankRow b{color:#dcd0ad;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pzRankRow span{color:#e8c766}
+.pzRankRow b{color:#dcd0ad;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pzRankRow span{color:#e8c766;white-space:nowrap}
+.pzRankRow em{font-style:normal;color:#6e685a;font-size:var(--fs-xs,11px);white-space:nowrap;min-width:52px;text-align:right}
+.pzRankRow.mine{background:rgba(232,199,102,.07)}
+.pzRankRow.mine b{color:#f0dfa8}
+.pzRankRow i{font-style:normal;font-size:var(--fs-xs,11px);color:#e8c766;letter-spacing:1px;margin-left:6px}
 .pzRankEmpty{padding:38px 12px;text-align:center;color:#77705f;letter-spacing:2px}
 .pzRankNote{margin-top:12px;color:#6e685a;text-align:center;font-size:var(--fs-xs,11px)}
 @media (prefers-reduced-motion:reduce){.pzMode{transition:none}}
@@ -606,7 +587,9 @@ export const PLAZA_CSS = `
   .pzShell{padding:calc(14px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));gap:10px}
   .pzTop{padding-right:50px}.pzTop h2{font-size:24px;letter-spacing:5px}.pzEyebrow{display:none}
   .pzPresence{gap:7px;font-size:11px}.pzPresence b{font-size:14px}
-  .pzTicker{min-height:40px;padding:0 11px;gap:9px}.pzTickerLabel{display:none}.pzTickerMore{font-size:11px}
+  /* 窄屏只留主句与入口，最近几位收起——主句本身已把规模说清 */
+  .pzTicker{min-height:40px;padding:0 11px;gap:9px}.pzTickerViewport{display:none}.pzTickerMore{font-size:11px}
+  .pzTickerSay{white-space:normal;line-height:1.45}
   .pzModes{gap:8px}.pzMode{grid-template-columns:1fr;gap:4px;min-height:78px;padding:11px 12px}
   .pzModeNo{display:none}.pzMode span:nth-child(2){gap:2px}.pzMode b{font-size:14px;letter-spacing:2px}
   .pzMode i{font-size:10.5px;line-height:1.35}.pzMode em{font-size:11px;margin-top:4px}
@@ -615,7 +598,7 @@ export const PLAZA_CSS = `
   .pzGrid{grid-template-columns:repeat(3,1fr);gap:7px}.pzT{min-height:78px;padding:10px 9px}.pzT .who{font-size:10px}
   .pzRankLayer{padding:0;align-items:flex-end}.pzRankCard{width:100%;max-width:none;max-height:88dvh;border-radius:18px 18px 0 0;
     border-left:0;border-right:0;border-bottom:0;padding:20px 14px calc(18px + env(safe-area-inset-bottom))}
-  .pzRankStats{grid-template-columns:1fr 1fr}.pzRankRow{grid-template-columns:26px minmax(70px,1fr) auto}
+  .pzRankRow{grid-template-columns:minmax(60px,1fr) auto auto;gap:8px}
 }
 @media (max-width:370px){.pzGrid{grid-template-columns:repeat(2,1fr)}.pzSectionHead p{display:none}}
 /* 问名／问密码卡 */

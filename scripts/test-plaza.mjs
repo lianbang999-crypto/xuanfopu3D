@@ -65,14 +65,29 @@ const capped = await tick(9999);
 ok(capped.tosses === base + 8 + 60, '单次上报封顶 60 掷，防灌爆');
 const p1 = await plaza();
 ok(p1.tossesToday >= 68, '今日掷轮数同步累加');
-const practiceA = p1.practiceLeaders.find(row => row.name.startsWith('慧明'));
-ok(practiceA && practiceA.tosses >= 68, '每日功课榜按实际掷轮总数累计');
+const practiceA = p1.stream.find(row => row.name.startsWith('慧明'));
+ok(practiceA && practiceA.tosses >= 68, '共修动态按累计掷轮记数（不按天清零）');
+ok(p1.stream[0] && p1.stream[0].at >= p1.stream[p1.stream.length - 1].at, '共修动态按最近用功时刻倒序');
+ok(p1.days >= 1 && p1.people >= 1, '本站共修第 N 天与已参加人数一并给出');
 await tick(4, ACTOR_B, '慧明');
 const p1SameName = await plaza();
-ok(p1SameName.practicePeople >= 2, '同名莲友按匿名身份分别记功课，不会错误合并');
-const sameNameRows = p1SameName.practiceLeaders.filter(row => row.name.startsWith('慧明 · '));
+ok(p1SameName.people >= 2, '同名莲友按匿名身份分别记功课，不会错误合并');
+const sameNameRows = p1SameName.stream.filter(row => row.name.startsWith('慧明 · '));
 ok(sameNameRows.length >= 2 && new Set(sameNameRows.map(row => row.name)).size === sameNameRows.length, '同名功课用匿名尾号清楚区分');
-ok(p1SameName.practiceLeaders.every(row => !('actor' in row)), '榜单接口不公开匿名身份');
+ok(p1SameName.stream.every(row => !('actor' in row)), '共修动态不公开匿名身份');
+
+// 个人功课：累计、连续日与逐日（供月历）只按本人莲号取
+const mine = await fetch(`${BASE}/api/plaza/me`, {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ actor: ACTOR_A }),
+}).then(r => r.json());
+ok(mine.tosses >= 68 && mine.today >= 68, '我的功课取到累计与今日');
+ok(mine.streak >= 1 && mine.days >= 1, '连续用功日与共修天数一并给出');
+ok(Object.keys(mine.daily || {}).length >= 1, '逐日掷数下发，供月历逐格显示');
+const noActor = await fetch(`${BASE}/api/plaza/me`, {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({}),
+});
+ok(noActor.status === 400, '不带莲号取不到个人功课');
 await tick(-5);
 const p1b = await plaza();
 ok(p1b.tosses === p1SameName.tosses, '负数上报不减总数');
@@ -86,29 +101,30 @@ const claimTable = await fetch(`${BASE}/api/plaza/record`, {
   body: JSON.stringify({ name: '冒名', n: 1, doors: [15], span: 1, path: 'rise', seat: 'table:12' }),
 });
 ok(claimTable.status === 403, '自报共修室战绩被拒，房间战绩只认服务器出具');
+const mineRun = (actor) => fetch(`${BASE}/api/plaza/me`, {
+  method: 'POST', headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ actor }),
+}).then(r => r.json());
 const rec = await fetch(`${BASE}/api/plaza/record`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ name: '慧明', n: 31, doors: [1, 3, 3, 8, 15], lowest: '無間地獄', span: 27, path: 'rise', seat: 'solo' }),
+  body: JSON.stringify({ name: '慧明', n: 31, doors: [1, 3, 3, 8, 15], lowest: '無間地獄', span: 27, path: 'rise', seat: 'solo', actor: ACTOR_A }),
 }).then(r => r.json());
 ok(rec.wins === winsBefore + 1, '及第次数累加');
-const p2 = await plaza();
-const run = p2.runs[0];
-ok(run && run.name === '慧明' && run.n === 31, '及第录首条为最新一局');
+// 及第明细归到本人莲号下——从前只按名字存，谁也认不回哪几局是自己的
+const mineAfter = await mineRun(ACTOR_A);
+const run = mineAfter.runs[0];
+ok(mineAfter.wins >= 1, '及第累加到本人莲号');
+ok(run && run.n === 31, '我的行谱记录首条为最新一局');
 ok(JSON.stringify(run.doors) === JSON.stringify([1, 3, 8, 15]), '历经门号去重升序');
 ok(run.lowest === '無間地獄' && run.span === 27, '最深落处与历经位次数留存');
-ok(p2.feed[0] && p2.feed[0].text.includes('慧明') && p2.feed[0].text.includes('31'), '公报流生成及第公告');
-const leader = p2.leaders.find(row => row.name === '慧明');
-const todayLeader = p2.leadersToday.find(row => row.name === '慧明');
-ok(leader && leader.wins >= 1 && leader.best <= 31, '及第录仍保留近局聚合统计');
-ok(todayLeader && todayLeader.wins >= 1 && p2.rankedRuns >= 1, '今日及第统计与样本数同步返回');
 const bad = await fetch(`${BASE}/api/plaza/record`, {
   method: 'POST', headers: { 'content-type': 'application/json' },
-  body: JSON.stringify({ name: '越界', n: 5, doors: [99, 0, 7], span: 1, path: 'x' }),
+  body: JSON.stringify({ name: '越界', n: 5, doors: [99, 0, 7], span: 1, path: 'x', actor: ACTOR_B }),
 }).then(r => r.json());
 ok(bad.ok, '非法字段被夹取而非报错');
-const p2b = await plaza();
-ok(JSON.stringify(p2b.runs[0].doors) === JSON.stringify([7]), '越界门号被剔除');
-ok(p2b.runs[0].path === 'rise' && p2b.runs[0].seat === 'solo', '非法 path/seat 落回缺省值');
+const badMine = await mineRun(ACTOR_B);
+ok(JSON.stringify(badMine.runs[0].doors) === JSON.stringify([7]), '越界门号被剔除');
+ok(badMine.runs[0].path === 'rise' && badMine.runs[0].seat === 'solo', '非法 path/seat 落回缺省值');
 
 // ── 四、共修室：共同准备后才开局 ──
 console.log('\n【共修室 · 共同开局】');

@@ -172,9 +172,9 @@ try {
   ok(await page.locator('.pzTickerTrack').isVisible(), '共修动态在大厅顶部滚动区域呈现');
   await page.locator('#pzRank').click({ force: true });
   await page.locator('.pzRankLayer.on').waitFor({ state: 'visible' });
-  ok(await page.getByRole('dialog', { name: '共修功课榜' }).isVisible(), '点动态可在大厅内查看真实功课榜');
+  ok(await page.getByRole('dialog', { name: '共修功课榜' }).isVisible(), '点顶条可在大厅内查看共修动态');
   await page.waitForTimeout(8200);
-  ok(await page.locator('.pzRankLayer.on').isVisible(), '桌况定时刷新不会关闭功课榜或重建大厅');
+  ok(await page.locator('.pzRankLayer.on').isVisible(), '桌况定时刷新不会关闭共修动态或重建大厅');
   await page.locator('.pzRankClose').evaluate((button) => button.click());
   await page.locator('.pzRankLayer').waitFor({ state: 'hidden' });
   // 桌况刷新必须就地补写：整段重绘会把焦点掀回 body，键盘与读屏用户选不中房间，点击也会落空

@@ -33,9 +33,9 @@ const plazaData = {
   tossesToday: 12,
   wins: 3,
   winsToday: 1,
-  practiceLeaders: [{ name: '回归同修', tosses: 12 }],
-  practicePeople: 1,
-  feed: [{ kind: 'win', text: '回归同修 第 12 掷选佛及第', ts: Date.now() }],
+  days: 3,
+  people: 1,
+  stream: [{ name: '回归同修', tosses: 12, wins: 1, at: Date.now() }],
 };
 
 const browser = await chromium.launch({
@@ -93,8 +93,9 @@ try {
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 });
   await page.locator('#pzRank').evaluate((button) => button.click());
   const rankingText = await page.locator('.pzRankCard').innerText();
-  ok(rankingText.includes('念佛功课榜') && !rankingText.includes('及第录'), '大厅只呈现统一的念佛功课榜');
-  ok(rankingText.includes('回归同修') && rankingText.includes('12 念'), '今日功课可在大厅核对');
+  const rankNumbers = await page.locator('.pzRankCard .pzRankRow .no').count();
+  ok(rankingText.includes('共修动态') && rankNumbers === 0, '共修动态不列名次');
+  ok(rankingText.includes('回归同修') && rankingText.includes('12 掷'), '共修动态按累计掷轮呈现');
 } catch (error) {
   failed++;
   console.error(`  ✗ 终局回归中断：${error.message}`);

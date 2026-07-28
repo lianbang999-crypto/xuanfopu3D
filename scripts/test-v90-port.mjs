@@ -151,9 +151,12 @@ try {
   ok(content.rules.includes('至心称念') && !content.rules.includes('默念'), '掷轮操作统一校正为至心称念');
   const logBefore = await page.evaluate(() => window.__lgDbg?.());
   ok(logBefore?.games >= 1 && Array.isArray(logBefore?.seen), '见闻录跨局数据结构已建立并记录开局');
+  // 见闻录已并入「我的」页（⋯ 菜单只留五项），从那里的「行谱见闻」一行进
   await page.locator('#sfpMore').click({ force: true });
-  await page.locator('#smLg').waitFor({ state: 'visible' });
-  await page.locator('#smLg').click({ force: true });
+  await page.locator('#smMine').waitFor({ state: 'visible' });
+  await page.locator('#smMine').click({ force: true });
+  await page.locator('#myLg').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.locator('#myLg').click({ force: true });
   const logTitle = page.getByRole('heading', { name: '见闻录 · 历局所见' });
   await logTitle.waitFor({ state: 'visible' });
   ok(await page.locator('.lgRow').count() === 15, '见闻录按十五门显示曾见进度');
