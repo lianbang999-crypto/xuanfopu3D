@@ -189,14 +189,6 @@ function paintTable(button, t, esc, here) {
   setCell(button, '.who', quiet ? '' : (who || '&nbsp;'));
 }
 
-function runLine(r, esc) {
-  const bits = [`第 ${r.n} 掷及第`];
-  if (r.doors.length) bits.push(`历${r.doors.length}门`);
-  if (r.lowest) bits.push(`最深曾至「${esc(r.lowest)}」`);
-  if (r.path === 'pure') bits.push('横超净土');
-  return `<div class="pzRun"><b>${esc(r.name)}</b><span>${bits.join(' · ')}</span><i>${when(r.ts)}</i></div>`;
-}
-
 // 哪一行是「我」：服务端不外发匿名莲号，故按本机上报的那个名号比对；
 // 重名时服务端会缀上「 · 尾号」，一并认。
 function isMine(name) {
@@ -215,36 +207,21 @@ function streamRows(rows, esc) {
   </div>`).join('');
 }
 
-function rankingHtml(data, esc) {
-  return `<button class="pzRankClose" type="button" aria-label="关闭共修动态">✕</button>
-    <div class="pzRankHead"><span>本站共修第 ${num(data.days || 1)} 天</span><h3>共修动态</h3>
-      <p>已参加 ${num(data.people || 0)} 人 · 累计掷轮 ${num(data.tosses || 0)}</p></div>
-    <div class="pzRankList">${streamRows(data.stream || [], esc)}</div>
-    <div class="pzRankNote">按最近用功先后列出，不排名次 · 一掷一称念「南无阿弥陀佛」</div>`;
-}
-
-function openRanking(p, ui) {
-  const layer = p.querySelector('.pzRankLayer');
-  const card = layer.querySelector('.pzRankCard');
-  card.innerHTML = rankingHtml(p._plazaData || {}, ui.esc);
-  layer.classList.add('on');
-  layer.setAttribute('aria-hidden', 'false');
-  const close = () => {
-    layer.classList.remove('on');
-    layer.setAttribute('aria-hidden', 'true');
-    window.removeEventListener('keydown', onEsc, true);
-    p.querySelector('#pzRank')?.focus({ preventScroll: true });
-  };
-  const onEsc = (event) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    close();
-  };
-  window.addEventListener('keydown', onEsc, true);
-  layer.querySelector('.pzRankClose').addEventListener('click', close);
-  layer.addEventListener('pointerdown', (event) => { if (event.target === layer) close(); }, { once: true });
-  layer.querySelector('.pzRankClose').focus();
+// 共修动态：独立全屏页（与大厅、我的同壳），不再作大厅内的弹层——少一层嵌套，退路也只有一条。
+export function renderStream(data, ui) {
+  const { el, esc } = ui;
+  const p = el(`<div class="panel pzPanel"><div class="fsShell">
+    <header class="pzTop"><div><span class="pzEyebrow">本站共修第 ${num(data.days || 1)} 天</span><h2>共修动态</h2></div>
+      <div class="pzPresence"><span>已参加 <b>${num(data.people || 0)}</b> 人</span><i></i><span>累计掷轮 <b>${num(data.tosses || 0)}</b></span></div>
+    </header>
+    <div class="fsBody"><div class="fsWrap">
+      <div class="pzRankList">${streamRows(data.stream || [], esc)}</div>
+      <div class="pzRankNote">按最近用功先后列出，不排名次 · 一掷一称念「南无阿弥陀佛」</div>
+      <button class="pzBack" id="pzStreamBack" type="button" style="margin-top:16px">回大厅</button>
+    </div></div>
+  </div></div>`);
+  p.querySelector('#pzStreamBack').addEventListener('click', () => ui.onBack());
+  return p;
 }
 
 // 顶条一句叙述：本站共修多久、多少人来过、一共掷了多少轮——共修的规模一眼可知。
@@ -329,9 +306,6 @@ export function renderPlaza(data, ui) {
         <button class="pzBack" id="pzClose" type="button">${ui.backText || '返回'}</button>
       </main>
     </div>
-    <div class="pzRankLayer" aria-hidden="true">
-      <section class="pzRankCard" role="dialog" aria-modal="true" aria-label="共修功课榜"></section>
-    </div>
   </div>`);
 
   p._plazaUi = ui;
@@ -350,7 +324,7 @@ export function renderPlaza(data, ui) {
     const best = open.slice().sort((a, b) => rank(a) - rank(b) || b.live - a.live)[0];
     ui.onQuick(best.code);
   });
-  p.querySelector('#pzRank').addEventListener('click', () => openRanking(p, ui));
+  p.querySelector('#pzRank').addEventListener('click', () => ui.onStream());
   p.querySelector('#pzClose').addEventListener('click', () => ui.onClose());
   updatePlaza(p, data, ui);
   return p;
@@ -484,6 +458,14 @@ export const PLAZA_CSS = `
   max(24px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
   max(24px,env(safe-area-inset-left));box-sizing:border-box;display:grid;
   grid-template-rows:auto auto auto minmax(0,1fr);gap:16px}
+/* 全屏页通用壳：与大厅同一张底、同一处 ✕、同一套留白。
+   大厅有四段所以自带四行栅格；「我的」「共修动态」只需「一行页头 + 可滚主体」。 */
+.fsShell{width:min(1180px,100%);height:100%;margin:auto;padding:calc(24px + env(safe-area-inset-top))
+  max(24px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
+  max(24px,env(safe-area-inset-left));box-sizing:border-box;display:grid;
+  grid-template-rows:auto minmax(0,1fr);gap:14px}
+.fsBody{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.fsWrap{width:min(560px,100%);margin:0 auto}
 .pzTop{display:flex;align-items:center;justify-content:space-between;padding-right:58px}
 .pzEyebrow{display:block;font-size:var(--fs-xs,11px);color:#8f856d;letter-spacing:4px;margin-bottom:3px}
 .pzTop h2{margin:0;color:#f1dfaa;font-size:clamp(24px,3vw,36px);letter-spacing:7px;font-weight:500}
@@ -552,18 +534,6 @@ export const PLAZA_CSS = `
 .pzBack{width:100%;min-height:44px;border:1px solid rgba(216,197,139,.16);border-radius:10px;background:none;
   color:#c8b988;font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:1px;cursor:pointer;padding:0 14px}
 .pzBack:hover{color:#f0dfa8}
-/* 大厅内层榜单：不销毁大厅，所以返回后桌况、滚动和焦点都还在。 */
-.pzRankLayer{position:absolute;inset:0;z-index:6;display:none;align-items:center;justify-content:center;
-  padding:20px;background:rgba(6,7,14,.78);backdrop-filter:blur(5px)}
-.pzRankLayer.on{display:flex;animation:ovIn .18s ease}
-.pzRankCard{position:relative;width:min(620px,94vw);max-height:min(760px,88dvh);overflow:auto;box-sizing:border-box;
-  padding:24px;border:1px solid rgba(216,197,139,.28);border-radius:18px;background:rgba(22,21,36,.985);
-  box-shadow:0 28px 90px rgba(0,0,0,.52);color:#d8d0bd}
-.pzRankClose{position:absolute;right:14px;top:14px;width:44px;height:44px;border-radius:10px;cursor:pointer;
-  border:1px solid rgba(216,197,139,.2);background:rgba(255,255,255,.035);color:#aaa18c;font-size:17px}
-.pzRankHead span{color:#a4936c;font-size:var(--fs-xs,11px);letter-spacing:3px}
-.pzRankHead h3{margin:3px 0 6px;color:#f0dfa8;font-family:var(--f-display);font-size:26px;letter-spacing:6px;font-weight:500}
-.pzRankHead p{margin:0;color:#7f7868;font-size:var(--fs-xs,11px);letter-spacing:1px}
 /* 共修动态一行三段：名号 · 掷数 · 何时。没有名次列——不排名次就不给序号留位置。 */
 .pzRankList{margin-top:14px;border-top:1px solid rgba(216,197,139,.14)}
 .pzRankRow{display:grid;grid-template-columns:minmax(72px,1fr) auto auto;align-items:center;gap:12px;min-height:48px;
@@ -596,8 +566,7 @@ export const PLAZA_CSS = `
   .pzMain{display:block;overflow:auto}.pzRooms{padding:12px;overflow:visible}.pzBack{margin-top:10px}
   .pzSectionHead{align-items:flex-start;margin-bottom:10px}.pzSectionHead p{max-width:160px;text-align:right;line-height:1.5}
   .pzGrid{grid-template-columns:repeat(3,1fr);gap:7px}.pzT{min-height:78px;padding:10px 9px}.pzT .who{font-size:10px}
-  .pzRankLayer{padding:0;align-items:flex-end}.pzRankCard{width:100%;max-width:none;max-height:88dvh;border-radius:18px 18px 0 0;
-    border-left:0;border-right:0;border-bottom:0;padding:20px 14px calc(18px + env(safe-area-inset-bottom))}
+  .fsShell{padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));gap:10px}
   .pzRankRow{grid-template-columns:minmax(60px,1fr) auto auto;gap:8px}
 }
 @media (max-width:370px){.pzGrid{grid-template-columns:repeat(2,1fr)}.pzSectionHead p{display:none}}

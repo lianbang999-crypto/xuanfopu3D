@@ -170,13 +170,14 @@ try {
   ok((await page.locator('.pzSectionHead p').innerText()).includes('两位准备即可开局'), '大厅准确说明准备后共同开局');
   ok(await page.locator('#pzQuick').evaluate((element) => element.classList.contains('primary')), '多人随喜入座保持主操作层级');
   ok(await page.locator('.pzTickerTrack').isVisible(), '共修动态在大厅顶部滚动区域呈现');
+  // 共修动态已由大厅内层弹层改为独立全屏页：进去一层，回来一条路
   await page.locator('#pzRank').click({ force: true });
-  await page.locator('.pzRankLayer.on').waitFor({ state: 'visible' });
-  ok(await page.getByRole('dialog', { name: '共修功课榜' }).isVisible(), '点顶条可在大厅内查看共修动态');
-  await page.waitForTimeout(8200);
-  ok(await page.locator('.pzRankLayer.on').isVisible(), '桌况定时刷新不会关闭共修动态或重建大厅');
-  await page.locator('.pzRankClose').evaluate((button) => button.click());
-  await page.locator('.pzRankLayer').waitFor({ state: 'hidden' });
+  await page.locator('.pzRankList').waitFor({ state: 'visible', timeout: 20_000 });
+  ok((await page.locator('.pzTop h2').innerText()).includes('共修动态'), '点顶条进入共修动态全屏页');
+  ok(await page.locator('.pzRankRow .no').count() === 0, '共修动态不列名次');
+  await page.locator('#pzStreamBack').evaluate((button) => button.click());
+  await page.locator('.pzPanel:not(.pzLoading) .pzGrid').waitFor({ state: 'visible', timeout: 30_000 });
+  ok(true, '从共修动态可回到大厅');
   // 桌况刷新必须就地补写：整段重绘会把焦点掀回 body，键盘与读屏用户选不中房间，点击也会落空
   const focusKept = await page.evaluate(async () => {
     const cell = document.querySelector('.pzT');

@@ -92,8 +92,9 @@ try {
   await page.locator('#lbView').evaluate((button) => button.click());
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 });
   await page.locator('#pzRank').evaluate((button) => button.click());
-  const rankingText = await page.locator('.pzRankCard').innerText();
-  const rankNumbers = await page.locator('.pzRankCard .pzRankRow .no').count();
+  await page.locator('.pzRankList').waitFor({ state: 'visible', timeout: 20_000 });
+  const rankingText = await page.locator('.fsShell').innerText();
+  const rankNumbers = await page.locator('.pzRankRow .no').count();
   ok(rankingText.includes('共修动态') && rankNumbers === 0, '共修动态不列名次');
   ok(rankingText.includes('回归同修') && rankingText.includes('12 掷'), '共修动态按累计掷轮呈现');
 } catch (error) {

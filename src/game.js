@@ -2026,12 +2026,15 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
   background:linear-gradient(rgba(22,18,38,.85),transparent);pointer-events:none}
 #topbar>*{pointer-events:auto}
 #title{font-size:var(--fs-xl);letter-spacing:4px;color:#f0dfa8;font-weight:600;text-shadow:0 1px 6px #000}
-/* 右上角大厅：与题字分踞两角，安静地待着，不与中央星图争。
+/* 右上角两枚去处（大厅｜我的）：与题字分踞两角，安静地待着，不与中央星图争。
    position:static 是必须的——.ui 基类是绝对定位，不还原就会掉出顶栏的 flex 流（同 #backBtn 之例）。 */
-#hallBtn{position:static;flex:none;margin-left:auto;min-height:36px;padding:7px 15px;border-radius:18px;letter-spacing:2px;
+#hallBtn,#mineBtn{position:static;flex:none;min-height:36px;padding:7px 15px;border-radius:18px;letter-spacing:2px;
   font-size:var(--fs-sm);color:#cbbb8d;border:1px solid rgba(215,170,69,.34);background:rgba(20,17,34,.62);
   backdrop-filter:blur(6px);cursor:pointer}
-#hallBtn:hover,#hallBtn:focus-visible{color:#f0dfa8;border-color:rgba(232,199,102,.62);background:rgba(30,25,50,.78)}
+#hallBtn{margin-left:auto}
+#mineBtn{margin-left:8px}
+#hallBtn:hover,#hallBtn:focus-visible,#mineBtn:hover,#mineBtn:focus-visible{color:#f0dfa8;border-color:rgba(232,199,102,.62);background:rgba(30,25,50,.78)}
+@media (max-width:380px){#hallBtn,#mineBtn{padding:7px 11px;letter-spacing:1px}#title{letter-spacing:2px}}
 #compass{top:58px;right:12px;width:74px;height:74px;border-radius:50%;pointer-events:none;
   border:1px solid rgba(215,170,69,.5);background:rgba(23,20,38,.5)}
 #compass span{position:absolute;left:50%;top:50%;font-size:var(--fs-xs);color:#e9dcae;transform:translate(-50%,-50%)}
@@ -2648,11 +2651,15 @@ const secZero = secWrap.querySelector('#secZero')               ;
 const backBtn = el('<button id="backBtn" class="ui gbtn">娑婆</button>')                     ;
 // 顶栏题字旁小签（用户点单）：门观中显「全图」、极乐显「娑婆」，不再悬浮突兀
 topbar.appendChild(backBtn);
-// 右上角常驻大厅入口：进出共修是主干节点，不该藏在底部控制台或二级菜单里。
-// 题字与状态小签在左，大厅独占右角，一屏两端各管一件事。
+// 右上角两枚常驻去处：「大厅」＝公共面（共修），「我的」＝个人面（功课）。
+// 两者平级，故并排；不把「我的」塞进大厅——那会让个人面成为公共面的子页，语义拧了。
+// 题字与状态小签在左，两枚去处在右，一屏两端各管一件事。
 const hallBtn = el('<button id="hallBtn" class="ui gbtn" title="共修大厅 · 一人行谱或与人共修">大厅</button>')                     ;
 hallBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.22); openPlaza(); });
 topbar.appendChild(hallBtn);
+const mineBtn = el('<button id="mineBtn" class="ui gbtn" title="我的功课 · 日历 · 原文与设置">我的</button>')                     ;
+mineBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.22); openMine(); });
+topbar.appendChild(mineBtn);
 
 const card = el(`<div id="card" class="panel">
   <div id="cardHead">
@@ -6754,21 +6761,17 @@ function openSfpMore() {
     <div class="smStat"><span>当前行处</span><b>${currentName}</b><i>${currentMeta}</i></div>
     <div class="smSection">
       <div class="smList">
-      ${row('smMine', '我的', '功课 · 日历 · 行谱记录')}
       ${Net.active ? row('smNet', '同修面板', `${Net.locked ? '🔒 ' : ''}名单与聊天`) : ''}
-      ${row('smCanon', '原文', '六卷谱文逐字')}
-      ${row('smSet', '设置', '声音 · 简繁 · 卡片')}
       ${row('smNew', '重开一局', '从头掷', 'warn')}
       ${row('smExit', '退出', Net.active ? '离席并回题屏' : '行处已存 · 回题屏', 'warn')}
       </div>
     </div>
     <button class="gbtn primary" id="smBack">回到局中</button></div></div>`);
   const on = (id, fn) => { const b = p.querySelector('#' + id); if (b) b.addEventListener('click', fn); };
+  // 全谱走右侧天梯、行迹走上一掷轮相牌、大厅与我的在右上角、原文与设置收在「我的」里——
+  // 屏幕上已有的入口不在菜单里再来一遍；此处只留两件局务（都是不可轻点的）。
   on('smBack', closeOverlay);
-  on('smMine', () => { closeOverlay(); openMine(); });
-  on('smCanon', () => { closeOverlay(); openCanon(cur ? cur.door : 1, cur ? cur.name : undefined); });
   on('smNet', () => { closeOverlay(); Net.openPanel(); });
-  on('smSet', () => { closeOverlay(); openSettings(); });
   // 从前全站没有一处「退出」：局中只能靠及第或离席，观照期只能关标签页。
   // 单机行处本就随时存档，退出即回题屏，随时可从「续掷」接上。
   on('smExit', async () => {
@@ -7414,9 +7417,12 @@ function myMonthHtml(daily                          , year        , month       
   return { html: cells, sum };
 }
 function openMine() {
+  Net.closePanel();          // 同上：全屏页期间收起同修面板，看完再点「聊」唤回
   const lg = save.lg;
-  const p = el(`<div class="panel myPanel"><h2>我的功课</h2><div class="body">
-    <div class="myLoad">正在取功课……</div></div></div>`);
+  const p = el(`<div class="panel pzPanel myPanel"><div class="fsShell">
+    <header class="pzTop"><div><span class="pzEyebrow">选佛谱</span><h2>我的</h2></div></header>
+    <div class="fsBody"><div class="fsWrap body"><div class="myLoad">正在取功课……</div></div></div>
+  </div></div>`);
   openOverlay(p);
   zhDom(p);
   const body = p.querySelector('.body')               ;
@@ -7454,6 +7460,9 @@ function openMine() {
       <button class="gbtn myRow" id="myLg">
         <span>开局 ${lg.games} · 升 ${lg.up} · 沉 ${lg.back} · 见 ${lg.seen.length}/${(SFP_POS         ).length} 位</span><i>›</i></button>
       ${runs ? `<div class="myLine2">我的行谱记录</div><div class="myRuns">${runs}</div>` : ''}
+      <div class="myLine2">谱与设置</div>
+      <button class="gbtn myRow" id="myCanon"><span>六卷原文 · 逐字读谱</span><i>›</i></button>
+      <button class="gbtn myRow" id="mySet"><span>设置 · 声音 · 简繁 · 卡片</span><i>›</i></button>
       <div class="cNote">一掷一称念「南无阿弥陀佛」，只作随喜记录，不作修证高下。功课记在本机莲号下，换设备会另计。</div>
       <button class="gbtn primary" id="myOk" style="margin-top:12px;width:100%">${sfpS.active ? '回到局中' : '关闭'}</button>`;
     zhDom(p);
@@ -7462,6 +7471,12 @@ function openMine() {
     (body.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
     (body.querySelector('#myLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
     (body.querySelector('#myRename')               ).addEventListener('click', () => { closeOverlay(); openPlazaRename(); });
+    (body.querySelector('#myCanon')               ).addEventListener('click', () => {
+      closeOverlay();
+      const at = sfpS.pos ? SFP_BY[sfpS.pos] : null;
+      openCanon(at ? at.door : 1, at ? at.name : undefined);
+    });
+    (body.querySelector('#mySet')               ).addEventListener('click', () => { closeOverlay(); openSettings(); });
   };
 
   (async () => {
@@ -7480,6 +7495,23 @@ function openMine() {
   })();
 }
 const myNum = (n         ) => Number(n || 0).toLocaleString('en-US');
+
+// 共修动态：独立全屏页（从大厅顶条进），关闭即回大厅——一层，一条退路
+async function openStream() {
+  plazaStop();
+  Net.closePanel();          // 全屏页与同修面板不并存：面板 z 更高，会盖住整页
+  const back = () => { overlayOnClose = null; openPlaza(); };
+  try {
+    const data = await Plaza.fetchPlaza();
+    const p = Plaza.renderStream(data, { el, esc, onBack: back });
+    openOverlay(p);
+    overlayOnClose = back;
+    zhDom(p);
+  } catch (e) {
+    showToast(zh('共修动态暂时取不到，请稍后再看'), 3200);
+    openPlaza();
+  }
+}
 
 // 取名／改名（从「我的」进）：只存本机名号，不涉入座
 function openPlazaRename() {
@@ -7525,6 +7557,7 @@ function plazaRender(data) {
       startSfp(false);
     },
     onSit: (code, _n, locked) => plazaSit(code, '', !!locked),
+    onStream: () => openStream(),
     onQuick: (code) => {
       if (!code) { showToast(zh('本厅诸室皆满——请稍候或一人行谱'), 3200); return; }
       plazaSit(code);
@@ -7537,6 +7570,7 @@ function plazaRender(data) {
 
 async function openPlaza() {
   plazaStop();
+  Net.closePanel();          // 同上：全屏页与同修面板不并存
   const loading = el(`<div class="panel pzPanel pzLoading"><div class="pzLoadingInner">
     <span>选佛谱</span><h2>共修大厅</h2><div class="body"><div class="cbStage">正在入大厅……</div></div>
   </div></div>`);
