@@ -95,8 +95,8 @@ assert.ok(nodeById.caturmaharaja.cause.v.startsWith('上品十善'));
 assert.ok(nodeById.trayastrimsa.cause.v.startsWith('亦上品十善'));
 assert.ok(nodeById.yama.cause.v.startsWith('上品十善兼学坐禅'));
 assert.ok(SFP_POS_PLAIN['中品十善'].includes('是人道因'));
-assert.ok(SFP_POS_PLAIN['四無量心'].includes('四禪天王'));
-assert.ok(SFP_POS_PLAIN['有間地獄'].includes('九情一想'));
+assert.ok(SFP_POS_PLAIN['四無量心'].includes('四禅天王'));
+assert.ok(SFP_POS_PLAIN['有間地獄'].includes('九分情、一分想'));
 assert.ok(SFP_POS_PLAIN['無想天'].includes('五百大劫'));
 assert.ok(SFP_DOOR_PLAIN[3].includes('上品感地狱、中品畜生、下品饿鬼'));
 assert.ok(SFP_DOOR_PLAIN[5].includes('五净居是三果圣者所居'));
@@ -119,18 +119,13 @@ for (const label of ['行法原文', '谱曰原文', '释义', '本项目操作�
   assert.ok(gameSource.includes(label), `游戏界面缺少证据标签：${label}`);
 }
 
-assert.deepEqual({
-  中品十惡: SFP_POS_PLAIN['中品十惡'],
-  下品十惡: SFP_POS_PLAIN['下品十惡'],
-  下品十善: SFP_POS_PLAIN['下品十善'],
-  出世福業: SFP_POS_PLAIN['出世福業'],
-  常寂光淨土: SFP_POS_PLAIN['常寂光淨土'],
-}, {
-  中品十惡: '十恶中品之因——谱明「是畜生因」，感畜生之报。',
-  下品十惡: '十恶轻品之因——谱明「是餓鬼因」，感饿鬼之报。',
-  下品十善: '十善下品之因——谱明「是阿脩羅道因」：善杂烦恼，多感修罗。',
-  出世福業: '布施作福，求出生死——于三宝门中广行施福，由施而阶戒品。',
-  常寂光淨土: '修德所显的真实法性之土——本位总摄下下至上中八品；上上品至圆至顿，归入圆教究竟妙觉极果位。',
-});
+// V98 采纳版（2026-07-29）：位白话整库换为上游全量校对底本＋本地 87 处裁定修正；
+// 快照钉改为关键判语守卫——守谱明去向事实，不冻结文风。
+assert.ok(SFP_POS_PLAIN['中品十惡'].includes('是畜生因'));
+assert.ok(SFP_POS_PLAIN['下品十惡'].includes('是饿鬼因'));
+assert.ok(SFP_POS_PLAIN['下品十善'].includes('是阿修罗道因'));
+assert.ok(SFP_POS_PLAIN['出世福業'].includes('布施作福、求出生死'));
+assert.ok(SFP_POS_PLAIN['常寂光淨土'].includes('上上一品归入极果位'));
+assert.ok(SFP_POS_PLAIN['常寂光淨土'].includes('其余八品总摄于本位'));
 
 console.log(`证据类型校验通过：${evidenceCells} 格、${sourceQuotes} 条逐字原文、${interpretations} 条释义；操作规则独立为 ${SFP_EVIDENCE_TYPE.operation}`);

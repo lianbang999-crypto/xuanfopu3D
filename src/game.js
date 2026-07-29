@@ -2332,13 +2332,17 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
   color:#efe0b4;font-family:inherit;font-size:var(--fs-md);padding:8px 10px;resize:vertical;min-height:52px}
 #labels{transition:opacity .45s}
 #sfpDice.on{display:flex}
-#sfpChant{flex:0 0 100%;text-align:center;margin-top:12px;font-size:var(--fs-lg);letter-spacing:6px;color:#efe0b4;
-  text-shadow:0 0 14px rgba(215,170,69,.7),0 1px 6px #000}
-#sfpChant em{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:4px;color:#c8b988;margin-bottom:7px}
-#sfpChant b{font-size:27px;font-weight:600;margin:0 3px;display:inline-block;color:#f4e6b8;
-  text-shadow:0 0 16px rgba(232,199,102,.75),0 1px 6px #000;animation:chantBreath 3.6s ease-in-out infinite}
-#chantGo{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:3px;color:#c8b988;margin-top:9px;opacity:.85}
+/* v386 掷轮念文（用户令）：一句「至心称念」引领＋六字静置不动——字不呼吸不闪，不给用户节拍压力 */
+#sfpChant{flex:0 0 100%;text-align:center;margin-top:22px;color:#efe0b4}
+#sfpChant em{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:4px;color:#c8b988;margin-bottom:10px;opacity:.9}
+#sfpChant b{font-size:29px;font-weight:600;margin:0 6px;display:inline-block;color:#f4e6b8;
+  text-shadow:0 0 18px rgba(232,199,102,.8),0 1px 6px #000}
 @keyframes chantBreath{0%,100%{opacity:.72}50%{opacity:1}}
+/* 静场敛景：顶栏·门梯·控制台上部（门阵/位名/上一掷/问/⋯）一并压暗，屏上只留轮 */
+#topbar.hush,#ladder.hush{opacity:.1;transition:opacity .5s;pointer-events:none}
+#sfpBar.hush #sfpTop,#sfpBar.hush #sfpDoors,#sfpBar.hush #sfpName,#sfpBar.hush #sfpMsg,
+#sfpBar.hush #sfpFaces,#sfpBar.hush #sfpAsk,#sfpBar.hush #sfpMore,#sfpBar.hush #conMinBtn{
+  opacity:.08;transition:opacity .45s;pointer-events:none}
 #sfpDice.settle #sfpChant{opacity:1;color:#f4e6b8}
 #sfpDice span{width:84px;height:84px;display:flex;align-items:center;justify-content:center;font-size:48px;
   color:#f4e6b8;background:rgba(26,22,44,.94);border:2px solid #d7aa45;border-radius:16px;
@@ -4125,7 +4129,7 @@ function goHome() {
   if (p.pure) { sfpLocate(p.id); return; }
   if (inDoor === p.door) { const v = doorViewFor(p.id); if (doorPlanets[p.id]) flyTo(v.pos, v.target, 1.0); setConMin(false); return; }
   if (inDoor) exitDoor(false);
-  enterDoor(p.door, p.id, 'fly');
+  enterDoor(p.door, p.id, 'fly', true); // 主动观门：呈本门总说
 }
 backBtn.addEventListener('click', () => {
   if (inDoor) { // 门观「全图」＝存局退出，入自由观照（用户定案）；未在局则照旧出门拉远
@@ -4174,15 +4178,15 @@ const SFP_DOOR_BY                      = {};
   d.introEvidenceType = d.intro ? SFP_EVIDENCE_TYPE.source : '';
 });
 // v169/v172 门总说（作者自撰助读，明确标「助讀非原譜原文」不冒充谱文）：原谱门1/2/15 无总说，补此三段
-SFP_DOOR_BY[1].intro = '選佛第一擲不論升降，二十一種輪相組合直定二十一種發始因地——此生從何處起步。廿一因分四類：三品十惡為惡因，多感三塗；見取、戒取、慢心行施、世間福并三品十善為世間雜因，隨業升沉人天；邪定、味禪、根本四禪、四無量心、四無色定為禪定因，多生色無色天；出世福戒定慧四學為出世正因，意見參禪與利名習教則慕道而雜染，最易轉入法道流弊。因地一定，此後每擲皆自此起行。';
+SFP_DOOR_BY[1].intro = '選佛第一擲不論升降，二十一種輪相組合直定二十一種發始因地——此生從何處起步。廿一因分四類：三品十惡為惡因，多感三塗；見取、戒取、慢心行施、世間福并三品十善為世間雜因，隨業升沉世間諸趣；邪定、味禪、根本四禪、四無量心、四無色定為禪定因，多生色無色天；出世福戒定慧四學為出世正因，意見參禪與利名習教則慕道而雜染，最易轉入法道流弊。因地一定，此後每擲皆自此起行。';
 SFP_DOOR_BY[2].intro = '學道而歧，其弊有五：破尸羅（毀戒行）、破軌則（壞威儀僧制）、毀正見（撥無因果）、棄多聞（恃悟輕教）、增上慢（未得謂得）。多自「意見參禪」「利名習教」兩種因地而來——離教參禪易墮暗證，逐名習教易成狂解。譜設此門，正示法門無咎、咎在用心；一念知非，懺悔還淨，仍可轉入生善滅惡與三學正軌。';
 SFP_DOOR_BY[15].intro = '圓極果位，唯一位而已——圓教究竟妙覺。斷盡四十二品無明，究盡諸法實相，三覺圓、萬德備，是為選佛及第、譜之終局。前十四門諸位，或升或沉、或橫超淨土，究竟同歸此極果；藏通別三教佛果，望圓皆屬因位，唯此一位，更無可進。自鄰極諸位擲得「佛」字收尾之輪相（阿佛乃至佛佛）登此者，一局功圓。';
 [1, 2, 15].forEach(no => { SFP_DOOR_BY[no].introEvidenceType = SFP_EVIDENCE_TYPE.interpretation; });
 // 廿一因逐位一行义读（从各位谱注与行法去向提炼，作者自撰助读，非原谱引文）
 const SFP_D1_CAPTION                         = {
   '上品十惡': '惡因熾盛·多墮地獄', '中品十惡': '惡心稍緩·多墮畜生', '下品十惡': '惡業輕微·多墮餓鬼',
-  '見取': '姄執己見·鬥諹所依', '慢心行施': '挾慢行施·脩羅之因', '世間福': '施福利世·障三惡道',
-  '戒取': '非因計因·無利勤苦', '下品十善': '止惡未湛·僅免三塗', '中品十善': '善念湛熟·人道之因', '上品十善': '湛善猛利·欲天之因',
+  '見取': '妄執己見·鬥諍所依', '慢心行施': '挾慢行施·脩羅之因', '世間福': '施福利世·障三惡道',
+  '戒取': '非因計因·無利勤苦', '下品十善': '止惡未淳·僅免三塗', '中品十善': '善念淳熟·人道之因', '上品十善': '淳善猛利·欲天之因',
   '邪定': '邪見習定·外道之類', '味禪': '味著定樂·隨禪受生', '根本四禪': '色界正定·四禪之因',
   '四無量心': '慈悲喜捨·求作梵王', '四無色定': '滅色緣空·四空之因',
   '意見參禪': '參禪雜意見·易入流弊', '利名習教': '習教牽利名·易入流弊',
@@ -4191,7 +4195,7 @@ const SFP_D1_CAPTION                         = {
 };
 const SFP_D1_GROUPS                                    = [
   ['惡因', '多感三塗', ['上品十惡', '中品十惡', '下品十惡']],
-  ['世間雜因', '隨業升沉人天', ['見取', '慢心行施', '世間福', '戒取', '下品十善', '中品十善', '上品十善']],
+  ['世間雜因', '隨業升沉世間諸趣', ['見取', '慢心行施', '世間福', '戒取', '下品十善', '中品十善', '上品十善']],
   ['禪定因', '多生色無色天', ['邪定', '味禪', '根本四禪', '四無量心', '四無色定']],
   ['出世因', '入聖道之門，雜染則流弊', ['意見參禪', '利名習教', '出世福業', '出世戒學', '出世定學', '出世慧學']],
 ];
@@ -4900,7 +4904,7 @@ function doorViewFor(pid        )                                               
   out.normalize();
   return { pos: wp.clone().addScaledVector(out, 14).add(new THREE.Vector3(0, 5.5, 0)), target: wp };
 }
-function enterDoor(dno        , pid         , cam                          = 'jump') {
+function enterDoor(dno        , pid         , cam                          = 'jump', manual = false) { // v386 manual＝用户主动点门观看（才呈门总说；行棋跨门不呈）
   if (DISC_DOORS.has(dno)) { // v316/v322 门1及行门四门观照一律入谱页专场（无地理坐标，主图无珠可观）：归位/巡游/旧链路皆改道
     if (inDisc) { buildDisc(dno); if (pid) discLand(pid); }
     else enterDiscTransit(dno, pid);
@@ -4926,14 +4930,9 @@ function enterDoor(dno        , pid         , cam                          = 'ju
         else flyTo(v.pos, v.target, 1.3);
       }
     }
-    // 入门总说待呈：行棋初入本门，落定后稍驻再呈浮文（白光正散、位名已报）
-    // v80 对齐 makeplay：仅当待呈的入门总说正属本位（pid 匹配）才呈，免呈错/呈陈
-    if (pendingDoorIntro && pid && pendingDoorIntro.pid === pid) {
-      const pd = pendingDoorIntro ; pendingDoorIntro = null;
-      window.setTimeout(() => {
-        if (sfpS.active && sfpS.pos === pd.pid && inDoor === pd.door) { markDoorSeen(pd.door); showDoorIntro(pd.door); }
-      }, 900);
-    }
+    // v386 跳门不显总说（用户令）：行棋自动入门不再呈浮文；用户**主动**点门观看（manual）才呈
+    if (pendingDoorIntro) { pendingDoorIntro = null; }
+    else if (manual && SFP_DOOR_BY[dno] && SFP_DOOR_BY[dno].intro) { markDoorSeen(dno); showDoorIntro(dno); } // 主动观门：本门总说随入呈一次（门1廿一因入口在其中）
     return;
   }
   if (pid && doorPlanets[pid] && cam !== 'none') { const v = doorViewFor(pid); flyTo(v.pos, v.target, 1.0); }
@@ -4942,7 +4941,7 @@ function enterDoor(dno        , pid         , cam                          = 'ju
 // 交互标准（用户定案）：单击一律只展开/收拢，双击＝入场俯冲就地观照
 function doorTap(dno        , isDbl         , wp               ) {
   if (isDbl && dno !== 14) {
-    enterDoor(dno, sfpS.pos && SFP_BY[sfpS.pos].door === dno ? sfpS.pos : undefined, 'fly');
+    enterDoor(dno, sfpS.pos && SFP_BY[sfpS.pos].door === dno ? sfpS.pos : undefined, 'fly', true); // 主动观门
     playSfx('sfx-tap', 0.25); return;
   }
   if (inDoor === dno) { exitDoor(true); playSfx('sfx-tap', 0.25); return; } // 门观中再点本门＝出门观全图（免收拢/门观状态错位）
@@ -4972,7 +4971,7 @@ function doorTap(dno        , isDbl         , wp               ) {
     return;
   }
   if (inDoor === dno) { if (performance.now() - doorEnterT > 600) exitDoor(true); return; }
-  enterDoor(dno, sfpS.pos && SFP_BY[sfpS.pos].door === dno ? sfpS.pos : undefined, 'fly');
+  enterDoor(dno, sfpS.pos && SFP_BY[sfpS.pos].door === dno ? sfpS.pos : undefined, 'fly', true); // 主动观门
   void wp;
 }
 function exitDoor(fly = true) {
@@ -5889,7 +5888,7 @@ function railDoorTap(dno        , dbl         ) {
     else if (browseDoor === 14) setBrowseDoor(0); else setBrowseDoor(14);
     return;
   }
-  if (dbl) { enterDoor(dno, sfpS.pos && SFP_BY[sfpS.pos].door === dno ? sfpS.pos : undefined, 'fly'); return; }
+  if (dbl) { enterDoor(dno, sfpS.pos && SFP_BY[sfpS.pos].door === dno ? sfpS.pos : undefined, 'fly', true); return; } // 主动观门（门梯点击）
   if (inDoor === dno) { exitDoor(true); return; }
   if (browseDoor === dno) { setBrowseDoor(0); showToast(`「${SFP_DOOR_BY[dno].title}」已收拢`); return; }
   if (inPure) returnSaha();
@@ -6317,6 +6316,8 @@ function sfpJourneySummary() {
   practice: (dn        ) => sfpPracticeAnswerHtml(dn),
   rules: () => SFP_RULES_A,
   cross: () => sfpCrossAnswerHtml(),
+  palm: () => { sfpPalmDown(); }, // v385 掷轮静场自测钩子，只读驱动无副作用
+  quiet: (on         ) => sfpQuiet(on),
 };
 function openSfpTrail() {
   const rows = [...sfpHist].reverse().map((h, ri) =>
@@ -6436,12 +6437,12 @@ function sfpFlyAnchorMap(p     ) {
 }
 // ── 入门总说浮文：本局初次跨入某门，落定后以整段浮文呈示原谱「總說」（不弹窗不拦掷，顶替原入门短提示），
 // 掷轮或任何触碰即隐；同门反复进出不重呈，重读走谱注卡 ──
-const doorIntroEl = el('<div id="doorIntro" class="ui"><b></b><div class="dit"></div><div class="dif">掷轮或点画面即收 · 点位名可重读</div></div>');
+const doorIntroEl = el('<div id="doorIntro" class="ui"><b></b><div class="dit"></div><div class="dif">点画面即收 · 点位名可重读</div></div>');
 app.appendChild(doorIntroEl);
 let doorIntroOn = false;
 function showDoorIntro(doorNo        ) {
   const dd = SFP_DOOR_BY[doorNo]; if (!dd || !dd.intro) return;
-  (doorIntroEl.querySelector('b')               ).textContent = zh(`入 ${dd.title} · 第${SFP_CN[doorNo - 1]}門總說`);
+  (doorIntroEl.querySelector('b')               ).textContent = zh(`${dd.title} · 第${SFP_CN[doorNo - 1]}門總說`); // v386 只在主动观门时呈，「入」字去（非跨门播报）
   const body = doorIntroEl.querySelector('.dit')               ;
   const dPlain = (SFP_DOOR_PLAIN       )[doorNo];
   const selfIntro = DOOR_HINT_SELF.has(doorNo);
@@ -6470,17 +6471,10 @@ window.addEventListener('pointerdown', (e) => {
 function maybeDoorIntro(prevDoor               , p     ) {
   if (!sfpS.active || p.terminal) return;
   if (prevDoor === p.door) return;
-  const dd = SFP_DOOR_BY[p.door];
-  if (!dd || !dd.intro || sfpS.seenD.includes(p.door)) return;
-  if (p.pure) { // 净土位无入门俯冲，白光转场定、莲池取景稳后再呈（接引式入场则等徐降抵位）
-    const delay = performance.now() < pureGrandUntil ? 5200 : 1900;
-    window.setTimeout(() => {
-      if (sfpS.active && sfpS.pos === p.id) { markDoorSeen(p.door); showDoorIntro(p.door); }
-    }, delay);
-    return;
-  }
-  // 非净土位：登记待呈，等俯冲入门、白光散尽真正落定（enterDoor 完成）后再呈
-  pendingDoorIntro = { door: p.door, pid: p.id };
+  // v386 用户令：跳门时不显门总说——行棋至新门不再自动弹浮文（总说仍可主动点门/谱页读）；
+  // 仍登记 seenD（见闻录·行迹账依此计历门数），只不呈屏
+  if (SFP_DOOR_BY[p.door]) markDoorSeen(p.door);
+  pendingDoorIntro = null;
 }
 let pendingDoorIntro                                       = null;
 function markDoorSeen(doorNo        ) {
@@ -6762,9 +6756,13 @@ let ringIt = 0;
 const sfpRollBtn = sfpBar.querySelector('#sfpRoll')               ;
 const sfpVeil = el('<div id="sfpVeil" class="ui"></div>');
 app.appendChild(sfpVeil);
-function sfpQuiet(on         ) { // 掷轮静场：暗纱罩景、星名隐去，只留轮与念文
+function sfpQuiet(on         ) { // 掷轮静场：暗纱罩景、星名隐去，只留轮与六字
   sfpVeil.classList.toggle('on', on);
   labelLayer.style.opacity = on ? '0.08' : '';
+  // v385 敛景（用户令去视觉噪音）：顶栏、门梯、控制台上部一并压暗——掷轮一刻屏上只余轮
+  topbar.classList.toggle('hush', on);
+  ladder.classList.toggle('hush', on);
+  sfpBar.classList.toggle('hush', on);
 }
 // v360 行棋节奏：前五掷完整仪轨（初学者看清掌心→旁掷→定相），第六掷起旋时/停留收紧——
 // 一局常几十掷，固定 2.12s 前摇是后期最实的摩擦；义理不减（仍长按称名、仍判词点行）
@@ -6805,7 +6803,7 @@ function sfpPalmDown() {
   playSfx('sfx-tap', 0.25);
   vib(8);
   sfpRollBtn.classList.add('hold');
-  (sfpRollBtn.querySelector('#rollTxt')               ).textContent = zh('松手旁掷');
+  (sfpRollBtn.querySelector('#rollTxt')               ).textContent = zh('松手即掷');
   {
     const ring = sfpRollBtn.querySelector('#rollRing')               ;
     ring.style.setProperty('--p', '0%');
@@ -6819,11 +6817,9 @@ function sfpPalmDown() {
   }
   sfpDice.classList.add('on'); sfpDice.classList.remove('settle');
   sfpQuiet(true);
-  // 置轮掌心：六字静静呈现，不计时、不出声——念佛节奏由用户自己把握，何时松手都可
+  // v386 用户令：引领一句「至心称念」＋六字（六字静置不作呼吸动画，不给用户节拍压力）
   const chantEl = sfpDice.querySelector('#sfpChant')               ;
-  chantEl.innerHTML = `<em>${zh('置轮掌心 · 至心称念')}</em>` +
-    '南无阿弥陀佛'.split('').map(c => `<b>${zh(c)}</b>`).join('') +
-    `<i id="chantGo">${zh('念毕松手旁掷')}</i>`;
+  chantEl.innerHTML = `<em>${zh('至心称念')}</em>` + '南无阿弥陀佛'.split('').map(c => `<b>${zh(c)}</b>`).join('');
   startWheelPalm();
 }
 function sfpPrepareTossRelease() {
@@ -7128,7 +7124,7 @@ function openSfpHelp() {
     ${h('缘 起 —— 大 师 初 心')}
     <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">蕅益大师见法友耽嗜博弈，思以选佛之图易之；五十五岁单丁行脚至歙浦，十三日成谱。自敘其愿：<b style="color:#f4e6b8">「能使人即遊戲間，頓知六道往還之疲苦，三乘出要之差別，誠為不可思議。」</b>谱中一切升沉去向，「皆本教乘，非出臆見」——这局游戏的每一步，都踏在经论上。</div>
     ${h('轮 相 —— 为 何 恭 敬 对 待 掷 轮')}
-    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75"><b style="color:#d7aa45">谱曰原文：</b>「輪如占察輪相。而作六面。以那謨阿彌陀佛六字。順次右旋。刻於六面。」又问何不用幺二三四五六，答曰：「幺二三四五六。不過世間數目。是無記法。不能生善滅惡。那謨阿彌陀佛六字。乃是萬德洪名。……<b style="color:#f4e6b8">一稱佛名。能滅八十億劫生死重罪。</b>」<br><b style="color:#d7aa45">释义：</b>原谱以佛号六字取代世间数目，使每次掷轮都表持名与善恶升沉之义。<br><b style="color:#d7aa45">本项目操作规则：</b>长按掷轮时至心称念一句佛号，念毕松手旁掷；请如持名般恭敬对待。</div>
+    <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75"><b style="color:#d7aa45">谱曰原文：</b>「輪如占察輪相。而作六面。以那謨阿彌陀佛六字。順次右旋。刻於六面。」又问何不用幺二三四五六，答曰：「幺二三四五六。不過世間數目。是無記法。不能生善滅惡。那謨阿彌陀佛六字。乃是萬德洪名。……<b style="color:#f4e6b8">一稱佛名。能滅八十億劫生死重罪。</b>」<br><b style="color:#d7aa45">释义：</b>原谱以佛号六字取代世间数目，使每次掷轮都表持名与善恶升沉之义。<br><b style="color:#d7aa45">本项目操作规则：</b>长按掷轮时至心称念一句佛号，念毕松手即掷；请如持名般恭敬对待。</div>
     <div style="margin:8px 0">${row('那', false)}${row('謨', false)}${row('阿', true)}${row('彌', true)}${row('陀', true)}${row('佛', true)}</div>
     ${h('规 则')}
     <div style="font-size:var(--fs-md);color:#dccf9f;line-height:1.75">
@@ -7144,7 +7140,7 @@ function openSfpHelp() {
     <div style="margin-top:12px"><button class="gbtn primary" id="sfpHelpOk" style="width:100%">敬领谱意 · 恭敬开掷</button></div></div>`);
   (p.querySelector('#sfpHelpOk')               ).addEventListener('click', () => {
     closeOverlay();
-    if (sfpS.active && sfpS.n === 0) showToast('第一掷定「发始因地」：长按掷钮，至心称念一句佛号，念毕松手旁掷', 4800);
+    if (sfpS.active && sfpS.n === 0) showToast('第一掷定「发始因地」——长按掷钮至心称念一句佛号，念毕松手', 4200);
   });
   openOverlay(p);
 }
@@ -7240,7 +7236,7 @@ function startSfp(resume         ) {
   // 联机已开局时同理（轮次限时立刻开始跑，教程改在准备室里出，见 Net.onJoined）。
   if (!(save       ).sfpHelp && !(Net.active && Net.isPlaying())) {
     (save       ).sfpHelp = true; persist();
-    showToast('第一掷定「發始因地」：长按掷钮置轮掌心，至心称念一句「南无阿弥陀佛」，念毕松手旁掷', 5600);
+    showToast('第一掷定「發始因地」——长按掷钮至心称念一句佛号，念毕松手', 4600);
   }
 }
 function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续掷') {
