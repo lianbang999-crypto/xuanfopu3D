@@ -21,12 +21,16 @@
       "sourceQuote": "source_quote",
       "sourceSubtypes": [
         "rule_fact",
-        "pu_explanation"
+        "pu_explanation",
+        "refer_note"
       ],
       "interpretation": "interpretation",
-      "operationRule": "operational_interpretation"
+      "operationRule": "operational_interpretation",
+      "glyphInterpretation": "glyph_interpretation"
     },
-    "prohibitedProductionModes": ["self_continue"]
+    "prohibitedProductionModes": [
+      "self_continue"
+    ]
   },
   "coverage": {
     "positionCount": 11,
@@ -36,6 +40,8 @@
   },
   "answerPolicy": {
     "mustLabelOperationAs": "本项目定稿操作规则",
-    "forbidOriginalAttribution": ["受赠者选择、即时次序和单人虚掷是蕅益大师逐字规定"]
+    "forbidOriginalAttribution": [
+      "受赠者选择、即时次序和单人虚掷是蕅益大师逐字规定"
+    ]
   }
 }

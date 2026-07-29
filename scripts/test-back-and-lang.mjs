@@ -70,6 +70,40 @@ try {
   await page.waitForTimeout(400);
   const t2 = await page.evaluate(() => document.querySelector('#hallBtn')?.title || '');
   ok(t2.includes('共修大厅'), '切回简体完整还原（原文缓存往返无损）');
+
+  console.log('\n【「我的」子页同路往返 + 判词在场按返回＝落子收层】');
+  // 此刻设置卡开着（我的→设置进入）：关卡应回「我的」而非落裸场景
+  await page.goBack();
+  await page.locator('#mySet').waitFor({ state: 'visible', timeout: 30_000 });
+  ok(true, '设置关卡同路往返回「我的」');
+  await page.goBack(); // 关「我的」回裸场景
+  await page.waitForFunction(() => !document.querySelector('.overlay'), undefined, { timeout: 8_000, polling: 250 });
+  // 起一局单机：大厅→一人行谱
+  await page.locator('#hallBtn').evaluate((b) => b.click());
+  await page.locator('#pzSolo').waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('#pzSolo').evaluate((b) => b.click());
+  await page.waitForFunction(() => document.querySelector('#sfpBar')?.classList.contains('show'), undefined, { timeout: 30_000, polling: 250 });
+  // 掷轮（空格按住→松开），连拍截图催帧兜底（无头 rAF 节流环境）
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(300);
+  await page.keyboard.up('Space');
+  // 动画窗双按返回：功课已计而判词未出的 1.3–2.1s 内连按两次返回，不得离站丢本掷
+  await page.goBack();
+  await page.waitForTimeout(250);
+  await page.goBack();
+  await page.waitForTimeout(400);
+  ok(await page.evaluate(() => !!document.querySelector('#hallBtn')), '掷轮动画窗内双按返回不离站（行处已存不作假承诺）');
+  for (let i = 0; i < 50 && !(await page.evaluate(() => document.querySelector('#verdict')?.classList.contains('show'))); i++) {
+    await page.screenshot().catch(() => {});
+    await page.waitForTimeout(400);
+  }
+  ok(await page.evaluate(() => document.querySelector('#verdict')?.classList.contains('show')), '首掷判词在场');
+  await page.goBack();
+  await page.waitForFunction(() => !document.querySelector('#verdict')?.classList.contains('show'), undefined, { timeout: 8_000, polling: 250 });
+  ok(true, '判词在场按返回＝落子收层（本掷不蒸发）');
+  ok(await page.evaluate(() => !!document.querySelector('#hallBtn')), '未离站');
+  ok(await page.evaluate(() => ((window.__sfpRead?.hist() || []).length) >= 1), '本掷判定已入行谱');
+  ok(await page.evaluate(() => !!(history.state && history.state.sfpBack)), '返回后哨兵重新武装');
 } catch (error) {
   failed++;
   console.error(`  ✗ 验收中断：${error.message}`);

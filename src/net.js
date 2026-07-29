@@ -647,18 +647,18 @@ export const Net = {
 #netPanel,#netKey{font-family:'SmileySans',-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
 #netPanel input,#netPanel button,#netKey input,#netKey button{font-family:inherit}
 #netPanel{position:fixed;left:12px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:32;width:min(390px,calc(100vw - 24px));
-  height:min(600px,calc(100dvh - 164px));max-height:min(600px,calc(100dvh - 164px));display:none;flex-direction:column;background:rgba(16,19,28,.97);border:1px solid rgba(216,197,139,.42);
+  height:min(600px,calc(100dvh - 164px));max-height:min(600px,calc(100dvh - 164px));display:none;flex-direction:column;background:rgba(16,19,28,.97);border:1px solid rgba(215,170,69,.42);
   border-radius:16px;overflow:hidden;overscroll-behavior:contain;backdrop-filter:blur(12px);font-size:var(--fs-md);color:#e8e2d0;box-shadow:0 18px 50px rgba(0,0,0,.38)}
 #netPanel.on{display:flex}
-#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid rgba(216,197,139,.18);min-height:40px;flex:none}
-#netHead b{letter-spacing:2px;color:#d8c58b}
-#netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:#96e1d6;letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
-#netHead .code:hover,#netHead .code:focus-visible{color:#b9f0e6}
-#netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(217,136,115,.3);background:rgba(217,136,115,.08);color:#d9a08f;border-radius:10px;cursor:pointer}
-#netMinBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:#9aa3b5;border-radius:10px;cursor:pointer;font-size:20px}
+#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid rgba(215,170,69,.18);min-height:40px;flex:none}
+#netHead b{letter-spacing:2px;color:var(--gold-hi)}
+#netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:var(--teal);letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
+#netHead .code:hover,#netHead .code:focus-visible{color:var(--teal)}
+#netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(176,90,66,.45);background:rgba(176,90,66,.12);color:var(--woe-tx);border-radius:10px;cursor:pointer}
+#netMinBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:var(--note);border-radius:10px;cursor:pointer;font-size:var(--fs-xl)}
 #netMinBtn:hover{background:rgba(255,255,255,.06);color:#e8e2d0}
 #netRoomState{flex:none;padding:8px 12px;color:#cfc7ad;line-height:1.5}
-#netRoomState b{color:#e8c766}
+#netRoomState b{color:var(--gold-hi)}
 /* 面板是定高的：名单、指引、聊天三处可压缩（flex:0 1 auto + min-height:0），
    准备/开局、聊天输入、密码邀请大厅三排永远 flex:none——空间不够时宁可挤掉说明文字，
    也不能把操作按钮挤出面板（overflow:hidden 会让它们彻底点不到）。
@@ -666,61 +666,61 @@ export const Net = {
    同一件事说三遍徒占版面（§5.0b 信息只出一次）。 */
 #netGuide{flex:0 1 auto;min-height:0;overflow:hidden;padding:0 12px 9px}
 #netGuide[hidden]{display:none}
-#netGuide p{margin:0;color:#9aa3b5;font-size:var(--fs-sm);line-height:1.5}
+#netGuide p{margin:0;color:var(--note);font-size:var(--fs-sm);line-height:1.5}
 #netGuideAct{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:10px;cursor:pointer;
-  border:1px solid rgba(232,199,102,.58);background:rgba(232,199,102,.2);color:#e8c766;font:inherit;font-size:var(--fs-sm);letter-spacing:2px}
+  border:1px solid rgba(232,199,102,.58);background:rgba(232,199,102,.2);color:var(--gold-hi);font:inherit;font-size:var(--fs-sm);letter-spacing:2px}
 #netGuideAct[hidden]{display:none}
-#netRoster{display:flex;flex:0 1 auto;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(216,197,139,.14);min-height:0;max-height:104px;overflow-y:auto;overscroll-behavior:contain}
+#netRoster{display:flex;flex:0 1 auto;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(215,170,69,.14);min-height:0;max-height:104px;overflow-y:auto;overscroll-behavior:contain}
 .netP{display:flex;align-items:center;gap:5px;padding:6px 9px;min-height:30px;border-radius:15px;background:rgba(255,255,255,.05);border:1px solid transparent;max-width:100%}
 .netP.turn{border-color:rgba(232,199,102,.8);box-shadow:0 0 10px rgba(232,199,102,.22)}
 .netP.off{opacity:.48}.netP.away{opacity:.62}
 .netP .dot{width:9px;height:9px;border-radius:50%;flex:none}
-.netP .role{flex:none;font-size:var(--fs-xs);color:#e8c766;letter-spacing:1px}
+.netP .role{flex:none;font-size:var(--fs-xs);color:var(--gold-hi);letter-spacing:1px}
 .netP .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px}
-.netP .st{color:#9aa3b5;font-size:var(--fs-xs);white-space:nowrap}
-#netRoundActions{display:flex;flex:none;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(216,197,139,.14)}
+.netP .st{color:var(--note);font-size:var(--fs-xs);white-space:nowrap}
+#netRoundActions{display:flex;flex:none;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(215,170,69,.14)}
 #netPanel.is-playing #netRoundActions{display:none}
-#netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid rgba(216,197,139,.32);background:rgba(255,255,255,.05);color:#cfc7ad}
+#netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid rgba(215,170,69,.32);background:rgba(255,255,255,.05);color:#cfc7ad}
 #netRoundActions button{flex:1}
-#netRoundActions button.pri,#netBtns button.pri{background:rgba(232,199,102,.2);color:#e8c766;border-color:rgba(232,199,102,.58)}
+#netRoundActions button.pri,#netBtns button.pri{background:rgba(232,199,102,.2);color:var(--gold-hi);border-color:rgba(232,199,102,.58)}
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
 /* 聊天区不再另立标题：下面就是聊天，「共修聊天」四字是废话。这一行只留隐私说明，
    翻历史时借同一位置报新消息（§5.0b 信息只出一次）。 */
 #netChatHead{display:flex;align-items:center;justify-content:flex-end;flex:none;padding:6px 12px 4px;
-  border-top:1px solid rgba(216,197,139,.14);color:#9aa3b5;font-size:var(--fs-xs)}
+  border-top:1px solid rgba(215,170,69,.14);color:var(--note);font-size:var(--fs-xs)}
 #netMsgs{flex:1 1 0;min-height:0;overflow-y:auto;padding:5px 12px 8px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
 @media (min-height:640px){#netMsgs{min-height:70px}}
 #netPanel.is-waiting #netMsgs,#netPanel.is-finished #netMsgs{min-height:64px}
 .netM{display:flex;flex-direction:column;align-items:flex-start;line-height:1.45;word-break:break-word}
-.netM.mine{align-items:flex-end}.netM .who{margin:0 4px 3px;color:#9aa3b5;font-size:var(--fs-xs)}
+.netM.mine{align-items:flex-end}.netM .who{margin:0 4px 3px;color:var(--note);font-size:var(--fs-xs)}
 .netM .bubble{display:block;max-width:86%;padding:8px 10px;border-radius:5px 13px 13px 13px;background:rgba(255,255,255,.07);color:#e8e2d0}
 .netM.mine .bubble{border-radius:13px 5px 13px 13px;background:rgba(232,199,102,.15);color:#f0e5c1}
 .netM.sys{display:block;align-self:center;color:#8c93a1;font-size:var(--fs-xs);text-align:center;padding:2px 8px}
 .netEmpty{margin:auto;text-align:center;color:#737986;font-size:var(--fs-sm);line-height:1.6}
 #netQuick{display:flex;flex:none;gap:8px;padding:6px 12px 0;overflow-x:auto}
 #netPanel.is-waiting #netQuick,#netPanel.is-finished #netQuick{display:none}
-#netQuick button{min-height:44px;white-space:nowrap;border:1px solid rgba(216,197,139,.28);background:rgba(255,255,255,.04);color:#cfc7ad;border-radius:12px;padding:7px 12px;cursor:pointer}
+#netQuick button{min-height:44px;white-space:nowrap;border:1px solid rgba(215,170,69,.28);background:rgba(255,255,255,.04);color:#cfc7ad;border-radius:12px;padding:7px 12px;cursor:pointer}
 /* 翻看历史时新消息不抢滚动：提示就借聊天标题行右端那句话的位置，不另起浮层 */
-#netNew{border:0;background:none;padding:0;color:#9aa3b5;font:inherit;font-size:var(--fs-xs);cursor:default}
-#netNew.has{color:#e8c766;cursor:pointer;letter-spacing:1px}
-#netInput{position:relative;display:flex;flex:none;gap:8px;padding:9px 10px;border-top:1px solid rgba(216,197,139,.18)}
-#netChatHint{position:absolute;left:12px;bottom:calc(100% + 2px);color:#d9a08f;font-size:var(--fs-xs);letter-spacing:.5px;pointer-events:none}
+#netNew{border:0;background:none;padding:0;color:var(--note);font:inherit;font-size:var(--fs-xs);cursor:default}
+#netNew.has{color:var(--gold-hi);cursor:pointer;letter-spacing:1px}
+#netInput{position:relative;display:flex;flex:none;gap:8px;padding:9px 10px;border-top:1px solid rgba(215,170,69,.18)}
+#netChatHint{position:absolute;left:12px;bottom:calc(100% + 2px);color:var(--woe-tx);font-size:var(--fs-xs);letter-spacing:.5px;pointer-events:none}
 #netChatHint:empty{display:none}
-#netInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(216,197,139,.28);border-radius:10px;color:#efe9d8;padding:9px 11px;font-size:16px;outline:none}
+#netInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(215,170,69,.28);border-radius:10px;color:#efe9d8;padding:9px 11px;font-size:var(--fs-lg);outline:none}
 #netInput input:focus{border-color:rgba(232,199,102,.65);box-shadow:0 0 0 2px rgba(232,199,102,.1)}
-#netInput button{min-width:64px;min-height:44px;border:1px solid rgba(216,197,139,.4);background:rgba(216,197,139,.16);color:#d8c58b;border-radius:10px;cursor:pointer}
+#netInput button{min-width:64px;min-height:44px;border:1px solid rgba(215,170,69,.4);background:rgba(215,170,69,.16);color:var(--gold-hi);border-radius:10px;cursor:pointer}
 #netBtns{display:flex;flex:none;gap:8px;padding:0 12px 10px}#netBtns button{flex:1;font-size:var(--fs-sm)}
 #netGrab{display:none;height:22px;flex:none;cursor:grab;position:relative;touch-action:none}
-#netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(216,197,139,.45);transform:translateX(-50%)}
+#netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(215,170,69,.45);transform:translateX(-50%)}
 #netKey{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(8,10,15,.72);backdrop-filter:blur(4px)}
 #netKey.on{display:flex}
-#netKeyCard{width:min(320px,88vw);background:rgba(18,21,30,.98);border:1px solid rgba(216,197,139,.4);border-radius:16px;padding:20px 18px;color:#e8e2d0}
-#netKeyCard .x{float:right;min-width:44px;min-height:44px;background:none;border:none;color:#9aa3b5;font-size:var(--fs-lg);cursor:pointer}
-#netKeyCard h3{margin:0 0 4px;letter-spacing:3px;color:#d8c58b}#netKeyCard .sub{color:#9aa3b5;font-size:var(--fs-sm);margin-bottom:14px;line-height:1.6}
-#netKeyCard input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(216,197,139,.3);border-radius:9px;padding:12px;color:#f0ead8;font-size:26px;letter-spacing:14px;text-indent:14px;text-align:center}
-#netKeyCard .err{color:#d98873;font-size:var(--fs-sm);min-height:18px;margin-top:8px}
-#netKeyCard .big{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:11px;font-size:var(--fs-md);cursor:pointer;border:1px solid rgba(216,197,139,.4);background:rgba(255,255,255,.05);color:#cfc7ad}
-#netKeyCard .big.pri{background:rgba(232,199,102,.2);color:#e8c766;border-color:rgba(232,199,102,.6)}
+#netKeyCard{width:min(320px,88vw);background:rgba(18,21,30,.98);border:1px solid rgba(215,170,69,.4);border-radius:16px;padding:20px 18px;color:#e8e2d0}
+#netKeyCard .x{float:right;min-width:44px;min-height:44px;background:none;border:none;color:var(--note);font-size:var(--fs-lg);cursor:pointer}
+#netKeyCard h3{margin:0 0 4px;letter-spacing:3px;color:var(--gold-hi)}#netKeyCard .sub{color:var(--note);font-size:var(--fs-sm);margin-bottom:14px;line-height:1.6}
+#netKeyCard input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(215,170,69,.3);border-radius:9px;padding:12px;color:#f0ead8;font-size:26px;letter-spacing:14px;text-indent:14px;text-align:center}
+#netKeyCard .err{color:var(--woe-tx);font-size:var(--fs-sm);min-height:18px;margin-top:8px}
+#netKeyCard .big{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:11px;font-size:var(--fs-md);cursor:pointer;border:1px solid rgba(215,170,69,.4);background:rgba(255,255,255,.05);color:#cfc7ad}
+#netKeyCard .big.pri{background:rgba(232,199,102,.2);color:var(--gold-hi);border-color:rgba(232,199,102,.6)}
 /* 择受赠者：贈掷不归自己，掷得者须择一位同席莲友受之（本项目定稿操作规则） */
 #netGrant{position:fixed;inset:0;z-index:62;display:none;align-items:center;justify-content:center;
   padding:16px;background:rgba(8,10,15,.78);backdrop-filter:blur(5px);
@@ -730,19 +730,19 @@ export const Net = {
   border:1px solid rgba(232,199,102,.5);border-radius:16px;padding:20px 18px 16px;color:#e8e2d0}
 #netGrantCard .ngEyebrow{color:#a99560;font-size:var(--fs-xs);letter-spacing:2px}
 #netGrantCard h3{margin:4px 0 6px;letter-spacing:3px;color:#f0dfa8;font-size:var(--fs-lg)}
-#netGrantCard .ngCount{color:#e8c766}
-#netGrantCard .ngSub{color:#9aa3b5;font-size:var(--fs-sm);line-height:1.65;margin-bottom:13px}
+#netGrantCard .ngCount{color:var(--gold-hi)}
+#netGrantCard .ngSub{color:var(--note);font-size:var(--fs-sm);line-height:1.65;margin-bottom:13px}
 #ngList{display:flex;flex-direction:column;gap:8px}
 .ngWho{display:flex;align-items:center;gap:9px;width:100%;min-height:52px;padding:9px 12px;cursor:pointer;
-  border:1px solid rgba(216,197,139,.32);border-radius:12px;background:rgba(255,255,255,.05);
+  border:1px solid rgba(215,170,69,.32);border-radius:12px;background:rgba(255,255,255,.05);
   color:#e8e2d0;font:inherit;text-align:left}
 .ngWho:hover:not(:disabled),.ngWho:focus-visible:not(:disabled){border-color:rgba(232,199,102,.7);background:rgba(232,199,102,.1)}
 .ngWho:disabled{opacity:.5;cursor:wait}
 .ngWho .dot{width:10px;height:10px;border-radius:50%;flex:none}
 .ngWho .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ngWho .st{color:#9aa3b5;font-size:var(--fs-xs);white-space:nowrap}
+.ngWho .st{color:var(--note);font-size:var(--fs-xs);white-space:nowrap}
 #netGrantCard .ngNote{margin-top:11px;color:#8c93a1;font-size:var(--fs-xs);text-align:center;line-height:1.6}
-#netGrantCard .ngNote b{color:#e8c766;font-weight:500;font-variant-numeric:tabular-nums}
+#netGrantCard .ngNote b{color:var(--gold-hi);font-weight:500;font-variant-numeric:tabular-nums}
 .netDots{display:flex;gap:7px;align-items:center}.netDots .pd{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}.netDots .pd.off{opacity:.3}
 .netDots .pd.turn{animation:pdPulse 1.6s ease-in-out infinite}@keyframes pdPulse{0%,100%{box-shadow:0 0 3px currentColor}50%{box-shadow:0 0 10px currentColor,0 0 16px currentColor}}
 @media (prefers-reduced-motion:reduce){.netDots .pd.turn{animation:none}}
@@ -1236,7 +1236,7 @@ export const Net = {
     this.$msgs.querySelector('.netEmpty')?.remove();
     const mine = message.id === this.myId;
     const row = el(`<div class="netM${mine ? ' mine' : ''}">
-      <span class="who" style="color:${message.color || '#d8c58b'}">${mine ? this.zh('我') : esc(message.name)}</span>
+      <span class="who" style="color:${message.color || '#e8c766'}">${mine ? this.zh('我') : esc(message.name)}</span>
       <span class="bubble">${esc(message.text)}</span>
     </div>`);
     this.$msgs.appendChild(row);

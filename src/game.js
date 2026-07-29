@@ -9,7 +9,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'; 
 import { NODES, REALMS, WORKS, COORD_KIND_LABEL } from './data.js';
 import { SFP_DOORS, SFP_POS, SFP_META } from './sfp-data.js';
 import { SFP_CANON_FRONT, SFP_CANON_DOORS } from './sfp-canon.js'; // v177 六卷原文整卷阅读（CBETA B0136 逐字）
-import { SFP_EVIDENCE_TYPE, SFP_WHY_EVIDENCE, sfpWhyEvidence, sfpEvidenceItems, mergeSfpEvidence, makeSfpInterpretationEvidence, makeSfpOperationalEvidence, makeSfpSourceEvidence } from './sfp-evidence.js';
+import { SFP_EVIDENCE_TYPE, SFP_WHY_EVIDENCE, sfpWhyEvidence, sfpEvidenceItems, mergeSfpEvidence, makeSfpInterpretationEvidence, makeSfpOperationalEvidence, makeSfpSourceEvidence, makeSfpGlyphEvidence } from './sfp-evidence.js'; // v389/v390 字义解与总括句展开经证据层单一取值口接入
 import { SFP_GLOSS, SFP_DOOR_PLAIN } from './sfp-gloss.js';
 import { SFP_WHY_PLAIN } from './sfp-why-plain.js';
 import { SFP_POS_PLAIN } from './sfp-pos-plain.js'; // v225 二百二十位白话简介（判词去处点读、位卡首行白话）
@@ -69,6 +69,7 @@ function loadSave() {
     save.seenBeadTip = !!d.seenBeadTip;
     if (d.askq && typeof d.askq.d === 'string') save.askq = { d: d.askq.d, n: Number(d.askq.n) || 0 };
     if (d.zh === 't' || d.zh === 's') save.zh = d.zh;
+    if (d.cardTheme === 'paper' || d.cardTheme === 'night') save.cardTheme = d.cardTheme; // 从前漏读此键：写经纸主题一刷新即回落暗夜
     if (d.settings) Object.assign(save.settings, d.settings);
     save.settings.lowPerf = false; // v313 低性能设置行已删（粗指针自动降档制替代）：旧存档复位防辉光永关
   } catch (e) {}
@@ -1687,9 +1688,8 @@ NODES.forEach((d          ) => {
   label.className = 'nlabel' + (d.tier === 1 ? ' t1' : '')
     + (['avrha', 'atapa', 'sudarsana', 'sudrsa', 'akanistha'].includes(d.id) ? ' pureAbode' : ''); // v222 五净居金白圣色：凡圣分界入标
   label.textContent = zh(d.labelText ?? d.name);
-  if (d.tier === 1 && (d.realm || HUE_SKY.has(d.id))) { // 十法界界名题字：界色底线（同一张色谱，四圣淡金）
-    label.style.borderBottom = '2px solid #' + (isNS ? C.paleGold : hue).toString(16).padStart(6, '0');
-  }
+  // 界色底线已撤（2026-07-29 色彩立宪）：法界配色只在珠色与色点上出现，界色由星珠本体承担；
+  // 标签胶囊统一走 .nlabel/.t1 金边档，层级用透明度与发光表达、不用边框色
   labelLayer.appendChild(label);
 
   const nv           = {
@@ -1767,7 +1767,7 @@ function addAuxMarker(nodeId        , parent                , pos               
     labelLayer.appendChild(label);
     label.addEventListener('click', (e) => { e.stopPropagation(); selectNode(nodeId); });
   }
-  auxViews.push({ obj: g, hit, label, nodeId });
+  auxViews.push({ obj: g, hit, label, nodeId, rawName: text || '' }); // rawName＝zh() 前原名：族表按原名归族，繁体模式不失配
   return g;
 }
 // 四天王天：四面平台各标天王名（东持国·南增长·西广目·北多闻，守护四方）；主标记「四天王天」在南平台上方
@@ -1838,7 +1838,7 @@ addAuxMarker('jambu', nodesRoot, new THREE.Vector3(1.2, 7.6, 106.2), '金刚座'
     ['三轮', ['大地', '金輪', '水輪', '風輪', '金轮', '水轮', '风轮']]]                          )
     .forEach(([fam, names]) => names.forEach(nm => { FAM_OF[nm] = fam; }));
   auxViews.forEach(av => {
-    const t = av.label ? av.label.textContent : '';
+    const t = av.rawName || ''; // 用 zh() 前原名查族：textContent 在繁体模式已转「雙持山」等，族门会整族失效
     if (t && FAM_OF[t]) av.fam = FAM_OF[t];
   });
 }
@@ -1889,6 +1889,18 @@ css.textContent = `
   --fs-lg:16px;   /* 强调·小标题 */
   --fs-xl:19px;   /* 面板标题 */
   --fs-display:22px; /* 展示级题字 */
+  /* ── 色彩立宪（2026-07-29 提案 §一.1）：全站色 token 唯一取色处；明度分层用透明度档，不再新造 hex。
+     注：JS 内联着色暂留字面 hex（写经纸兜底按 [style*="#…"] 字面匹配，token 化须与兜底改造同批，见提案）；
+     canvas/three.js 侧色值（轮面/星流/珠色）属数据层豁免，归 JS 常量不入此表。 ── */
+  --gold:#d7aa45;        /* 结构线·强调·金字（#d8ac47 等近似值归此） */
+  --gold-deep:#b0831c;   /* 主钮渐变深端 · 唯一保留处 */
+  --gold-hi:#e8c766;     /* 辉光/hover 亮态（rgba 基座 232,199,102 与此同源） */
+  --paper:#efe0b4;       /* 正文 */
+  --note:#9d9170;        /* 次文/注脚（net.js 蓝灰族并入此） */
+  --teal:#96e1d6;        /* 联机/提示专用 */
+  --woe:#b05a42;         /* 恶趣语义深基（rgba 基座 176,90,66；#b0543f/#8b3f32 归此） */
+  --woe-tx:#f0af9e;      /* 恶/警红字亮档 · 暗底可读的唯一红字色（#f08f7a/#e8b7a8/#d98873 等归此） */
+  --ink-on-gold:#2a1e08; /* 金底上的墨字 · 主钮专用 */
   /* 卡片双主题（2026-07-21 用户点单）：暗夜=默认，层次靠 token 重做分明；写经纸=可切换浅主题。
      所有卡片文字与面板走这套 --ck-* token，切换只改 token、不改结构。 */
   --ck-panel:linear-gradient(168deg,#26243f 0%,#1a1830 52%,#111020 100%); /* 靛蓝漆底渐变，呼应唐卡夜空 */
@@ -1903,7 +1915,7 @@ css.textContent = `
   --ck-line:rgba(215,170,69,.18);
   --ck-yuan:#ecdca6;                  /* 原文字 · 羊皮暖 */
   --ck-yuan-bg:rgba(0,0,0,.34);       /* 原文凹槽块 · 加深，沉入更明显 */
-  --ck-yuan-rule:#d7aa45;             /* 原文金线 */
+  --ck-yuan-rule:var(--gold);             /* 原文金线 */
   --ck-bai:#83c9a6;                   /* 白话对照 · 清透石绿（去浊，一眼分清文白） */
   --ck-btn-bg:rgba(215,170,69,.12);
   --ck-btn-br:rgba(215,170,69,.38);
@@ -2005,28 +2017,28 @@ html.bigfont{--fs-xs:12.5px;--fs-sm:14px;--fs-md:16px;--fs-lg:18px;--fs-xl:21px;
 .panel h2,#posReveal,#doorIntro b,#transitCap b{font-family:var(--f-display)}
 #labels{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:5}
 .nlabel{position:absolute;transform:translate(-50%,-140%);pointer-events:auto;cursor:pointer;
-  font:var(--fs-sm)/1.4 var(--f-ui);color:#e9dcae;
+  font:var(--fs-sm)/1.4 var(--f-ui);color:rgba(239,224,180,.92);
   background:rgba(23,20,38,.72);border:1px solid rgba(215,170,69,.4);border-radius:3px;padding:2px 7px;
   white-space:nowrap;letter-spacing:1px}
-.nlabel.t1{font-size:var(--fs-md);color:#f4e6b8;border-color:rgba(215,170,69,.7)}
+.nlabel.t1{font-size:var(--fs-md);color:var(--paper);border-color:rgba(215,170,69,.7)}
 /* v219 标签降噪：①淡入代硬闪（display 切回时动画自重起）②远景 T2 褪胶囊为幽灵细字（300–420 段） */
 .nlabel{animation:lblIn .18s ease-out}
-.nlabel.dlab{text-align:center;line-height:1.32;padding:2px 5px;font-size:11px;transform:translate(-50%,0)} /* v328 微缩：同排中珠签不再被避让表杀 */
+.nlabel.dlab{text-align:center;line-height:1.32;padding:2px 5px;font-size:var(--fs-xs);transform:translate(-50%,0)} /* v328 微缩：同排中珠签不再被避让表杀 */
 .nlabel.dlab .dcm{display:block;font-size:8.5px;letter-spacing:2px;text-indent:2px;color:#c9bc8f;opacity:.92}
-.nlabel.dlab .dcm .ne{font-style:normal;color:#cf8a72} /* v328 恶面字赭红：与判词卡恶↓同带 */
+.nlabel.dlab .dcm .ne{font-style:normal;color:var(--woe-tx)} /* v328 恶面字赭红：与判词卡恶↓同带 */
 .nlabel.dlab.dl1{white-space:nowrap}
 .nlabel.dlab.dl1 .dcm{display:inline;margin-right:5px;text-indent:0;letter-spacing:1px;font-size:9px} /* v328 横屏单行：组合字内联名前 */
-.nlabel.dlab.cur{border-color:#d7aa45;color:#f4e6b8;box-shadow:0 0 12px rgba(215,170,69,.35)}
+.nlabel.dlab.cur{border-color:var(--gold);color:#f4e6b8;box-shadow:0 0 12px rgba(215,170,69,.35)}
 .nlabel.dlabC{text-align:center;background:transparent;border-color:transparent;letter-spacing:4px;text-indent:4px}
-.nlabel.dlabC .dcm{display:block;font-size:10px;letter-spacing:2px;text-indent:2px;color:#9d9170}
+.nlabel.dlabC .dcm{display:block;font-size:10px;letter-spacing:2px;text-indent:2px;color:var(--note)}
 @keyframes lblIn{from{opacity:0}}
 .nlabel.far{background:transparent;border-color:transparent;font-size:var(--fs-xs);opacity:.85;text-shadow:0 0 8px rgba(10,8,20,.95),0 1px 3px #000}
 /* v206 标签阶梯制度：T1 法界主星 .t1 ＞ T2 处所节点 .nlabel ＞ T3 细分天层 .drl ＞ T4 器世间辅标 .aux（永远让位于节点标） */
-.nlabel.aux{font-size:var(--fs-xs);color:#cfc19a;background:transparent;border-color:transparent;padding:5px 8px;/* v207 触控热区加大，透明底不改观感 */
+.nlabel.aux{font-size:var(--fs-xs);color:rgba(239,224,180,.8);background:transparent;border-color:transparent;padding:5px 8px;/* v207 触控热区加大，透明底不改观感 */
   letter-spacing:2px;text-shadow:0 0 8px rgba(10,8,20,.95),0 1px 3px #000;opacity:.92}
 .nlabel.read{opacity:.78}
-.nlabel.sel{background:rgba(139,63,50,.85);border-color:#d7aa45;color:#fff}
-.ui{position:absolute;font-family:'SmileySans',-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:#efe0b4;z-index:10}
+.nlabel.sel{background:rgba(176,90,66,.85);border-color:var(--gold);color:#fff}
+.ui{position:absolute;font-family:'SmileySans',-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--paper);z-index:10}
 .panel{background:var(--ck-panel);border:1px solid var(--ck-border);border-radius:14px;backdrop-filter:blur(8px);color:var(--ck-plain);
   box-shadow:inset 0 1px 0 rgba(255,235,180,.10),0 18px 50px -22px rgba(0,0,0,.7);
   transition:background .45s,border-color .45s,color .45s}
@@ -2037,15 +2049,15 @@ html.paperCards .panel{box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 18px 48p
 .tkey img{width:100%;height:190px;object-fit:cover;object-position:center 42%;display:block}
 .tkey::after{content:'';position:absolute;inset:0;box-shadow:inset 0 -56px 44px -24px rgba(26,22,44,.92);pointer-events:none}
 /* v196 题屏极简：次级操作收为细字行 */
-.tlink{color:#9d9170;font-size:var(--fs-sm);letter-spacing:2px;cursor:pointer;padding:8px 4px;user-select:none;-webkit-user-select:none;transition:color .2s}
-.tlink:hover,.tlink:active{color:#efe0b4}
-button.gbtn{background:rgba(215,170,69,.08);border:1px solid rgba(215,170,69,.34);color:#efe0b4;border-radius:9px;
+.tlink{color:var(--note);font-size:var(--fs-sm);letter-spacing:2px;cursor:pointer;padding:8px 4px;user-select:none;-webkit-user-select:none;transition:color .2s}
+.tlink:hover,.tlink:active{color:var(--paper)}
+button.gbtn{background:rgba(215,170,69,.08);border:1px solid rgba(215,170,69,.34);color:var(--paper);border-radius:9px;
   padding:9px 14px;font-size:var(--fs-md);font-family:inherit;cursor:pointer;letter-spacing:1px;min-height:40px}
 button.gbtn:active{background:rgba(215,170,69,.35)}
 button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 /* 卡片内按钮跟随卡片主题（控制台/掷轮钮不在卡内，仍用暗底基础样式） */
 .overlay .gbtn,.panel .gbtn{background:var(--ck-btn-bg);border-color:var(--ck-btn-br);color:var(--ck-btn-tx)}
-.overlay .gbtn.primary,.panel .gbtn.primary{background:linear-gradient(180deg,#d8ac47,#b0831c);color:#2a1e08;border-color:transparent;font-weight:600}
+.overlay .gbtn.primary,.panel .gbtn.primary{background:linear-gradient(180deg,var(--gold),var(--gold-deep));color:var(--ink-on-gold);border-color:transparent;font-weight:600}
 #topbar{top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:8px 12px;
   background:linear-gradient(rgba(22,18,38,.85),transparent);pointer-events:none}
 #topbar>*{pointer-events:auto}
@@ -2061,6 +2073,8 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 #hallBtn{margin-left:auto}
 #mineBtn{margin-left:8px}
 #hallBtn:hover,#hallBtn:focus-visible,#mineBtn:hover,#mineBtn:focus-visible{color:#f0dfa8;border-color:rgba(232,199,102,.62);background:rgba(30,25,50,.78)}
+/* 浮层期两钮压暗禁点（视觉与行为一致）：disabled 同时断 Tab 可达，见 topNavLock */
+.ovOn #hallBtn,.ovOn #mineBtn{opacity:.25;pointer-events:none}
 /* 窄屏收起字，只留形：两枚去处收成等宽圆钮，把顶栏让回给题字 */
 @media (max-width:380px){
   #hallBtn,#mineBtn{padding:0;width:36px;justify-content:center}
@@ -2075,13 +2089,13 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
   background:rgba(26,22,44,.45);border:1px solid rgba(215,170,69,.45);touch-action:none}
 #joy.show{display:block}
 #joyKnob{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;
-  background:rgba(215,170,69,.5);border:1px solid #d7aa45;box-shadow:0 0 10px rgba(215,170,69,.4);pointer-events:none}
+  background:rgba(215,170,69,.5);border:1px solid var(--gold);box-shadow:0 0 10px rgba(215,170,69,.4);pointer-events:none}
 #secWrap{left:14px;top:50%;transform:translateY(-50%);width:34px;height:42vh;min-height:180px;display:flex;flex-direction:column;align-items:center}
-#secTrack{flex:1;width:5px;background:linear-gradient(to top,rgba(139,63,50,.34),rgba(215,170,69,.2) 45%,rgba(215,170,69,.16));border-radius:3px;position:relative;touch-action:none;cursor:pointer}
+#secTrack{flex:1;width:5px;background:linear-gradient(to top,rgba(176,90,66,.34),rgba(215,170,69,.2) 45%,rgba(215,170,69,.16));border-radius:3px;position:relative;touch-action:none;cursor:pointer}
 #secHandle{position:absolute;left:50%;transform:translate(-50%,50%);bottom:0;width:17px;height:17px;border-radius:50%;
   background:rgba(215,170,69,.5);border:1.5px solid rgba(244,230,184,.85);box-shadow:0 0 6px rgba(215,170,69,.35)}
 #secHandle::before{content:'';position:absolute;inset:-14px;border-radius:50%}
-#secZero{position:absolute;left:-6px;right:-6px;height:1px;background:rgba(240,143,122,.6)}
+#secZero{position:absolute;left:-6px;right:-6px;height:1px;background:rgba(176,90,66,.6)}
 #secWrap{opacity:.72;transition:opacity .25s}
 #secWrap:hover,#secWrap:active{opacity:1}
 #secLabel{font-size:var(--fs-xs);margin-top:6px;color:#cbbb8d;writing-mode:vertical-rl;letter-spacing:2px}
@@ -2090,8 +2104,8 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 #cardSub{font-size:var(--fs-sm);color:#cbbb8d;margin-top:2px}
 #cardTags{display:flex;gap:6px;padding:0 0 8px;flex-wrap:wrap}
 .tag{font-size:var(--fs-xs);padding:2px 8px;border-radius:9px;border:1px solid rgba(215,170,69,.5);color:#e9dcae}
-.tag.warn{border-color:rgba(240,143,122,.7);color:#f0af9e}
-.tag.ns{border-color:rgba(160,190,240,.6);color:#b9ccef}
+.tag.warn{border-color:rgba(176,90,66,.85);color:var(--woe-tx)}
+.tag.ns{border-color:rgba(157,145,112,.6);color:var(--note)}
 #cardBody{font-size:var(--fs-md);line-height:1.85}
 #cardBody details.sec,.overlay .body details.sec{border-top:1px solid var(--ck-line);padding:2px 0;margin-top:6px}
 #cardBody details.sec summary,.overlay .body details.sec summary{cursor:pointer;font-size:var(--fs-sm);color:var(--ck-meta);letter-spacing:2px;padding:9px 0;
@@ -2100,20 +2114,20 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 #cardBody details.sec summary::after,.overlay .body details.sec summary::after{content:'▾';color:var(--ck-note);transition:transform .2s}
 #cardBody details.sec[open] summary::after,.overlay .body details.sec[open] summary::after{transform:rotate(180deg)}
 .sfpChip{display:inline-block;appearance:none;-webkit-appearance:none;font-family:inherit;font-size:var(--fs-sm);padding:5px 10px;margin:2px;
-  border:1px solid rgba(215,170,69,.45);border-radius:10px;color:#efe0b4;background:rgba(215,170,69,.12);cursor:pointer;line-height:1.5}
+  border:1px solid rgba(215,170,69,.45);border-radius:10px;color:var(--paper);background:rgba(215,170,69,.12);cursor:pointer;line-height:1.5}
 .sfpChip:active{background:rgba(215,170,69,.32)}
-.sfpChip.cur{background:#8b3f32;color:#fff;border-color:#d7aa45;box-shadow:0 0 8px rgba(215,170,69,.45)}
-.sfpChip.sel{border-color:#e8c766;background:rgba(215,170,69,.3)}
+.sfpChip.cur{background:var(--woe);color:#fff;border-color:var(--gold);box-shadow:0 0 8px rgba(215,170,69,.45)}
+.sfpChip.sel{border-color:var(--gold-hi);background:rgba(215,170,69,.3)}
 .inlineNote{display:none;margin:8px 2px 2px;padding:8px 10px;border:1px dashed rgba(215,170,69,.4);border-radius:8px}
-.causeBox{margin:8px 0;padding:8px 10px;background:rgba(139,63,50,.18);border-left:2px solid #b0543f;border-radius:0 8px 8px 0}
-.causeBox .ck{font-size:var(--fs-xs);color:#f0af9e;letter-spacing:2px;margin-bottom:3px}
+.causeBox{margin:8px 0;padding:8px 10px;background:rgba(176,90,66,.15);border-left:2px solid var(--woe);border-radius:0 8px 8px 0}
+.causeBox .ck{font-size:var(--fs-xs);color:var(--woe-tx);letter-spacing:2px;margin-bottom:3px}
 .causeBox .cv{color:#eadfb5;font-size:var(--fs-md);line-height:1.7}
-.causeBox .cs{font-size:var(--fs-xs);color:#9d9170;margin-top:4px}
-#cardBody .one{color:#efe0b4}
+.causeBox .cs{font-size:var(--fs-xs);color:var(--note);margin-top:4px}
+#cardBody .one{color:var(--paper)}
 .coordBox{margin:8px 0;padding:8px 10px;border:1px dashed rgba(215,170,69,.45);border-radius:8px;font-size:var(--fs-sm);color:#dccf9f}
 /* v363 位卡地理坐标行：方位＋高下依经直陈；.gk 类型小标（依经有处/非方所摄） */
 .geoLn{margin:7px 0 0;padding:6px 9px;font-size:var(--fs-sm);line-height:1.55;display:flex;flex-wrap:wrap;gap:5px;align-items:baseline}
-.geoLn b{font-weight:600;color:#d7aa45;letter-spacing:1px;flex:0 0 auto}
+.geoLn b{font-weight:600;color:var(--gold);letter-spacing:1px;flex:0 0 auto}
 .geoLn .gk{font-style:normal;font-size:var(--fs-xs);padding:1px 5px;border:1px solid rgba(215,170,69,.4);border-radius:5px;color:#c3ad74;flex:0 0 auto}
 .geoLn .gk.ns{border-color:rgba(150,160,175,.4);color:#98a2b0}
 .geoLn span{color:#cbbb8d;flex:1 1 160px;min-width:0}
@@ -2127,21 +2141,21 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 /* v348 解读卡极简：去向条＋标签短行（长段白话退役），色阶仍从三层一序 */
 .rdRoute{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:2px 0 9px}
 .rdRoute .p{font-size:var(--fs-lg);color:#f4e6b8;letter-spacing:1px;cursor:pointer;border-bottom:1px dotted rgba(215,170,69,.45)}
-.rdRoute .ar{font-size:var(--fs-sm);letter-spacing:2px;color:#d7aa45;white-space:nowrap}
-.rdRoute .ar.up{color:#e8c766}.rdRoute .ar.down{color:#f08f7a}.rdRoute .ar.pure{color:#f6ecc8}.rdRoute .ar.stay{color:#9d9170}
-.rdRoute .p .ag{font-weight:400;font-size:var(--fs-xs);color:#9d9170;margin-left:3px}
+.rdRoute .ar{font-size:var(--fs-sm);letter-spacing:2px;color:var(--gold);white-space:nowrap}
+.rdRoute .ar.up{color:var(--gold-hi)}.rdRoute .ar.down{color:var(--woe-tx)}.rdRoute .ar.pure{color:var(--paper)}.rdRoute .ar.stay{color:var(--note)}
+.rdRoute .p .ag{font-weight:400;font-size:var(--fs-xs);color:var(--note);margin-left:3px}
 .rdRow{display:flex;gap:10px;padding:8px 0;border-top:1px solid rgba(215,170,69,.13)}
-.rdRow .k{flex:0 0 2.6em;font-size:var(--fs-xs);color:#d7aa45;letter-spacing:1px;padding-top:3px}
+.rdRow .k{flex:0 0 2.6em;font-size:var(--fs-xs);color:var(--gold);letter-spacing:1px;padding-top:3px}
 .rdRow .v{flex:1;min-width:0;font-size:var(--fs-md);color:#dccf9f;line-height:1.78}
 .rdRow.m .v{color:#f7eed6}
-.rdRow .v i{font-style:normal;color:#9d9170;font-size:var(--fs-xs);margin-left:6px}
-.rdGlyph{font-size:var(--fs-xs);color:#9d9170;letter-spacing:1px;padding:0 0 8px}
+.rdRow .v i{font-style:normal;color:var(--note);font-size:var(--fs-xs);margin-left:6px}
+.rdGlyph{font-size:var(--fs-xs);color:var(--note);letter-spacing:1px;padding:0 0 8px}
 /* 心相量表已撤（v365：数值系自撰非经论所载），样式一并清除 */
 #cardBtns{display:flex;gap:8px;padding:0 0 8px;flex-wrap:wrap}
 #cardBtns .gbtn{padding:7px 12px;font-size:var(--fs-md);min-height:36px}
-.citeItem{margin:8px 0;padding:8px 10px;background:rgba(215,170,69,.07);border-left:2px solid #d7aa45;border-radius:0 8px 8px 0}
-.citeItem .src{font-size:var(--fs-sm);color:#d7aa45}
-.citeItem .kind{font-size:var(--fs-xs);color:#9d9170;margin-left:6px;border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px}
+.citeItem{margin:8px 0;padding:8px 10px;background:rgba(215,170,69,.07);border-left:2px solid var(--gold);border-radius:0 8px 8px 0}
+.citeItem .src{font-size:var(--fs-sm);color:var(--gold)}
+.citeItem .kind{font-size:var(--fs-xs);color:var(--note);margin-left:6px;border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px}
 .citeItem .txt{margin-top:3px;color:#dccf9f}
 /* 原文引文块：字族随全站统一，靠略大字号、宽行距与金线与白话概述拉开层级 */
 .citeItem.q .txt,details.citeD.q .txt{font-size:1.07em;line-height:1.9;color:#efe3bb}
@@ -2150,16 +2164,16 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 .workCard{display:flex;flex-direction:column;gap:3px;padding:10px 12px;cursor:pointer;border:1px solid rgba(215,170,69,.4);border-radius:10px;background:rgba(215,170,69,.07)}
 .workCard:active{background:rgba(215,170,69,.2)}
 .workCard b{font-size:var(--fs-md);color:#f0dfa8;font-weight:600;line-height:1.4}
-.workCard span{font-size:var(--fs-xs);color:#9d9170}
+.workCard span{font-size:var(--fs-xs);color:var(--note)}
 @media (max-width:520px){#workCards{grid-template-columns:1fr}}
-details.citeD{margin:6px 0;padding:0 10px;background:rgba(215,170,69,.07);border-left:2px solid #d7aa45;border-radius:0 8px 8px 0}
+details.citeD{margin:6px 0;padding:0 10px;background:rgba(215,170,69,.07);border-left:2px solid var(--gold);border-radius:0 8px 8px 0}
 details.citeD summary{list-style:none;cursor:pointer;padding:9px 0;display:flex;align-items:center;gap:5px;flex-wrap:wrap;user-select:none}
 details.citeD summary::-webkit-details-marker{display:none}
-details.citeD summary::after{content:'▾';margin-left:auto;color:#9d9170;font-size:var(--fs-xs)}
+details.citeD summary::after{content:'▾';margin-left:auto;color:var(--note);font-size:var(--fs-xs)}
 details.citeD[open] summary::after{content:'▴'}
 details.citeD .txt{margin:0;padding:0 0 10px;color:#dccf9f}
-.citeD .src{font-size:var(--fs-sm);color:#d7aa45}
-.citeD .kind{font-size:var(--fs-xs);color:#9d9170;border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px}
+.citeD .src{font-size:var(--fs-sm);color:var(--gold)}
+.citeD .kind{font-size:var(--fs-xs);color:var(--note);border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px}
 /* 譜曰分句：一句一行，左侧细金线如谱刻本（字族随全站统一） */
 /* v228 卡片三层一序：cPlain 一句白话（这是什么）→ cRead AI 解读（为什么）→ verse 谱曰原文（依据，点开）
    v229 体例三件：cMeta 金字顶签 / cNote 灰字注脚 / lnk 点读虚线——全卡统一，字级归五档 */
@@ -2189,9 +2203,9 @@ html.paperCards .verse{box-shadow:inset 0 1px 5px rgba(70,54,32,.22)}
 /* 大字档：只抬正文容器字号，正文随之继承放大 */
 html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .profRow{display:flex;gap:10px;margin:7px 0;align-items:flex-start}
-.profRow .pk{flex:0 0 4.6em;color:#d7aa45;font-size:var(--fs-sm);letter-spacing:1px;padding-top:1px}
+.profRow .pk{flex:0 0 4.6em;color:var(--gold);font-size:var(--fs-sm);letter-spacing:1px;padding-top:1px}
 .profRow .pv{flex:1;color:#dccf9f;font-size:var(--fs-md);line-height:1.65}
-.profRow .psrc{margin-left:6px;font-size:var(--fs-xs);color:#9d9170;border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px;white-space:nowrap}
+.profRow .psrc{margin-left:6px;font-size:var(--fs-xs);color:var(--note);border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px;white-space:nowrap}
 .overlay{inset:0;background:var(--ck-scrim);display:flex;align-items:center;justify-content:center;z-index:30;animation:ovIn .18s ease}
 .overlay .panel{max-width:min(560px,92vw);max-height:82vh;display:flex;flex-direction:column;padding:16px;
   position:relative;animation:pnIn .24s cubic-bezier(.2,.8,.25,1)}
@@ -2226,19 +2240,19 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .sheetGrip{width:44px;height:4px;border-radius:3px;background:rgba(231,214,166,.3);margin:4px auto 10px;flex:0 0 auto}
 .smCur{display:flex;align-items:center;gap:10px;padding:11px 12px;margin-bottom:10px;border:1px solid rgba(215,170,69,.28);border-radius:12px;
   background:rgba(215,170,69,.07);cursor:pointer;-webkit-tap-highlight-color:transparent}
-.smCur .k{flex:0 0 auto;font-size:11px;color:#d7aa45;letter-spacing:2px;border:1px solid rgba(215,170,69,.4);border-radius:8px;padding:2px 7px}
-.smCur .v{flex:1;min-width:0;font-size:14.5px;color:#efe0b4;line-height:1.5}
-.smCur .v i{display:block;font-style:normal;font-size:11px;color:#9d9170;letter-spacing:1px;margin-top:1px}
-.smCur .go{flex:0 0 auto;color:#9d9170;font-size:14px}
+.smCur .k{flex:0 0 auto;font-size:var(--fs-xs);color:var(--gold);letter-spacing:2px;border:1px solid rgba(215,170,69,.4);border-radius:8px;padding:2px 7px}
+.smCur .v{flex:1;min-width:0;font-size:var(--fs-md);color:var(--paper);line-height:1.5}
+.smCur .v i{display:block;font-style:normal;font-size:var(--fs-xs);color:var(--note);letter-spacing:1px;margin-top:1px}
+.smCur .go{flex:0 0 auto;color:var(--note);font-size:var(--fs-md)}
 .smIt{display:flex;flex-direction:column;align-items:center;gap:3px;padding:13px 6px;min-height:60px;justify-content:center}
-.smIt b{font-weight:600;font-size:15px;letter-spacing:2px}
-.smIt span{font-size:11px;color:#9d9170;letter-spacing:.5px}
+.smIt b{font-weight:600;font-size:var(--fs-lg);letter-spacing:2px}
+.smIt span{font-size:var(--fs-xs);color:var(--note);letter-spacing:.5px}
 .overlay h2{padding-right:48px}
-.overlay h2{margin:0 0 10px;font-size:17px;letter-spacing:3px;color:#f0dfa8;font-weight:600;
+.overlay h2{margin:0 0 10px;font-size:var(--fs-xl);letter-spacing:3px;color:#f0dfa8;font-weight:600;
   padding-bottom:9px;border-bottom:1px solid transparent;
   border-image:linear-gradient(90deg,rgba(215,170,69,.45),rgba(215,170,69,.06)) 1} /* v242 题字渐变发丝线，分层第一刀 */
-.overlay .body{overflow-y:auto;min-height:0;flex:1 1 auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;font-size:14.5px;line-height:1.85}
-/* v302 滚动条全局一制（用户点单：右侧竖滑杆色彩统一）：夜底淡金，取「一轴一谱」金 #d7aa45；窄轨无头尾钮；左侧导航杆隐滚动条制不受影响 */
+.overlay .body{overflow-y:auto;min-height:0;flex:1 1 auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;font-size:var(--fs-md);line-height:1.85}
+/* v302 滚动条全局一制（用户点单：右侧竖滑杆色彩统一）：夜底淡金，取「一轴一谱」金 var(--gold)；窄轨无头尾钮；左侧导航杆隐滚动条制不受影响 */
 *{scrollbar-width:thin;scrollbar-color:rgba(215,170,69,.42) rgba(22,18,38,.30)}
 *::-webkit-scrollbar{width:7px;height:7px}
 *::-webkit-scrollbar-track{background:rgba(22,18,38,.30);border-radius:4px}
@@ -2251,23 +2265,23 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .setRow{display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid rgba(215,170,69,.18);font-size:var(--fs-md)}
 .lbJoin{display:grid;gap:10px}
 .lbJoin label{font-size:var(--fs-sm);color:#dccf9f}
-.lbJoin input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(216,197,139,.3);border-radius:9px;color:#efe9d8;padding:12px;font-size:16px;outline:none}
+.lbJoin input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(215,170,69,.3);border-radius:9px;color:#efe9d8;padding:12px;font-size:var(--fs-lg);outline:none}
 .lbJoin input:focus{border-color:rgba(232,199,102,.75);box-shadow:0 0 0 2px rgba(215,170,69,.12)}
 /* V92：缘起/玩法由文字墙改成四段原意 + 三步操作；见闻录沿用同一极简排版。 */
-.igLead{font-size:15px;color:#f7eed6;line-height:1.9;margin:2px 0 4px}.igLead b{color:#f4e6b8}
-.igMeta{font-size:11.5px;color:#9d9170;letter-spacing:1px;margin-bottom:10px}
+.igLead{font-size:var(--fs-lg);color:#f7eed6;line-height:1.9;margin:2px 0 4px}.igLead b{color:#f4e6b8}
+.igMeta{font-size:var(--fs-xs);color:var(--note);letter-spacing:1px;margin-bottom:10px}
 .igOr{padding:9px 0;border-top:1px solid rgba(215,170,69,.16)}.igOr:first-of-type{border-top:0}
-.igOr b.k{display:inline-block;font-size:11px;letter-spacing:3px;color:#e8c766;border:1px solid rgba(215,170,69,.4);border-radius:5px;padding:1px 7px;margin-right:8px;vertical-align:2px}
-.igOr>span{font-size:13.8px;color:#e5d8b2;line-height:1.8}
+.igOr b.k{display:inline-block;font-size:var(--fs-xs);letter-spacing:3px;color:var(--gold-hi);border:1px solid rgba(215,170,69,.4);border-radius:5px;padding:1px 7px;margin-right:8px;vertical-align:2px}
+.igOr>span{font-size:var(--fs-md);color:#e5d8b2;line-height:1.8}
 .igStep{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid rgba(215,170,69,.16)}
-.igStep .n{flex:0 0 22px;height:22px;border-radius:50%;border:1px solid rgba(215,170,69,.5);color:#e8c766;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
-.igStep .tx{flex:1;font-size:13.8px;color:#e5d8b2;line-height:1.75}.igStep .tx b{color:#f4e6b8}
-.igStep .tx i{font-style:normal;display:block;font-size:11.5px;color:#9d9170;margin-top:2px}
+.igStep .n{flex:0 0 22px;height:22px;border-radius:50%;border:1px solid rgba(215,170,69,.5);color:var(--gold-hi);font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;margin-top:1px}
+.igStep .tx{flex:1;font-size:var(--fs-md);color:#e5d8b2;line-height:1.75}.igStep .tx b{color:#f4e6b8}
+.igStep .tx i{font-style:normal;display:block;font-size:var(--fs-xs);color:var(--note);margin-top:2px}
 .igTwo{display:flex;gap:8px;margin-top:10px}.igTwo>div{flex:1;padding:9px 10px;border-radius:10px;background:rgba(239,224,180,.05);border:1px solid rgba(215,170,69,.18)}
-.igTwo b{display:block;font-size:13px;letter-spacing:2px;color:#e8c766;margin-bottom:3px}.igTwo span{font-size:12.2px;color:#cdbf95;line-height:1.7}
+.igTwo b{display:block;font-size:var(--fs-sm);letter-spacing:2px;color:var(--gold-hi);margin-bottom:3px}.igTwo span{font-size:var(--fs-sm);color:#cdbf95;line-height:1.7}
 .igBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.igBtns .wide{grid-column:1/-1}
 .lgTop{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;padding:2px 0 10px}.lgTop b{font-size:30px;color:#f4e6b8;line-height:1}
-.lgTop span{font-size:13px;color:#d7aa45;letter-spacing:1px}.lgTop i{flex:1 0 100%;font-style:normal;font-size:11.5px;color:#9d9170;line-height:1.6;margin-top:4px}
+.lgTop span{font-size:var(--fs-sm);color:var(--gold);letter-spacing:1px}.lgTop i{flex:1 0 100%;font-style:normal;font-size:var(--fs-xs);color:var(--note);line-height:1.6;margin-top:4px}
 .lgRow{display:flex;align-items:center;gap:7px;width:100%;padding:5px 0;border:0;border-top:1px solid rgba(215,170,69,.12);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.lgRow.z{opacity:.45}
 /* v353 一屏可见：门表两列紧排（原十五行竖排把行程账挤出视野） */
 .lgG2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
@@ -2275,23 +2289,23 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .lgG2 .lgRow{padding:4px 0}
 .lgG2 .lgRow .bar{flex:0 0 34px}
 .lgG2 .lgRow .n{flex:0 0 40px}
-.lgRow .d{flex:0 0 24px;font-size:11px;color:#d7aa45;text-align:center}.lgRow .t{flex:1;font-size:12.8px;color:#e5d8b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lgRow .bar{flex:0 0 58px;height:4px;border-radius:2px;background:rgba(239,224,180,.12);overflow:hidden}.lgRow .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a6a2a,#e8c766)}
-.lgRow .n{flex:0 0 46px;text-align:right;font-size:11px;color:#9d9170}.lgRow .go{flex:0 0 10px;text-align:right;color:#d7aa45;font-size:12px}
-.lgPs{display:flex;flex-wrap:wrap;gap:4px;margin-top:9px}.lgPs .lgP{font-size:11.5px;padding:2px 7px;border-radius:8px;border:1px solid rgba(215,170,69,.16);color:#8d8368;background:rgba(239,224,180,.03)}
+.lgRow .d{flex:0 0 24px;font-size:var(--fs-xs);color:var(--gold);text-align:center}.lgRow .t{flex:1;font-size:var(--fs-sm);color:#e5d8b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lgRow .bar{flex:0 0 58px;height:4px;border-radius:2px;background:rgba(239,224,180,.12);overflow:hidden}.lgRow .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a6a2a,var(--gold-hi))}
+.lgRow .n{flex:0 0 46px;text-align:right;font-size:var(--fs-xs);color:var(--note)}.lgRow .go{flex:0 0 10px;text-align:right;color:var(--gold);font-size:var(--fs-sm)}
+.lgPs{display:flex;flex-wrap:wrap;gap:4px;margin-top:9px}.lgPs .lgP{font-size:var(--fs-xs);padding:2px 7px;border-radius:8px;border:1px solid rgba(215,170,69,.16);color:#8d8368;background:rgba(239,224,180,.03)}
 .lgPs .lgP.on{color:#f0dfa8;border-color:rgba(215,170,69,.5);background:rgba(215,170,69,.12)}
 .lgNums{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}.lgNums>div{padding:7px 4px;border-radius:9px;background:rgba(239,224,180,.05);border:1px solid rgba(215,170,69,.16);text-align:center}
-.lgNums b{display:block;font-size:17px;color:#f4e6b8;line-height:1.3}.lgNums span{font-size:11px;color:#9d9170;letter-spacing:1px}
-@media(max-width:360px){.igTwo{flex-direction:column}}@media(max-height:470px){.lgTop b{font-size:24px}.lgRow{padding:4px 0}.igLead{font-size:13.8px;line-height:1.7}.igOr{padding:7px 0}.igOr>span{font-size:13px;line-height:1.7}}
+.lgNums b{display:block;font-size:var(--fs-xl);color:#f4e6b8;line-height:1.3}.lgNums span{font-size:var(--fs-xs);color:var(--note);letter-spacing:1px}
+@media(max-width:360px){.igTwo{flex-direction:column}}@media(max-height:470px){.lgTop b{font-size:24px}.lgRow{padding:4px 0}.igLead{font-size:var(--fs-md);line-height:1.7}.igOr{padding:7px 0}.igOr>span{font-size:var(--fs-sm);line-height:1.7}}
 #backBtn{position:static;display:none;font-size:var(--fs-sm);padding:5px 12px;min-height:0;letter-spacing:2px;border-radius:16px;flex:none}
 #backBtn.show{display:block}
 #sfpBar{box-sizing:border-box;bottom:calc(12px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);width:min(540px,96vw);padding:9px 12px;display:none;text-align:center} /* v327 border-box：旧 content-box 宽+padding 在竖屏撑出视口 */
 #sfpBar.show{display:block}
 /* 收起钮收进面板内角：原先半悬在上边框外，像一颗脱落的泡泡；
    状态行右侧留出让位，免得位名跑到它底下。 */
-#conMinBtn{position:absolute;top:5px;right:7px;width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(231,214,166,.22);color:#9d9170;font-size:var(--fs-md);line-height:28px;text-align:center;cursor:pointer;opacity:.75;z-index:2}
-#conMinBtn:hover,#conMinBtn:focus-visible{opacity:1;color:#e8c766;border-color:rgba(232,199,102,.5)}
-#conPill{position:absolute;right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:radial-gradient(circle at 34% 30%,#a4713a,#6b4522 58%,#4a2f16);border:2px solid rgba(215,170,69,.65);box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 18px rgba(215,170,69,.25);color:#f4e6b8;font-size:var(--fs-lg);font-weight:700;letter-spacing:1px;line-height:1.15;text-shadow:0 1px 3px #000;animation:pillBreath 3.2s ease-in-out infinite}
+#conMinBtn{position:absolute;top:5px;right:7px;width:30px;height:30px;border-radius:50%;background:transparent;border:1px solid rgba(231,214,166,.22);color:var(--note);font-size:var(--fs-md);line-height:28px;text-align:center;cursor:pointer;opacity:.75;z-index:2}
+#conMinBtn:hover,#conMinBtn:focus-visible{opacity:1;color:var(--gold-hi);border-color:rgba(232,199,102,.5)}
+#conPill{position:absolute;right:calc(14px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:60px;height:60px;border-radius:50%;display:none;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;background:rgba(20,17,34,.78);backdrop-filter:blur(6px);border:2px solid rgba(215,170,69,.65);box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 18px rgba(215,170,69,.25);color:#f4e6b8;font-size:var(--fs-lg);font-weight:700;letter-spacing:1px;line-height:1.15;text-shadow:0 1px 3px #000;animation:pillBreath 3.2s ease-in-out infinite}
 #conPill.show{display:flex}
 @keyframes pillBreath{0%,100%{box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 12px rgba(215,170,69,.18)}50%{box-shadow:0 3px 14px rgba(0,0,0,.6),0 0 24px rgba(215,170,69,.4)}}
 .gbtn.dis{opacity:.45;pointer-events:none}
@@ -2317,9 +2331,9 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .netEntry .netDots .pd{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;transition:opacity .3s}
 .netEntry .netDots .pd.off{opacity:.3}
 .netEntry .chatLabel{margin-left:6px;font-size:var(--fs-sm);color:#dccf9f;max-width:4.4em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.netEntry .chatLabel.mine{color:#e8c766}
+.netEntry .chatLabel.mine{color:var(--gold-hi)}
 .netEntry .netUnread{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;
-  background:#d98873;color:#14161d;font-size:10px;font-style:normal;line-height:16px;text-align:center;display:none}
+  background:var(--woe-tx);color:#14161d;font-size:10px;font-style:normal;line-height:16px;text-align:center;display:none}
 .netEntry .netUnread.on{display:block}
 #sfpBtns .gbtn{padding:8px 14px;font-size:var(--fs-md);min-height:38px}
 #sfpBtns .gbtn.primary{min-height:46px;font-size:var(--fs-lg);letter-spacing:3px}
@@ -2329,11 +2343,11 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
   background:radial-gradient(ellipse 66% 60% at 50% 46%,rgba(32,27,47,0) 0%,rgba(32,27,47,.05) 34%,rgba(32,27,47,.62) 72%,rgba(24,20,36,.88) 100%)}
 #sfpVeil.on{opacity:1}
 #askQ{width:100%;box-sizing:border-box;background:rgba(26,22,44,.8);border:1px solid rgba(215,170,69,.45);border-radius:8px;
-  color:#efe0b4;font-family:inherit;font-size:var(--fs-md);padding:8px 10px;resize:vertical;min-height:52px}
+  color:var(--paper);font-family:inherit;font-size:var(--fs-md);padding:8px 10px;resize:vertical;min-height:52px}
 #labels{transition:opacity .45s}
 #sfpDice.on{display:flex}
 /* v386 掷轮念文（用户令）：一句「至心称念」引领＋六字静置不动——字不呼吸不闪，不给用户节拍压力 */
-#sfpChant{flex:0 0 100%;text-align:center;margin-top:22px;color:#efe0b4}
+#sfpChant{flex:0 0 100%;text-align:center;margin-top:22px;color:var(--paper)}
 #sfpChant em{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:4px;color:#c8b988;margin-bottom:10px;opacity:.9}
 #sfpChant b{font-size:29px;font-weight:600;margin:0 6px;display:inline-block;color:#f4e6b8;
   text-shadow:0 0 18px rgba(232,199,102,.8),0 1px 6px #000}
@@ -2345,9 +2359,9 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
   opacity:.08;transition:opacity .45s;pointer-events:none}
 #sfpDice.settle #sfpChant{opacity:1;color:#f4e6b8}
 #sfpDice span{width:84px;height:84px;display:flex;align-items:center;justify-content:center;font-size:48px;
-  color:#f4e6b8;background:rgba(26,22,44,.94);border:2px solid #d7aa45;border-radius:16px;
+  color:#f4e6b8;background:rgba(26,22,44,.94);border:2px solid var(--gold);border-radius:16px;
   box-shadow:0 0 26px rgba(215,170,69,.45);transition:width .22s,height .22s,font-size .22s,opacity .22s}
-#sfpDice.settle span{color:#fff;background:rgba(139,63,50,.94)}
+#sfpDice.settle span{color:#fff;background:rgba(176,90,66,.94)}
 #fadeWhite{position:absolute;inset:0;background:#14101f;opacity:0;pointer-events:none;transition:opacity .5s;z-index:40}
 #posReveal{position:absolute;left:50%;top:32%;transform:translate(-50%,-42%) scale(.82);font-size:30px;letter-spacing:8px;
   color:#f4e6b8;text-shadow:0 0 20px rgba(215,170,69,.85),0 2px 10px #000;opacity:0;pointer-events:none;z-index:26;
@@ -2366,24 +2380,24 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #glsPop{position:fixed;z-index:70;padding:10px 13px;pointer-events:auto}
 #glsPop b{font-size:var(--fs-lg);color:#f0dfa8;letter-spacing:1px}
 #glsPop #glsD{margin-top:5px;font-size:var(--fs-sm);line-height:1.7;color:#e6d9ac}
-#glsPop #glsF{margin-top:6px;font-size:var(--fs-xs);color:#9d9170;letter-spacing:.5px}
+#glsPop #glsF{margin-top:6px;font-size:var(--fs-xs);color:var(--note);letter-spacing:.5px}
 #verdict.min #vBody,#verdict.min #vWhy,#verdict.min #vSrc,#verdict.min #vGo,#verdict.min #vX{display:none!important}
 #verdict.min{padding:7px 16px;cursor:pointer;opacity:.92}
 #verdict.min #vN::after{content:' ▴';opacity:.6}
 #sfpBar.vd{opacity:.72;transition:opacity .25s}
 #vTop{display:flex;align-items:center;gap:8px;padding-right:30px}
-#vN{margin-left:auto;font-size:var(--fs-xs);color:#9d9170;letter-spacing:.5px;white-space:nowrap}
+#vN{margin-left:auto;font-size:var(--fs-xs);color:var(--note);letter-spacing:.5px;white-space:nowrap}
 #vChips{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 .vchip{display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:2px 8px;font-size:var(--fs-xs);letter-spacing:.5px}
 .vchip b{font-size:var(--fs-xl);font-weight:700;cursor:pointer}
 .vchip i{font-style:normal;font-size:var(--fs-xs);opacity:.85;border:1px solid currentColor;border-radius:4px;padding:0 3px;margin-left:1px}
 .vchip.g{border:1.5px solid rgba(215,170,69,.75);color:#e8d9a6}.vchip.g b,.vchip.g i{color:#f4e6b8}
-.vchip.e{border:1.5px solid rgba(176,84,63,.85);color:#e8b7a8}.vchip.e b,.vchip.e i{color:#f0af9e}
-.vchipNote{font-size:var(--fs-xs);color:#9d9170;letter-spacing:0}
+.vchip.e{border:1.5px solid rgba(176,90,66,.85);color:var(--woe-tx)}.vchip.e b,.vchip.e i{color:var(--woe-tx)}
+.vchipNote{font-size:var(--fs-xs);color:var(--note);letter-spacing:0}
 /* v226 判词工具行退役：AI 解读小签缀位名同行；谱曰原文改「点开再读」虚线签 */
-.vaskC{font-size:var(--fs-xs);border:1px solid rgba(215,170,69,.5);border-radius:7px;padding:2px 9px;margin-left:9px;color:#d7aa45;cursor:pointer;vertical-align:2px;white-space:nowrap;position:relative}
+.vaskC{font-size:var(--fs-xs);border:1px solid rgba(215,170,69,.5);border-radius:7px;padding:2px 9px;margin-left:9px;color:var(--gold);cursor:pointer;vertical-align:2px;white-space:nowrap;position:relative}
 .vaskC::before{content:'';position:absolute;inset:-12px -14px}
-.vsrcT{cursor:pointer;color:#9d9170;border-bottom:1px dotted rgba(157,145,112,.6);white-space:nowrap}
+.vsrcT{cursor:pointer;color:var(--note);border-bottom:1px dotted rgba(157,145,112,.6);white-space:nowrap}
 /* v236 「问」聊天式界面：问右答左双气泡 + 快问签 */
 .cbRow{display:flex;margin:4px 0}
 .cbU{margin-left:auto;max-width:86%;background:var(--ck-cbU);border:1px solid var(--ck-cbU-br);border-radius:11px 11px 3px 11px;padding:7px 11px;font-size:var(--fs-sm);color:var(--ck-cbU-tx);line-height:1.65}
@@ -2391,7 +2405,7 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .cbA .sec{margin-top:6px}
 .chipQ{font-family:var(--f-ui);font-size:var(--fs-sm);border:1px solid var(--ck-btn-br);border-radius:9px;padding:7px 11px;color:var(--ck-meta);cursor:pointer;white-space:nowrap}
 /* 问·输入框：跟随卡片主题（16px 防 iOS 聚焦缩放） */
-.cbInput{flex:1;min-width:0;box-sizing:border-box;background:var(--ck-btn-bg);border:1px solid var(--ck-btn-br);border-radius:10px;color:var(--ck-plain);padding:11px 12px;font-family:var(--f-ui);font-size:16px}
+.cbInput{flex:1;min-width:0;box-sizing:border-box;background:var(--ck-btn-bg);border:1px solid var(--ck-btn-br);border-radius:10px;color:var(--ck-plain);padding:11px 12px;font-family:var(--f-ui);font-size:var(--fs-lg)}
 .cbInput::placeholder{color:var(--ck-note);font-family:var(--f-ui);font-style:normal;letter-spacing:.2px}
 /* G 版智能体检索反馈（仿文钞：正在检证→细检相关篇章→综合） */
 .cbStage{font-size:var(--fs-sm);color:var(--ck-read);animation:chantBreath 1.4s ease-in-out infinite;margin:4px 0}
@@ -2406,28 +2420,28 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 /* 联机判词卡的本手剩余时间：服务器逾时会代为交轮，读谱注的人有权知道自己还剩多久 */
 #vClock{margin-left:8px;font-style:normal;font-size:var(--fs-xs);color:#b9b09a;font-variant-numeric:tabular-nums}
 #vClock:empty{display:none}
-#vClock.warn{color:#e8c766}
+#vClock.warn{color:var(--gold-hi)}
 /* 站内确认卡（替代 window.confirm）：自成一层，不占 overlay */
 #sfpConfirm{position:fixed;inset:0;z-index:64;display:none;align-items:center;justify-content:center;
   padding:16px;background:rgba(8,10,15,.76);backdrop-filter:blur(4px)}
 #sfpConfirm.on{display:flex}
 #sfpConfirm .cfCard{width:min(340px,92vw);box-sizing:border-box;padding:20px 18px 16px;color:#e8e2d0;
-  background:rgba(18,21,30,.98);border:1px solid rgba(216,197,139,.42);border-radius:16px}
+  background:rgba(18,21,30,.98);border:1px solid rgba(215,170,69,.42);border-radius:16px}
 #sfpConfirm h3{margin:0 0 8px;letter-spacing:2px;color:#f0dfa8;font-size:var(--fs-lg)}
 #sfpConfirm .cfBody{color:#b9b09a;font-size:var(--fs-sm);line-height:1.7}
-#sfpConfirm .cfBody b{color:#e8c766;font-weight:500}
+#sfpConfirm .cfBody b{color:var(--gold-hi);font-weight:500}
 #sfpConfirm .gbtn{display:block;width:100%;min-height:46px;margin-top:10px}
 /* 我的功课：全站与个人共用同一组列（累计／今日），上下一对照就懂 */
 .myPanel .myLoad{padding:36px 0;text-align:center;color:#77705f;letter-spacing:2px}
-.myPanel .myWho{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:#9d9170}
-.myPanel .myWho b{color:#e8c766;font-weight:500}
+.myPanel .myWho{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--note)}
+.myPanel .myWho b{color:var(--gold-hi);font-weight:500}
 .myPanel .myWho .gbtn{margin-left:auto;min-height:32px;padding:5px 12px;font-size:var(--fs-xs)}
 .myPanel .myGrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:11px;
   background:rgba(215,170,69,.16);border:1px solid rgba(215,170,69,.16);border-radius:12px;overflow:hidden}
 .myPanel .myGrid div{padding:12px 13px;background:#15121f}
 .myPanel .myGrid.me,.myPanel .myGrid div.me{background:rgba(232,199,102,.05)}
 .myPanel .myGrid i{display:block;font-style:normal;color:#8b8471;font-size:var(--fs-xs);letter-spacing:1px}
-.myPanel .myGrid b{display:block;margin-top:3px;color:#e8c766;font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.myPanel .myGrid b{display:block;margin-top:3px;color:var(--gold-hi);font-size:var(--fs-display);font-weight:500;font-variant-numeric:tabular-nums}
 .myPanel .myGrid .me b{color:#f4e6b8}
 .myPanel .myLine{margin-top:9px;text-align:center;color:#a99c79;font-size:var(--fs-sm);letter-spacing:1px}
 .myPanel .myLine2{margin:16px 0 7px;color:#a4936c;font-size:var(--fs-xs);letter-spacing:3px}
@@ -2450,56 +2464,59 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .myPanel .myRow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-size:var(--fs-sm);min-height:44px}
 .myPanel .myRow .ico{color:#c8a94e;opacity:.92}   /* 行首的形只作辨识，比字略退半步，不抢正文 */
 .myPanel .myRow>span{min-width:0;flex:1 1 auto}
-.myPanel .myRow i{margin-left:auto;font-style:normal;color:#d7aa45}
+.myPanel .myRow i{margin-left:auto;font-style:normal;color:var(--gold)}
 .myPanel .myRun{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;
   padding:8px 2px;border-bottom:1px solid rgba(215,170,69,.1);font-size:var(--fs-sm)}
 .myPanel .myRun b{color:#e0d3a6;font-weight:500;white-space:nowrap}
-.myPanel .myRun span{color:#9d9170;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.myPanel .myRun span{color:var(--note);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .myPanel .myRun em{font-style:normal;color:#6e685a;font-size:var(--fs-xs);white-space:nowrap}
 /* 共同结算卡：一句结果 + 一句本座 + 同座行处，三层看完即知本局如何 */
 .nsPanel .nsHead{margin-top:6px;color:#f0dfa8;font-size:var(--fs-lg);letter-spacing:2px}
 .nsPanel .nsMine{margin-top:3px;color:#cfc7ad;font-size:var(--fs-sm)}
-.nsPanel .nsList{margin-top:11px;border-top:1px solid rgba(216,197,139,.16)}
+.nsPanel .nsList{margin-top:11px;border-top:1px solid rgba(215,170,69,.16)}
 .nsPanel .nsRow{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:9px;
-  min-height:40px;border-bottom:1px solid rgba(216,197,139,.09);font-size:var(--fs-sm)}
+  min-height:40px;border-bottom:1px solid rgba(215,170,69,.09);font-size:var(--fs-sm)}
 .nsPanel .nsRow .dot{width:10px;height:10px;border-radius:50%}
 .nsPanel .nsRow b{color:#dcd0ad;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nsPanel .nsRow span{color:#9d9170;white-space:nowrap}
+.nsPanel .nsRow span{color:var(--note);white-space:nowrap}
 #vBody{margin-top:8px;font-size:var(--fs-md);line-height:1.6}
 #vWhy{margin-top:6px;font-size:var(--fs-sm);color:#dccf9f;line-height:1.7;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-#verdict[data-dir="up"]{border-left-color:#e8c766}
-#verdict[data-dir="down"]{border-left-color:#f08f7a;transform:translate(-50%,-14px)}
-#verdict[data-dir="stay"]{border-left-color:#9d9170}
+#verdict[data-dir="up"]{border-left-color:var(--gold-hi)}
+#verdict[data-dir="down"]{border-left-color:var(--woe-tx);transform:translate(-50%,-14px)}
+#verdict[data-dir="stay"]{border-left-color:var(--note)}
 #verdict[data-dir="pure"]{border-left-color:#f6ecc8}
-#verdict[data-dir="start"],#verdict[data-dir="bonus"]{border-left-color:#d7aa45}
+#verdict[data-dir="start"],#verdict[data-dir="bonus"]{border-left-color:var(--gold)}
 .ladDoor.fl i{animation:ladFl .55s ease 2}
 @keyframes ladFl{0%,100%{transform:scale(1)}45%{transform:scale(2.1);box-shadow:0 0 10px currentColor}}
-#rollBn{position:absolute;top:-8px;right:-3px;font-size:var(--fs-xs);line-height:1;padding:3px 7px;border-radius:9px;background:#2a2416;border:1px solid rgba(232,199,102,.6);color:#e8c766;display:none;pointer-events:none;letter-spacing:1px;z-index:1}
+#rollBn{position:absolute;top:-8px;right:-3px;font-size:var(--fs-xs);line-height:1;padding:3px 7px;border-radius:9px;background:#2a2416;border:1px solid rgba(232,199,102,.6);color:var(--gold-hi);display:none;pointer-events:none;letter-spacing:1px;z-index:1}
 #rollRing{position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity .25s;padding:2.5px;box-sizing:border-box;
   background:conic-gradient(rgba(232,199,102,.95) var(--p,0%),rgba(232,199,102,.14) 0);
   -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;
   mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);mask-composite:exclude}
 #sfpRoll.hold #rollRing{opacity:1}
-#sfpName .nSub{margin-left:8px;font-size:var(--fs-xs);color:#9d9170;letter-spacing:.5px;font-weight:400}
+#sfpName .nSub{margin-left:8px;font-size:var(--fs-xs);color:var(--note);letter-spacing:.5px;font-weight:400}
 #posReveal i{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:1px;margin-top:8px;color:#e8dcb2;text-shadow:0 1px 8px #000;opacity:.95}
 #tierDots{position:absolute;left:22px;top:calc(50% + max(21vh,90px) + 14px);display:flex;flex-direction:column;gap:5px;align-items:center;padding:7px 4px;background:rgba(14,18,26,.5);border:1px solid rgba(215,170,69,.18);border-radius:9px;pointer-events:none;z-index:9} /* v328 用户误读为杂点：离开天梯右列，归左侧截面滑杆下方成控制簇，胶囊＋竖排档名自证身份 */
 #tierDots i{width:6px;height:6px;border-radius:50%;background:rgba(215,170,69,.18);border:1px solid rgba(215,170,69,.3);transition:background .3s,box-shadow .3s}
-#tierDots i.on{background:#e8c766;box-shadow:0 0 6px rgba(232,199,102,.7)}
+#tierDots i.on{background:var(--gold-hi);box-shadow:0 0 6px rgba(232,199,102,.7)}
 #tierDots b{writing-mode:vertical-rl;font-weight:400;font-size:9.5px;letter-spacing:2px;color:rgba(215,170,69,.6);margin-top:3px;line-height:1}
 #hovTag{position:absolute;display:none;padding:3px 9px;font-size:var(--fs-sm);color:#f0dfa8;background:rgba(16,22,30,.85);border:1px solid rgba(215,170,69,.35);border-radius:8px;pointer-events:none;z-index:24;letter-spacing:1px;white-space:nowrap}
 #vX{position:absolute;top:6px;right:6px;width:34px;height:34px;background:rgba(215,170,69,.12);border:1px solid rgba(215,170,69,.4);
-  border-radius:8px;color:#d7aa45;font-size:var(--fs-lg);line-height:1;cursor:pointer}
+  border-radius:8px;color:var(--gold);font-size:var(--fs-lg);line-height:1;cursor:pointer}
 #transitCap{position:absolute;left:50%;top:15%;transform:translateX(-50%);text-align:center;opacity:0;transition:opacity .5s;pointer-events:none;z-index:20;max-width:88vw}
 #transitCap.show{opacity:1}
 #transitCap b{display:block;font-size:var(--fs-lg);letter-spacing:4px;color:#f4e6b8;text-shadow:0 0 18px rgba(215,170,69,.85),0 2px 8px #000}
 #transitCap i{display:block;font-style:normal;margin-top:6px;font-size:var(--fs-sm);line-height:1.6;color:#dccf9f;letter-spacing:1px;text-shadow:0 1px 6px #000}
-#doorIntro{position:absolute;left:50%;top:54px;transform:translate(-50%,-8px);width:min(600px,92vw);z-index:26;opacity:0;pointer-events:none;
+/* v391 修「点右侧门梯无反应、地图变空」：本卡居中时宽 min(600px,92vw)，640 宽视口下右边缘正好盖死门梯
+   （right:6px、宽52px）——点门被本卡吞掉，inDoor 停在前一门而门珠已按新门隐去→满屏空。
+   为门梯让位（右置 64px＝6+52+6），不靠提升门梯层级互盖。 */
+#doorIntro{position:absolute;left:auto;right:64px;top:54px;transform:translateY(-8px);width:min(600px,calc(100vw - 80px));z-index:26;opacity:0;pointer-events:none;
   transition:opacity .5s,transform .5s;background:rgba(26,22,44,.9);border:1px solid rgba(215,170,69,.45);border-radius:10px;
   padding:12px 14px;backdrop-filter:blur(6px);box-sizing:border-box}
-#doorIntro.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#doorIntro.show{opacity:1;transform:translateY(0);pointer-events:auto}
 #doorIntro b{display:block;font-size:var(--fs-md);letter-spacing:3px;color:#f0dfa8}
 #doorIntro .dit{margin-top:7px;font-size:var(--fs-sm);line-height:1.78;color:#e6d9ac;max-height:36vh;overflow-y:auto;text-align:justify}
-#doorIntro .dif{margin-top:8px;font-size:var(--fs-xs);color:#9d9170;letter-spacing:1px}
+#doorIntro .dif{margin-top:8px;font-size:var(--fs-xs);color:var(--note);letter-spacing:1px}
 #ascendFx{position:absolute;inset:0;z-index:60;pointer-events:none;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #ascendFx .afGlow{position:absolute;left:50%;top:50%;width:150vmax;height:150vmax;
   background:radial-gradient(circle,rgba(244,230,184,.95) 0%,rgba(232,199,102,.55) 22%,rgba(215,170,69,.22) 45%,rgba(32,27,47,0) 70%);
@@ -2545,36 +2562,36 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .ladDoor.cur i{border-color:#fff;transform:scale(1.55);animation:curPulse 2.2s ease-in-out infinite}
 .ladDoor.aic i{outline:2px solid rgba(150,225,214,.75);outline-offset:2px}
 @keyframes curPulse{0%,100%{box-shadow:0 0 7px currentColor}50%{box-shadow:0 0 15px currentColor,0 0 24px rgba(232,199,102,.55)}}
-#ladTop,#ladBot{position:absolute;right:11px;font-size:var(--fs-xs);color:#cbbb8d;letter-spacing:1px}
+#ladTop,#ladBot{position:absolute;right:11px;font-size:var(--fs-xs);color:#cbbb8d;letter-spacing:1px;text-shadow:0 0 6px rgba(10,8,20,.95),0 0 2px #000}
 #ladTop{top:-20px}#ladBot{bottom:-20px}
 .ladDoor{position:absolute;left:0;right:0;height:6.66%;display:flex;align-items:center;justify-content:flex-end;gap:5px;cursor:pointer;pointer-events:auto}
-.ladDoor b{font-weight:400;font-size:var(--fs-xs);color:#9d9170;letter-spacing:0;white-space:nowrap;transition:color .2s;text-shadow:0 1px 3px rgba(10,8,20,.8)}
+.ladDoor b{font-weight:400;font-size:var(--fs-xs);color:var(--note);letter-spacing:0;white-space:nowrap;transition:color .2s;text-shadow:0 0 6px rgba(10,8,20,.95),0 0 2px #000,0 1px 3px rgba(10,8,20,.8)} /* 四向暗晕：窄屏亮金光带/轨道虚线上门号仍可辨 */
 .ladDoor i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.28);box-shadow:0 0 5px rgba(10,8,20,.5);margin-right:11px;transition:transform .22s,box-shadow .22s;flex:0 0 auto}
 .ladDoor.on b{color:#f4e6b8}
 .ladDoor.on i{transform:scale(1.75);box-shadow:0 0 12px currentColor}
 .ladDoor.cur i{border-color:#fff;box-shadow:0 0 9px rgba(232,199,102,.9)}
-#ladName{position:absolute;right:50px;background:rgba(24,18,38,.88);border:1px solid rgba(215,170,69,.45);border-radius:8px;padding:4px 10px;font-size:var(--fs-sm);color:#efe0b4;white-space:nowrap;display:none;pointer-events:none;letter-spacing:1px}
+#ladName{position:absolute;right:50px;background:rgba(24,18,38,.88);border:1px solid rgba(215,170,69,.45);border-radius:8px;padding:4px 10px;font-size:var(--fs-sm);color:var(--paper);white-space:nowrap;display:none;pointer-events:none;letter-spacing:1px}
 #sfpRoll.glow{animation:rollGlow 1.6s ease-in-out infinite}
 #sfpRoll.wait{opacity:.45;filter:saturate(.5)} /* 联机候轮：未轮到时压暗 */
 #sfpRoll.hold{background:rgba(215,170,69,.32);box-shadow:0 0 18px rgba(232,199,102,.55);color:#f4e6b8;animation:none}
 @keyframes rollGlow{0%,100%{box-shadow:0 0 5px rgba(232,199,102,.2)}50%{box-shadow:0 0 18px rgba(232,199,102,.8)}}
 .sfpTrailRow{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-sm);padding:5px 0;border-bottom:1px solid rgba(215,170,69,.15);text-align:left;cursor:pointer}
-.sfpTrailRow .tn{flex:0 0 3.4em;color:#9d9170;font-size:var(--fs-xs)}
-.sfpTrailRow .tc{flex:0 0 3em;color:#d7aa45}
+.sfpTrailRow .tn{flex:0 0 3.4em;color:var(--note);font-size:var(--fs-xs)}
+.sfpTrailRow .tc{flex:0 0 3em;color:var(--gold)}
 .sfpMoves{margin:6px 0}
 .sfpMoves .mv{display:flex;gap:8px;font-size:var(--fs-sm);margin:3px 0;color:#dccf9f;text-align:left}
-.sfpMoves .mv b{color:#d7aa45;font-weight:600;flex:0 0 8.5em;text-align:right}
+.sfpMoves .mv b{color:var(--gold);font-weight:600;flex:0 0 8.5em;text-align:right}
 #toast{bottom:calc(178px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
   background:rgba(26,22,44,.95);border:1px solid rgba(215,170,69,.6);border-radius:9px;padding:9px 16px;
   font-size:var(--fs-md);opacity:0;transition:opacity .3s;pointer-events:none;max-width:86vw;text-align:center}
 #peek{position:absolute;z-index:26;pointer-events:none;max-width:272px;padding:9px 12px;font-size:var(--fs-sm);line-height:1.6;color:#dccf9f;display:none}
 #peek b{color:#f4e6b8}
 @media (max-width:600px){ #title{font-size:var(--fs-lg);letter-spacing:2px} .nlabel{font-size:var(--fs-xs)} .nlabel.t1{font-size:var(--fs-md)} }
-.nlabel.drl{font-size:var(--fs-xs);color:#cfe0d4;opacity:.85;transform:translate(-50%,-165%)}
-.nlabel.tier12{font-size:var(--fs-xs);color:#c9b980;opacity:.8;letter-spacing:2.5px;text-shadow:0 0 8px rgba(20,14,34,.9),0 1px 3px #000;pointer-events:none}
+.nlabel.drl{font-size:var(--fs-xs);color:var(--paper);opacity:.85;transform:translate(-50%,-165%)}
+.nlabel.tier12{font-size:var(--fs-xs);color:var(--paper);opacity:.8;letter-spacing:2.5px;text-shadow:0 0 8px rgba(20,14,34,.9),0 1px 3px #000;pointer-events:none}
 .nlabel.tier12.bcap{pointer-events:auto;cursor:pointer;font-size:var(--fs-md);opacity:.94;padding:7px 10px}
 .nlabel.tier12.bcap.on{font-size:var(--fs-lg);opacity:1;text-shadow:0 0 14px currentColor,0 1px 4px #000}
-.nlabel.cap4{font-size:var(--fs-sm);color:#e8c766;opacity:.9;letter-spacing:3px}
+.nlabel.cap4{font-size:var(--fs-sm);color:var(--gold-hi);opacity:.9;letter-spacing:3px}
 .nlabel.drl.cur{font-size:var(--fs-md);color:#ffe9a8;opacity:1;text-shadow:0 0 12px rgba(215,170,69,.85),0 1px 4px #000}
 `;
 
@@ -2584,21 +2601,21 @@ css.textContent += `
 .smPanel{width:min(500px,92vw)}
 .smPanel>h2{margin-bottom:12px;letter-spacing:5px}
 .smPanel .body{display:grid;gap:14px;align-content:start}
-.smStat{display:grid;gap:4px;padding:14px 15px;border:1px solid rgba(216,197,139,.14);border-radius:12px;
+.smStat{display:grid;gap:4px;padding:14px 15px;border:1px solid rgba(215,170,69,.14);border-radius:12px;
   background:rgba(255,255,255,.025);line-height:1.5}
 .smStat span,.smLabel{color:#817967;font-size:var(--fs-xs);letter-spacing:2px}
 .smStat b{color:#e7d9b3;font-size:var(--fs-md);font-weight:500;letter-spacing:2px}
-.smStat i{font-style:normal;color:#9d9170;font-size:var(--fs-sm);letter-spacing:1px}
+.smStat i{font-style:normal;color:var(--note);font-size:var(--fs-sm);letter-spacing:1px}
 .smSection{display:grid;gap:7px}
 .smGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.smList{display:grid;align-content:start;line-height:1.35;border-top:1px solid rgba(216,197,139,.1)}
+.smList{display:grid;align-content:start;line-height:1.35;border-top:1px solid rgba(215,170,69,.1)}
 .smRow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;line-height:1.35;
   border:1px solid transparent;border-radius:10px;padding:11px 12px;cursor:pointer;
   font-family:inherit;color:#e8e2d0;min-height:46px;box-sizing:border-box;transition:background .16s,border-color .16s}
 .smGrid .smRow{display:grid;align-content:center;gap:5px;min-height:78px;background:rgba(255,255,255,.03);
-  border-color:rgba(216,197,139,.14)}
+  border-color:rgba(215,170,69,.14)}
 .smGrid .smRow:last-child:nth-child(odd){grid-column:1/-1;min-height:64px}
-.smList .smRow{border-radius:0;border-bottom-color:rgba(216,197,139,.1);background:none}
+.smList .smRow{border-radius:0;border-bottom-color:rgba(215,170,69,.1);background:none}
 .smRow:hover,.smRow:active{background:rgba(232,199,102,.09);border-color:rgba(232,199,102,.28)}
 .smRow b{font-size:var(--fs-md);font-weight:600;letter-spacing:2px;color:#f0dfa8;flex:none}
 .smRow i{font-style:normal;font-size:var(--fs-xs);color:#8f8774;letter-spacing:1px;
@@ -2607,8 +2624,8 @@ css.textContent += `
 .smDanger{padding-top:2px}
 .smRow.warn{min-height:42px;background:none;border-color:transparent}
 .smRow.warn b{color:#b9ae93;font-weight:500}
-.smRow.arm{background:rgba(217,136,115,.16)}
-.smRow.arm b,.smRow.arm i{color:#f08f7a}
+.smRow.arm{background:rgba(176,90,66,.16)}
+.smRow.arm b,.smRow.arm i{color:var(--woe-tx)}
 .smPanel .gbtn.primary{width:100%;padding:13px 0;letter-spacing:3px}
 /* 抓手条：手机底部抽屉态才现 */
 .panel .grab{display:none}
@@ -2616,12 +2633,12 @@ css.textContent += `
   /* 底部抽屉：从拇指区升起，贴底不居中 */
   .overlay.ovsheet{align-items:flex-end}
   .overlay.ovsheet .panel{max-width:100vw;width:100%;border-radius:16px 16px 0 0;
-    height:auto;max-height:84dvh;border:1px solid rgba(216,197,139,.28);border-bottom:none;
+    height:auto;max-height:84dvh;border:1px solid rgba(215,170,69,.28);border-bottom:none;
     padding:8px 16px calc(16px + env(safe-area-inset-bottom));animation:pnUp .26s cubic-bezier(.2,.8,.25,1)}
   .overlay.ovsheet .ovClose{top:14px;right:14px}
   .overlay.ovsheet .panel .grab{display:block;height:18px;position:relative;margin:-6px 0 2px}
   .overlay.ovsheet .panel .grab::after{content:'';position:absolute;left:50%;top:7px;width:42px;height:4px;
-    border-radius:2px;background:rgba(216,197,139,.45);transform:translateX(-50%)}
+    border-radius:2px;background:rgba(215,170,69,.45);transform:translateX(-50%)}
   .smPanel .body{gap:11px}.smGrid .smRow{min-height:70px;padding:10px}
 }
 `;
@@ -2635,7 +2652,7 @@ function el(html        )              {
 // 右上角常驻大厅入口：进出共修是主干节点，不该藏在底部控制台或二级菜单里。
 // 题字（左）＝观照全图，大厅（右）＝进出共修，一屏两角各管一件事。
 const topbar = el(`<div id="topbar" class="ui">
-  <div id="title">选佛谱 <span style="font-size:11px;color:#d7aa45;opacity:.85">⊙</span></div></div>`);
+  <div id="title">选佛谱 <span style="font-size:var(--fs-xs);color:#d7aa45;opacity:.85">⊙</span></div></div>`);
 app.appendChild(topbar);
 // 题字即全图观照入口；题屏仍留给开局引导，「选佛」钮负责开始或续掷。
 const titleEl = topbar.querySelector('#title')               ;
@@ -3003,15 +3020,26 @@ updateLabelBadges();
 // ---------------- 覆盖层 ----------------
 let overlayEl                     = null;
 let overlayOnClose                      = null;
+let vdAutoMin = false; // 判词因浮层自动收签的旗标：只有本次收起过才在关层时还原（勿覆盖用户自己下滑收签的状态）
+// 浮层期顶栏「大厅/我的」压暗禁点（含断 Tab 可达）：从前两钮隔着薄纱清晰可见、样子可点，
+// 点击却落在 overlay 背景上＝关掉当前层，是无提示的隐形二段式操作——视觉与行为在此统一
+function topNavLock(on         ) {
+  document.documentElement.classList.toggle('ovOn', on);
+  hallBtn.disabled = on; mineBtn.disabled = on;
+}
 // v220 弹窗交互统一：场景转场用软关——挂 keepOv 的重要面板（及第等）不被转场吞掉；用户手关（✕/背景/Esc/按钮）仍走 closeOverlay
 function softCloseOverlay() { if (overlayEl && overlayEl.querySelector('.keepOv')) return; closeOverlay(); }
 function closeOverlay() {
   if (overlayEl) { overlayEl.remove(); overlayEl = null; }
+  topNavLock(false);
+  if (vdAutoMin) { vdAutoMin = false; if (verdictEl.classList.contains('show')) verdictEl.classList.remove('min'); } // 关层还原被自动收起的判词
   controls.autoRotate = false; // 题屏环拍只在题屏挂：任何覆盖层一收即停
   const f = overlayOnClose; overlayOnClose = null; if (f) f();
 }
 function openOverlay(inner             ) {
   closeOverlay();
+  // 一屏一窗：判词在场时开浮层，判词先自动收成细签（信息不丢、金色大钮不再隔纱争焦点），关层还原
+  if (verdictEl.classList.contains('show') && !verdictEl.classList.contains('min')) { verdictEl.classList.add('min'); vdAutoMin = true; }
   overlayEl = el('<div class="overlay ui"></div>');
   const isSheet = inner.classList.contains('sheet');
   const isCenter = inner.classList.contains('center');
@@ -3051,6 +3079,7 @@ function openOverlay(inner             ) {
     inner.addEventListener('pointercancel', fin);
   }
   app.appendChild(overlayEl);
+  topNavLock(true);
 }
 
 // ── 安卓返回键（及 iOS 侧滑返回）接管：返回＝逐层退出，不再一键离站 ──
@@ -3077,7 +3106,12 @@ window.addEventListener('popstate', (e) => {
   if (Net.isPanelOpen()) { Net.closePanel(); armBackGuard(); return; }
   if (inDoor) { exitDoor(true); armBackGuard(); return; }
   if (inNether || inPure || inSky || inBodhi || inDisc) { returnSaha(); armBackGuard(); return; }
+  // 判词在场：返回＝落子收层（与掷钮 v360「按掷＝先落子」同义），不离站——
+  // 否则「行处已存」失实：功课已计一掷而判定未行，离站后本掷蒸发、两本账对不上
+  if (verdictFn && verdictMine()) { commitVerdict(); armBackGuard(); return; }
   if (sfpS.active) {   // 局中裸退：先告知已存档，短窗内再按一次才真离开
+    // 掷轮动画窗（功课已计而判词未出，约 1.3–2.1s）不受理离站：此刻「行处已存」不实，离站会丢本掷
+    if (sfpS.rolling && !verdictFn) { showToast(zh('本掷正在落定，稍候'), 1600); armBackGuard(); return; }
     const nowB = Date.now();
     if (nowB - backLeaveAt > 2600) {
       backLeaveAt = nowB;
@@ -3172,7 +3206,7 @@ function passFilter(d     )          {
   return true;
 }
 
-function openSettings() {
+function openSettings(backTo        ) { // backTo：同路往返（如「我的→设置」关卡回「我的」，与 openPlazaRename 同构）
   // v313 用户令瘦身：声音三项（音效/环境声/及第唱赞）合并一行总开关（底层三键同进退，存档兼容）；低性能行删（自动降档制替）
   const p = el(`<div class="panel"><h2>设置</h2><div class="body">
     <div class="setRow"><span>声音（音效 · 环境声 · 及第唱赞）</span><button class="gbtn" data-k="sfx"></button></div>
@@ -3205,6 +3239,7 @@ function openSettings() {
     if (selectedId && card.isConnected) renderCard();
   });
   zhSync(); themeSync(); sync(); openOverlay(p);
+  if (backTo) overlayOnClose = () => { overlayOnClose = null; backTo(); };
 }
 
 function openTitle() {
@@ -3233,7 +3268,11 @@ function openTitle() {
   const thall = p.querySelector('#tiHall');
   if (thall) thall.addEventListener('click', () => openPlaza());
   const tn = p.querySelector('#tiNew');
-  if (tn) tn.addEventListener('click', () => { closeOverlay(); startSfp(false); });
+  // 弃档三入口统一确认等级（⋯菜单两击、大厅 askConfirm）：题屏最显眼，不该唯一零确认
+  if (tn) tn.addEventListener('click', async () => {
+    if (!await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
+    closeOverlay(); cancelVerdict(); startSfp(false);
+  });
   (p.querySelector('#tiHow')               ).addEventListener('click', () => openSfpHelp());
   const tnet = p.querySelector('#tiNet');             // 已在房：直达同修面板
   if (tnet) tnet.addEventListener('click', () => {
@@ -3671,7 +3710,7 @@ function netherStrataTex(flip         )                      {
   ];
   bands.forEach(([a, b, c]) => { cx.fillStyle = c; cx.fillRect(0, yOf(a), 1024, yOf(b) - yOf(a) + 1); });
   const grd = cx.createLinearGradient(0, yOf(34), 0, 512);
-  grd.addColorStop(0, 'rgba(139,63,50,0)'); grd.addColorStop(1, 'rgba(168,76,52,0.55)');
+  grd.addColorStop(0, 'rgba(176,90,66,0)'); grd.addColorStop(1, 'rgba(168,76,52,0.55)');
   cx.fillStyle = grd; cx.fillRect(0, yOf(34), 1024, 512 - yOf(34));
   cx.strokeStyle = 'rgba(0,0,0,0.28)'; cx.lineWidth = 2; // 岩理短划
   for (let i = 0; i < 130; i++) {
@@ -3680,7 +3719,7 @@ function netherStrataTex(flip         )                      {
   }
   const mark = (d        , t        ) => {
     const y = yOf(d);
-    cx.strokeStyle = 'rgba(216,197,139,0.5)'; cx.lineWidth = 2;
+    cx.strokeStyle = 'rgba(215,170,69,0.5)'; cx.lineWidth = 2;
     cx.setLineDash([10, 12]); cx.beginPath(); cx.moveTo(0, y); cx.lineTo(1024, y); cx.stroke(); cx.setLineDash([]);
     cx.save(); cx.setTransform(1, 0, 0, 1, 0, 0); // 文字不随镜像
     cx.font = '600 27px "PingFang SC","Microsoft YaHei",sans-serif';
@@ -4891,12 +4930,40 @@ function doorClusterView(dno        )                                           
   const pts = Object.keys(doorPlanets).map(k => doorPlanets[k]);
   if (!pts.length) return null;
   const c = new THREE.Vector3(); pts.forEach(v => c.add(v)); c.divideScalar(pts.length);
-  let r = 0; pts.forEach(v => { r = Math.max(r, c.distanceTo(v)); });
+  // v391 修「点门梯进门场、图上是空的」：旧制只取一个各向同一的半径 r，又只水平后退（out.setY(0)），
+  // 遇门 5 这种沿 Y 轴竖排二十一天的门，竖向跨度被水平半径辗平，顶上诸天直接出画面。
+  // 改法：水平/竖向半径分算，取景距离取两者所需之大者（各自按相应 fov 换算）；竖排门压低仰角。
+  let rH = 0, rV = 0;
+  pts.forEach(v => {
+    rH = Math.max(rH, Math.hypot(v.x - c.x, v.z - c.z));
+    rV = Math.max(rV, Math.abs(v.y - c.y));
+  });
   const out = c.clone().setY(0);
   if (out.lengthSq() < 1) out.set(0.6, 0, 1);
   out.normalize();
-  return { pos: c.clone().addScaledVector(out, r * 1.7 + 16).add(new THREE.Vector3(0, r * 0.55 + 7, 0)), target: c };
+  const vFov = (camera.fov * Math.PI) / 180;
+  const hFov = 2 * Math.atan(Math.tan(vFov / 2) * camera.aspect);
+  const dist = Math.max((rV * 1.25 + 6) / Math.tan(vFov / 2), (rH * 1.25 + 6) / Math.tan(hFov / 2), 18);
+  const tall = rV > rH * 0.8; // 竖排门（诸天/四空）：俯角压低，不然一条竖线俯视成一点
+  const lift = tall ? rV * 0.12 + 4 : rH * 0.55 + 7;
+  return { pos: c.clone().addScaledVector(out, dist).add(new THREE.Vector3(0, lift, 0)), target: c };
 }
+// 只读探针：门簇几何与取景（v391 校准用，不改画面）
+(window       ).__doorGeo = () => {
+  const ks = Object.keys(doorPlanets);
+  if (!ks.length) return null;
+  const c = new THREE.Vector3(); ks.forEach(k => c.add(doorPlanets[k])); c.divideScalar(ks.length);
+  let rH = 0, rV = 0, ymin = Infinity, ymax = -Infinity;
+  ks.forEach(k => { const v = doorPlanets[k];
+    rH = Math.max(rH, Math.hypot(v.x - c.x, v.z - c.z)); rV = Math.max(rV, Math.abs(v.y - c.y));
+    ymin = Math.min(ymin, v.y); ymax = Math.max(ymax, v.y); });
+  const v2 = doorClusterView(inDoor);
+  return { n: ks.length, center: [+c.x.toFixed(1), +c.y.toFixed(1), +c.z.toFixed(1)],
+    rH: +rH.toFixed(1), rV: +rV.toFixed(1), ySpan: [+ymin.toFixed(1), +ymax.toFixed(1)],
+    camPos: v2 ? [+v2.pos.x.toFixed(1), +v2.pos.y.toFixed(1), +v2.pos.z.toFixed(1)] : null,
+    camTarget: v2 ? [+v2.target.x.toFixed(1), +v2.target.y.toFixed(1), +v2.target.z.toFixed(1)] : null,
+    dist: v2 ? +v2.pos.distanceTo(v2.target).toFixed(1) : null, inDoor };
+};
 function doorViewFor(pid        )                                                {
   const wp = doorPlanets[pid].clone();
   const out = wp.clone().setY(0); // 自山轴向外取景，背山面珠
@@ -5679,9 +5746,9 @@ function posReveal(name        , dir         , pid         ) {
   void pid; // v319 行棋减噪：白话小句撤（判词卡已讲过，100% 重复）——只留位名大字+方向箭头
   const arrow = dir === 'up' ? '▲ ' : dir === 'down' ? '▼ ' : dir === 'pure' ? '' : dir === 'start' ? '' : '';
   posRevealEl.innerHTML = zh(esc(arrow + name));
-  posRevealEl.style.color = dir === 'down' ? '#f0a08c' : '#f4e6b8';
+  posRevealEl.style.color = dir === 'down' ? '#f0af9e' : '#f4e6b8'; // 红字唯一亮档（--woe-tx 同值，内联守兜底字面）
   posRevealEl.style.textShadow = dir === 'down'
-    ? '0 0 20px rgba(240,143,122,.85),0 2px 10px #000' : '0 0 20px rgba(215,170,69,.85),0 2px 10px #000';
+    ? '0 0 20px rgba(240,175,158,.85),0 2px 10px #000' : '0 0 20px rgba(215,170,69,.85),0 2px 10px #000';
   posRevealEl.classList.add('show');
   clearTimeout(posRevealT);
   posRevealT = window.setTimeout(() => posRevealEl.classList.remove('show'), 1400);
@@ -5696,10 +5763,14 @@ let vdOnAsk = false;
 function sfpEvidenceLabel(item     )         {
   if (item.type === SFP_EVIDENCE_TYPE.operation) return '本项目操作规则';
   if (item.type === SFP_EVIDENCE_TYPE.interpretation) return '释义';
+  if (item.type === SFP_EVIDENCE_TYPE.glyph) return '字义解'; // v389 另栏署名：本项目依卷首表法的理解层，不冒谱曰
+  if (item.subtype === 'refer_note') return '所指位谱曰';     // v390 总括句所指位的按语（仍是谱主逐字原文，ref 标所指）
   return item.subtype === 'rule_fact' ? '行法原文' : '谱曰原文';
 }
 function sfpEvidencePlainHtml(value     )         {
-  return sfpEvidenceItems(value).filter(item => item.type !== SFP_EVIDENCE_TYPE.source).map(item =>
+  // 空 text 项过滤：mergeSfpEvidence 等入口混入空项时不渲出光秃「释义：」标签
+  return sfpEvidenceItems(value).filter(item => item.type !== SFP_EVIDENCE_TYPE.source)
+    .filter(item => item.text && String(item.text).trim()).map(item =>
     `<div><b style="color:#d7aa45">${sfpEvidenceLabel(item)}：</b>${glossify(esc(item.text))}</div>`
   ).join('');
 }
@@ -5710,19 +5781,23 @@ function sfpEvidenceSourceHtml(value     )         {
   ).join('');
 }
 function sfpEvidenceCompactHtml(value     )         {
-  return sfpEvidenceItems(value).map(item =>
+  return sfpEvidenceItems(value).filter(item => item.text && String(item.text).trim()).map(item =>
     `<small style="display:block;font-size:var(--fs-xs);color:#9d9170;line-height:1.55"><b style="color:#bda660">${sfpEvidenceLabel(item)}：</b>${esc(item.text)}</small>`
   ).join('');
 }
 function sfpEvidenceInterpretationText(value     )         {
   return sfpEvidenceItems(value, SFP_EVIDENCE_TYPE.interpretation).map(item => item.text).join(' ');
 }
+function sfpEvidenceGlyphText(value     )         {
+  return sfpEvidenceItems(value, SFP_EVIDENCE_TYPE.glyph).map(item => item.text).join(' ');
+}
 function sfpEvidenceOperationText(value     )         {
   return sfpEvidenceItems(value, SFP_EVIDENCE_TYPE.operation).map(item => item.text).join(' ');
 }
 function sfpEvidenceCites(value     , pid        , juan        )         {
+  // v390 所指位引文的折叠与「阅读原文」须落到被指位（refId/refJuan），不落回本位
   return sfpEvidenceItems(value, SFP_EVIDENCE_TYPE.source).map(item =>
-    rdCite(`${sfpEvidenceLabel(item)}${item.ref ? ` · ${item.ref}` : ''}`, pid, item.text, juan)
+    rdCite(`${sfpEvidenceLabel(item)}${item.ref ? ` · ${item.ref}` : ''}`, (item       ).refId || pid, item.text, (item       ).refJuan || juan)
   );
 }
 function showVerdict(body        , why                                      , goLabel        , fn            , combo         , destId         , askQ         , dirKey         , light          ) {
@@ -5779,8 +5854,10 @@ function showVerdict(body        , why                                      , go
   sfpBar.classList.add('vd');
   verdictEl.classList.remove('min');
   verdictEl.classList.add('show');
+  vdAutoMin = false; // 新判词一出即是全展态，旧的自动收签旗标作废
   verdictFn = fn;
-  syncRollGlow(); // v360 掷钮＝同一动作：判词一出，掷钮即题「行」字亮起
+  fcapEl.textContent = zh('本掷'); // 判词期轮相牌题头＝本掷（commit 后回「上一掷」），免同屏时态失实
+  sfpStatus(); // 状态行随判词口径（勿滞留「未起行·先掷」祈使）＋ v360 掷钮题「行」字亮起
   // v319：判词木鱼撤——每掷双响合并为一响（方向音在行棋提交时 sfpShowMsg 处播）
 }
 function pauseVerdict() { // 点面板正文＝展开白话全句＋谱曰原文细读（判词不自动关，想看多久看多久）
@@ -5789,7 +5866,9 @@ function pauseVerdict() { // 点面板正文＝展开白话全句＋谱曰原文
 }
 function commitVerdict() {
   const f = verdictFn; verdictFn = null;
+  vdAutoMin = false; // 判词行毕，自动收签旗标一并清（防 closeOverlay 事后摸空还原）
   sfpBar.classList.remove('vd');
+  fcapEl.textContent = zh('上一掷');
   syncRollGlow(); // v360 掷钮题字随判词退场即时复位（勿滞留「行 ▸」）
   if (!f) { verdictEl.classList.remove('show', 'paused', 'min', 'src'); return; }
   // ① 承接拍：判词窗收光入轮相牌、牌面脉冲一记，再起飞（不再瞬切）
@@ -5807,10 +5886,12 @@ function commitVerdict() {
   }, 300);
 }
 function cancelVerdict() {
-  verdictFn = null; verdictEl.classList.remove('show', 'paused', 'min', 'zap', 'src');
+  verdictFn = null; vdAutoMin = false;
+  verdictEl.classList.remove('show', 'paused', 'min', 'zap', 'src');
   verdictEl.style.removeProperty('--zx'); verdictEl.style.removeProperty('--zy');
   sfpBar.classList.remove('vd');
-  syncRollGlow(); // v360 同 commit：题字复位
+  fcapEl.textContent = zh('上一掷');
+  sfpStatus(); // 状态行随判词退场复位（含 v360 题字复位），免滞留「待行」口径
 }
 let vdY0 = -1, vdSwipeT = 0;
 verdictEl.addEventListener('pointerdown', (e) => {
@@ -5993,6 +6074,7 @@ const sfpBar = el(`<div id="sfpBar" class="ui panel">
     <button class="gbtn" id="sfpMore" style="min-height:52px;padding:8px 15px;font-size:var(--fs-xl)" title="谱务菜单">⋯</button></div>
   <div id="conMinBtn" title="收起控制台（缩为右下角掷轮钮）">—</div></div>`);
 app.appendChild(sfpBar);
+const fcapEl = sfpBar.querySelector('#sfpFaces .fcap')               ; // 轮相牌题头：判词期「本掷」，行毕回「上一掷」
 (sfpBar.querySelector('#sfpChat')               ).addEventListener('click', () => Net.togglePanel());
 const conPill = el('<div id="conPill" class="ui" title="展开掷轮控制台"><span>掷</span><span>轮</span></div>');
 app.appendChild(conPill);
@@ -6012,7 +6094,7 @@ function setConMin(v         ) {
   applyConVis();
 }
 (sfpBar.querySelector('#sfpFaces')               ).addEventListener('click', () => { // v327 轮相牌从伪钮正名为真钮：点开本局行迹
-  if (sfpS.rolling || sfpTransit) return;
+  if (sfpTransit || (sfpS.rolling && !verdictFn)) return; // 判词期放行看行迹（静止等待态非行棋中，无副作用）
   playSfx('sfx-tap', 0.2); openSfpTrail();
 });
 (sfpBar.querySelector('#conMinBtn')               ).addEventListener('click', (e) => {
@@ -6216,6 +6298,11 @@ const SFP_CN = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '
 let sfpMsgHold = 0;
 function sfpNameHtml() {
   const p = sfpS.pos ? SFP_BY[sfpS.pos] : null;
+  if (verdictFn) { // 判词在场：同屏勿再祈使「先掷」——判词卡已题「第 n 掷」，状态行随其口径
+    return p
+      ? zh(`${esc(p.name)}<span class="nSub">第 ${sfpS.n} 掷待行</span>`)
+      : zh(`第 ${sfpS.n} 掷已定<span class="nSub">点「行」起行</span>`);
+  }
   return p
     ? zh(`${esc(p.name)}<span class="nSub">第 ${sfpS.n} 掷</span>`)
     : zh('未起行<span class="nSub">先掷發始因地</span>');
@@ -6481,7 +6568,7 @@ function markDoorSeen(doorNo        ) {
   if (!sfpS.seenD.includes(doorNo)) { sfpS.seenD.push(doorNo); sfpSave(); }
 }
 const SFP_DIR_BADGE                         = {
-  up: '<b style="color:#e8c766">▲ 升</b>｜', down: '<b style="color:#f08f7a">▼ 降</b>｜',
+  up: '<b style="color:#e8c766">▲ 升</b>｜', down: '<b style="color:#f0af9e">▼ 降</b>｜',
   stay: '<b style="color:#9d9170">● 安住</b>｜', pure: '<b style="color:#efe0b4">横超</b>｜', start: '<b style="color:#e8c766">起行</b>｜',
 };
 let sfpMsgLog           = [];
@@ -6669,7 +6756,9 @@ function sfpApply(combo        , chain = false) {
     const p0 = (SFP_POS         ).find(p => p.start === combo);
     if (p0) {
       vib(15);
-      showVerdict(`${SFP_DIR_BADGE.start}因地<b class="vdst">「${p0.name}」</b>，自此起行`, '', '行 ▸', () => {
+      // 首掷判词释义＝廿一因义读＋本位白话（从前传空串，卡上渲出光秃「释义：」标签）
+      const d1w = [SFP_D1_CAPTION[p0.id], (SFP_POS_PLAIN       )[p0.id]].filter(Boolean).join('——');
+      showVerdict(`${SFP_DIR_BADGE.start}因地<b class="vdst">「${p0.name}」</b>，自此起行`, d1w, '行 ▸', () => {
         sfpLog(combo, `起行 · 因地「${p0.name}」`, 'start', undefined, p0.id);
         sfpGoto(p0.id, `因地「${p0.name}」`, 'start', combo);
         done();
@@ -6693,7 +6782,8 @@ function sfpApply(combo        , chain = false) {
       return makeSfpSourceEvidence('那那等不行者。不起惡故。', 'pu_explanation', '《選佛譜》卷第五 · 藏教位次門「忍位」譜注（通例）');
     }
     if (!evilInert && MIX6.includes(c)) return makeSfpSourceEvidence(MIX6_WHY, 'pu_explanation', '《選佛譜》卷第一 · 發始因地門「見取」譜注（通例）');
-    return undefined;
+    // v389 字义解末位兜底：谱注与通例引文皆无时，依卷首表法给逐位字义解（另栏署名，不冒谱曰）
+    return makeSfpGlyphEvidence(id, c) || undefined;
   };
   const mv = (p.moves         ).find(m => m.c.includes(combo));
   if (!mv) {
@@ -6822,13 +6912,16 @@ function sfpPalmDown() {
   chantEl.innerHTML = `<em>${zh('至心称念')}</em>` + '南无阿弥陀佛'.split('').map(c => `<b>${zh(c)}</b>`).join('');
   startWheelPalm();
 }
-function sfpPrepareTossRelease() {
+function sfpPalmAbort() { // 掌心态中断（松手旁掷/endSfp/联机强制水合共用）：撤 hold 金底、清进度环、复位钮文与称念行
   palmHeld = false;
   sfpRollBtn.classList.remove('hold');
   window.clearInterval(ringIt);
   (sfpRollBtn.querySelector('#rollTxt')               ).textContent = zh('长按掷轮');
-  sfpRollBtn.classList.add('dis');
   (sfpDice.querySelector('#sfpChant')               ).textContent = ''; // 松手后轮已离掌，不再挂提示，留白看轮相
+}
+function sfpPrepareTossRelease() {
+  sfpPalmAbort();
+  sfpRollBtn.classList.add('dis');
 }
 function sfpAnimateCommittedToss(combo        , authoritativeN                ) {
   if (Number.isFinite(authoritativeN)) sfpS.n = Number(authoritativeN);
@@ -6913,7 +7006,7 @@ function openSfpMore() {
   });
   const newButton = p.querySelector('#smNew')               ;
   if (newButton) newButton.addEventListener('click', function (                 ) {
-    if (sfpS.rolling || sfpTransit) { closeOverlay(); showToast('行棋中，稍候再新开'); return; }
+    if (sfpTransit || (sfpS.rolling && !(verdictFn && !Net.active))) { closeOverlay(); showToast('行棋中，稍候再新开'); return; } // 单机判词期放行（cancelVerdict 在后善后）
     if (this.dataset.arm) {
       closeOverlay(); cancelVerdict();
       startSfp(false); showToast('已新开一局——先掷發始因地'); return;
@@ -7037,7 +7130,7 @@ const SFP_DOOR_TOTAL = (() => {
   for (const p of (SFP_POS         )) out[p.door] = (out[p.door] || 0) + 1;
   return out;
 })();
-function openLogbook() {
+function openLogbook(backTo        ) { // backTo：同路往返（「我的→见闻录」关卡回「我的」）
   const lg = save.lg;
   const by = lgSeenByDoor();
   const total = (SFP_POS         ).length;
@@ -7064,17 +7157,19 @@ function openLogbook() {
       <button class="gbtn primary" id="lgGo" style="flex:1 0 100%">${sfpS.active ? '回到局中' : '入选佛场'}</button>
       <button class="gbtn" id="lgMap" style="flex:1">十五门全图</button>
       <button class="gbtn" id="lgOk" style="flex:1">关闭</button></div></div>`);
+  // 内部跳转先解除返程回调（plazaNavAway 同构）：否则 closeOverlay 会把 backTo 误发、连锁重开旧页
   (p.querySelector('#lgGo')               ).addEventListener('click', () => {
-    closeOverlay();
+    overlayOnClose = null; closeOverlay();
     if (!sfpS.active) openSfpIntro();
   });
-  (p.querySelector('#lgMap')               ).addEventListener('click', () => { closeOverlay(); openSfpMap(); });
+  (p.querySelector('#lgMap')               ).addEventListener('click', () => { overlayOnClose = null; closeOverlay(); openSfpMap(); });
   (p.querySelector('#lgOk')               ).addEventListener('click', closeOverlay);
   p.querySelectorAll('.lgRow').forEach(row => row.addEventListener('click', () => {
-    closeOverlay();
+    overlayOnClose = null; closeOverlay();
     openDoorBrief(Number((row               ).dataset.dn));
   }));
   openOverlay(p);
+  if (backTo) overlayOnClose = () => { overlayOnClose = null; backTo(); };
 }
 function openDoorBrief(dn        ) {
   const door = SFP_DOOR_BY[dn];
@@ -7115,7 +7210,7 @@ const sfpPlain = (combo        ) => combo.split('').map(ch => `「${ch}」${SFP_
 function openSfpHelp() {
   const row = (ch        , good         ) => `<div style="display:flex;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid rgba(215,170,69,.15)">
     <span style="width:34px;height:34px;flex:none;display:flex;align-items:center;justify-content:center;font-size:var(--fs-xl);
-      border:1.5px solid ${good ? '#d7aa45' : '#b0543f'};border-radius:8px;color:${good ? '#f4e6b8' : '#f0af9e'}">${ch}</span>
+      border:1.5px solid ${good ? '#d7aa45' : '#b05a42'};border-radius:8px;color:${good ? '#f4e6b8' : '#f0af9e'}">${ch}</span>
     <span style="font-size:var(--fs-md);color:#e6d9ab">${SFP_PLAIN[ch]}</span>
     <span style="margin-left:auto;font-size:var(--fs-xs);color:#9d9170">${good ? '善 ↑' : '惡 ↓'}</span></div>`;
   const h = (t        ) => `<div class="cMeta" style="margin:12px 0 5px;border-bottom:1px solid rgba(215,170,69,.3);padding-bottom:3px">${t}</div>`;
@@ -7248,7 +7343,7 @@ function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续
   pendingDoorIntro = null;
   hideDoorIntro();
   sfpBar.classList.remove('show'); conPill.classList.remove('show'); sfpDice.classList.remove('on');
-  sfpWheelGroup.visible = false; wheelAnim = null; palmHeld = false; sfpBonusLeft = 0;
+  sfpWheelGroup.visible = false; wheelAnim = null; sfpPalmAbort(); sfpBonusLeft = 0; // 中途散局若正长按：hold 金底与进度环一并撤
   sfpQuiet(false);
   setSfpFocus(0);
   if (sfpTimer) clearInterval(sfpTimer);
@@ -7558,6 +7653,7 @@ function myMonthHtml(daily                          , year        , month       
   return { html: cells, sum };
 }
 function openMine() {
+  plazaNavAway();            // 全屏页入口通例（openStream/openPlaza 同构）：解除旧层回调，免 openOverlay 连锁产出孤儿浮层
   Net.closePanel();          // 同上：全屏页期间收起同修面板，看完再点「聊」唤回
   const lg = save.lg;
   const p = el(`<div class="panel pzPanel myPanel"><div class="fsShell">
@@ -7610,14 +7706,15 @@ function openMine() {
     (body.querySelector('#myPrev')               ).addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1); paint(); });
     (body.querySelector('#myNext')               ).addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); paint(); });
     (body.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
-    (body.querySelector('#myLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
+    // 子页一律同路往返回「我的」（原先唯改名号能回，设置/原文/见闻三条单程出走落裸场景）
+    (body.querySelector('#myLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(openMine); });
     (body.querySelector('#myRename')               ).addEventListener('click', () => { closeOverlay(); openPlazaRename(); });
     (body.querySelector('#myCanon')               ).addEventListener('click', () => {
       closeOverlay();
       const at = sfpS.pos ? SFP_BY[sfpS.pos] : null;
-      openCanon(at ? at.door : 1, at ? at.name : undefined);
+      openCanon(at ? at.door : 1, at ? at.name : undefined, openMine);
     });
-    (body.querySelector('#mySet')               ).addEventListener('click', () => { closeOverlay(); openSettings(); });
+    (body.querySelector('#mySet')               ).addEventListener('click', () => { closeOverlay(); openSettings(openMine); });
   };
 
   (async () => {
@@ -7629,8 +7726,11 @@ function openMine() {
       paint();
     } catch (e) {
       if (!p.isConnected) return;
+      // 失败态与大厅同构（#pzRetry 之例）：给重试钮，移动网瞬断不必关页再手动重开
       body.innerHTML = `<div class="cNote">${zh('功课暂时取不到，请稍后再看。')}</div>`
-        + `<button class="gbtn primary" id="myOk" style="margin-top:10px;width:100%">${zh('关闭')}</button>`;
+        + `<button class="gbtn primary" id="myRetry" style="margin-top:10px;width:100%">${zh('重试')}</button>`
+        + `<button class="gbtn" id="myOk" style="margin-top:8px;width:100%">${zh('关闭')}</button>`;
+      (body.querySelector('#myRetry')               ).addEventListener('click', () => { closeOverlay(); openMine(); });
       (body.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
     }
   })();
@@ -7696,10 +7796,10 @@ function plazaRender(data) {
     backText: sfpS.active ? '回到局中' : '回题屏', // 钮上写去处（✕ 同去向）：无局关大厅回题屏，不落裸场景
     onSolo: async () => {                           // 一人行谱：不占座，若在房先离席
       // 护栏与 ⋯菜单「重开一局」同则（smNew 之例）：掷轮/飞行中不换局，免旧局残手落入新局
-      if (sfpS.rolling || sfpTransit) { showToast(zh('本掷落定后再换'), 2200); return; }
+      if (sfpTransit || (sfpS.rolling && !(verdictFn && !Net.active))) { showToast(zh('本掷落定后再换'), 2200); return; } // 单机判词期放行
       if (!await confirmLeaveMatch('离开本局，改为一人行谱')) return;
-      // 单机局中经此路重开＝丢当前行处：与「重开一局」同等确认，右上大厅恒在不该成为零确认旁路
-      if (sfpS.active && !Net.active && !await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
+      // 单机局中或有存局经此路重开＝丢当前行处：与「重开一局」同等确认，右上大厅恒在不该成为零确认旁路
+      if ((sfpS.active || (save.sfp && SFP_BY[save.sfp.pos])) && !Net.active && !await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
       cancelVerdict();                              // 旧判词闭包一并清（否则大厅盖住的判词卡会在新局重现）
       plazaNavAway(); closeOverlay();
       if (Net.active) Net.leave({ notify: false });
@@ -7761,8 +7861,8 @@ async function openPlaza() {
         `<button class="gbtn" id="pzSolo2" style="margin-top:8px;width:100%">${zh('一人行谱')}</button>`;
       loading.querySelector('#pzRetry').addEventListener('click', () => openPlaza());
       loading.querySelector('#pzSolo2').addEventListener('click', async () => { // 与大厅 onSolo 同护栏：此兜底钮同样不该是丢局旁路
-        if (sfpS.rolling || sfpTransit) { showToast(zh('本掷落定后再换'), 2200); return; }
-        if (sfpS.active && !Net.active && !await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
+        if (sfpTransit || (sfpS.rolling && !(verdictFn && !Net.active))) { showToast(zh('本掷落定后再换'), 2200); return; } // 单机判词期放行
+        if ((sfpS.active || (save.sfp && SFP_BY[save.sfp.pos])) && !Net.active && !await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
         cancelVerdict();
         overlayOnClose = null; closeOverlay(); startSfp(false);
       });
@@ -7781,12 +7881,14 @@ function sfpMovesHtml(p     )         {
     if (mv.bonus) to += (to ? '，' : '') + `贈${'一二三四'[mv.bonus - 1]}掷`;
     if (mv.act) to += `，依「${mv.act}」行`;
     const w = (mv.c            ).map(c => { listed.add(c); return whyMap[c]; }).find(x => x);
-    return `<div class="mv"><b>${mv.c.join(' · ')}</b><span>${to}${w ? sfpEvidenceCompactHtml(w) : ''}</span></div>`;
+    // v389 谱主未释此组时垫字义解（另栏署名「字义解」，不冒谱曰）
+    const g = !w ? (mv.c            ).map(c => makeSfpGlyphEvidence(p.id, c)).find(x => x) : null;
+    return `<div class="mv"><b>${mv.c.join(' · ')}</b><span>${to}${w || g ? sfpEvidenceCompactHtml(w || g) : ''}</span></div>`;
   }).join('');
   // 不行之组：原谱注中有说明缘由者一并列出
   const stayRows = Object.keys(whyMap).filter(c => !listed.has(c)).map(c =>
     `<div class="mv"><b>${c}</b><span style="color:#9d9170">不行${sfpEvidenceCompactHtml(whyMap[c])}</span></div>`).join('');
-  return '<div class="sfpMoves">' + rows + stayRows + '<div class="cNote" style="margin-top:6px">未列组合：不行（安住本位）；小字已按“行法原文／谱曰原文／释义”分层。</div></div>';
+  return '<div class="sfpMoves">' + rows + stayRows + '<div class="cNote" style="margin-top:6px">未列组合：不行（安住本位）；小字已按“行法原文／谱曰原文／释义／字义解”分层。</div></div>';
 }
 // 譜曰排版：整段连排便于阅读（用户点单，原一句一行已撤）；只改排版不动原文，名相词典照过
 const verseHtml = (t        ) => glossify(esc(t));
@@ -7885,7 +7987,7 @@ function openFourLands() {
   openOverlay(inner);
 }
 // v177 六卷原文整卷阅读器（CBETA 補編 B0136 逐字）：原文按门分挂——卷首敘/表法/升降见门1，卷末紀事见门15
-function openCanon(doorNo        , jumpName         ) {
+function openCanon(doorNo        , jumpName         , backTo        ) { // backTo：同路往返（「我的→六卷原文」关卡回「我的」），翻门透传保返程不断
   const d = (SFP_CANON_DOORS       )[doorNo]                                                                                                 ;
   if (!d) return;
   const door = SFP_DOOR_BY[doorNo];
@@ -7905,9 +8007,13 @@ function openCanon(doorNo        , jumpName         ) {
     // v356 谱文页＝深读层（位卡只呈本位之注，想学更多来此）：全文照录 + 逐段文白对读；
     // 对读未覆盖的段落垫本位整段白话，不留「只有原文」的死角
     let du = duiduHtml(body);
-    if (sp && !du.includes('<div class="dd">')) {
-      const pl = (SFP_POS_PLAIN       )[sp.id];
-      if (pl) du += `<div class="dd">${glossify(esc(String(pl)))}</div>`;
+    // v387 兜底同 rdCite 之例：不只「全段零对读」才垫——首段之前无白话即将本位白话提至最前（白话→原文一序）
+    if (sp) {
+      const fd = du.indexOf('<div class="dd">'), fv = du.indexOf('</div>');
+      if (fd < 0 || (fv > 0 && fd > fv + 400)) {
+        const pl = (SFP_POS_PLAIN       )[sp.id];
+        if (pl) du = `<div class="dd">${glossify(esc(String(pl)))}</div>` + du;
+      }
     }
     return `<div data-ci="${ci}" style="margin-top:12px;border-top:1px solid rgba(215,170,69,.18);padding-top:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -7927,7 +8033,7 @@ function openCanon(doorNo        , jumpName         ) {
     playSfx('sfx-tap', 0.25);
     const cp = d.positions[Number((b               ).dataset.ci)];
     const sp = cp && posOf(cp.name);
-    if (sp) openSfpNote(sp.id);
+    if (sp) { overlayOnClose = null; openSfpNote(sp.id); } // 跳位卡先解除返程回调，免连锁重开
   }));
   inner.querySelectorAll('.cnT').forEach(t => t.addEventListener('click', () => { // v355 位名目录跳段
     playSfx('sfx-tap', 0.22);
@@ -7936,14 +8042,19 @@ function openCanon(doorNo        , jumpName         ) {
     // scrollIntoView 在 overlay 内被祖先裁剪层吃掉（上游实测不动）：直接算 scrollTop 差值
     if (tgt && sc) sc.scrollTo({ top: sc.scrollTop + (tgt.getBoundingClientRect().top - sc.getBoundingClientRect().top) - 6, behavior: 'smooth' });
   }));
+  // 翻门先解除返程回调再透传 backTo：openCanon 内部 openOverlay 会先关本层，挂着的回调若不解除即被误发
   const pv = inner.querySelector('#cnPrev')                      ;
-  if (pv && doorNo > 1) pv.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(doorNo - 1); });
+  if (pv && doorNo > 1) pv.addEventListener('click', () => { playSfx('sfx-tap', 0.25); overlayOnClose = null; openCanon(doorNo - 1, undefined, backTo); });
   const nx = inner.querySelector('#cnNext')                      ;
-  if (nx && doorNo < 15) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(doorNo + 1); });
-  (inner.querySelector('#cnOk')               ).addEventListener('click', closeOverlay);
+  if (nx && doorNo < 15) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); overlayOnClose = null; openCanon(doorNo + 1, undefined, backTo); });
+  (inner.querySelector('#cnOk')               ).addEventListener('click', () => {
+    if (sfpS.active) overlayOnClose = null; // 题「回到局中」时要真回局中，解除 backTo；题「关闭」时仍同路往返回「我的」
+    closeOverlay();
+  });
   // 参考经典并为原文顶签（单菜单原则：原☰「参考经典」条目迁此）
-  (inner.querySelector('#cnLib')               ).addEventListener('click', () => { closeOverlay(); openLibrary(); });
+  (inner.querySelector('#cnLib')               ).addEventListener('click', () => { overlayOnClose = null; closeOverlay(); openLibrary(); });
   openOverlay(inner);
+  if (backTo) overlayOnClose = () => { overlayOnClose = null; backTo(); };
   if (jumpName) {
     const ji = d.positions.findIndex(x => x.name === jumpName || (x.name === '佛' && jumpName === '圓教究竟妙覺位'));
     const t = ji >= 0 ? inner.querySelector(`div[data-ci="${ji}"]`)                       : null;
@@ -8103,11 +8214,25 @@ function canonOf(pid        )                                        {
 function rdCite(label        , pid        , text        , juan        )         {
   const ci = (SFP_POS         ).findIndex((x     ) => x.id === pid); // 数字下标防 zh() 变形（AGENTS 陷阱）
   let body = text;
-  if (body.length > 240) { const cut = body.indexOf('。', 220); if (cut > 0 && cut < body.length - 2) body = body.slice(0, cut + 1) + '……'; }
+  // v387 截断改在对读键边界（先按键后求句界）：旧制在 220 字处求句界，会把跨该点的长对读键切断
+  // （圆五品位：位注整段 232 字即一枚对读键，229 字处一切→白话全掉，只剩一行位注原文）
+  if (body.length > 240) {
+    let cut = -1;
+    for (const k of Object.keys(SFP_WHY_PLAIN       )) { // 求横跨 220 字的对读键：截口推到它完整结束之后
+      const at = body.indexOf(k);
+      if (at >= 0 && at < 240 && at + k.length > 220) cut = Math.max(cut, at + k.length - 1);
+    }
+    if (cut < 0) cut = body.indexOf('。', 220);
+    else { const nx = body.indexOf('。', cut); if (nx > 0) cut = nx; }
+    if (cut > 0 && cut < body.length - 2) body = body.slice(0, cut + 1) + '……';
+  }
   let du = duiduHtml(body.replace(/^譜曰。/, ''));
-  if (!du.includes('<div class="dd">')) {
+  // v387 兜底改「首段无对读即垫」（旧制只在全段零对读时才垫）：长位注常后半按语命中、前半位义无白话，
+  // 那时旧兜底不触发，读者只看到整屏原文——今只要白话未覆盖首段，就把本位白话提至最前（白话→原文一序）
+  const fd = du.indexOf('<div class="dd">'), fv = du.indexOf('</div>');
+  if (fd < 0 || (fv > 0 && fd > fv + 400)) {
     const pl = (SFP_POS_PLAIN       )[pid];
-    if (pl) du += `<div class="dd">${glossify(esc(String(pl)))}</div>`;
+    if (pl) du = `<div class="dd">${glossify(esc(String(pl)))}</div>` + du;
   }
   // V69：节标题用大白话，出处小注保留书名卷次
   return `<details class="sec"><summary>${esc(label)}<span style="opacity:.65;font-weight:400"> · 出自《选佛谱》第${SFP_CN[juan - 1]}卷</span></summary>
@@ -8210,7 +8335,7 @@ function sfpTossAnswerHtml(ctx                                                  
   const F = ctx.from ? SFP_BY[ctx.from] : null;
   const T = ctx.to ? SFP_BY[ctx.to] : null;
   const stay = !!(F && T && F.id === T.id);
-  let tossEvidence = ctx.evidence || (F && ctx.c ? sfpWhyEvidence(F.id, ctx.c) : null);
+  let tossEvidence = ctx.evidence || (F && ctx.c ? sfpWhyEvidence(F.id, ctx.c) || makeSfpGlyphEvidence(F.id, ctx.c) : null); // v389 谱注全无时垫字义解
   const tossMove = F && ctx.c ? (F.moves         ).find(m => (m.c            ).includes(ctx.c)) : null;
   if (tossMove && tossMove.bonus && !sfpEvidenceItems(tossEvidence, SFP_EVIDENCE_TYPE.operation).length) {
     tossEvidence = mergeSfpEvidence(tossEvidence, makeSfpOperationalEvidence(
@@ -8232,6 +8357,9 @@ function sfpTossAnswerHtml(ctx                                                  
   if (head) rows.push(rdRow('落处', glossify(esc(head)), true));
   const wp = sfpEvidenceInterpretationText(tossEvidence);
   if (wp) rows.push(rdRow('缘由', glossify(esc(wp))));
+  // v389/v390 字义行另立（不与「缘由」混排身份）：谱注未释或只有总括句时，坐实此组行止的所以然
+  const gy = sfpEvidenceGlyphText(tossEvidence);
+  if (gy) rows.push(rdRow('字义', `${glossify(esc(gy))}<i>字义解 · 依卷首〈輪相表法第一〉</i>`));
   const op = sfpEvidenceOperationText(tossEvidence);
   if (op) rows.push(rdRow('规则', `${glossify(esc(op))}<i>本项目定稿操作规则</i>`));
   // v351 引文收敛：缘由白话已说尽此掷所据——只留行法依据（分层引文）与落处位原文两处折叠，
@@ -8245,8 +8373,9 @@ function sfpTossAnswerHtml(ctx                                                  
 // 附逐字依据可查；谱文未释此组者诚实说明，不以通则代答（通则不如本位谱注精确）
 function sfpWhyAnswerHtml(p     , combo        )         {
   const mv = (p.moves         ).find((m     ) => (m.c            ).includes(combo));
-  const ev = sfpWhyEvidence(p.id, combo);
+  const ev = sfpWhyEvidence(p.id, combo) || makeSfpGlyphEvidence(p.id, combo); // v389 谱注全无时垫字义解（另署）
   const whyP = sfpEvidenceInterpretationText(ev);
+  const glyphP = sfpEvidenceGlyphText(ev);
   const dest = mv && mv.to ? SFP_BY[mv.to] : null;
   const parts           = [];
   let route = '';
@@ -8256,7 +8385,9 @@ function sfpWhyAnswerHtml(p     , combo        )         {
   else route = `「${combo}」于本位无行处`;
   parts.push(`<div class="cPlain" style="margin:4px 0">在「${esc(p.name)}」：${esc(route)}。</div>`);
   if (whyP) parts.push(`<div class="cRead" style="margin:4px 0">${glossify(esc(whyP))}</div>`);
-  else parts.push(`<div class="cRead" style="margin:4px 0">此组的行与不行，谱主于本位未另作解说——本谱以各门各位的行法表为准，不另推演。可看本位原文与全部去向。</div>`);
+  // v389 用户令「我们理解后把原因写上」：谱主未释（或只有总括句）时补字义解——另栏署名，不冒「譜曰」不署蕅益
+  if (glyphP) parts.push(`<div class="cRead" style="margin:4px 0">${whyP ? '<b>字义解：</b>' : ''}${glossify(esc(glyphP))}<div class="cNote" style="margin-top:3px">字义解 · 依卷首〈輪相表法第一〉六字定诠——本项目理解层，非谱曰按语</div></div>`);
+  if (!whyP && !glyphP) parts.push(`<div class="cRead" style="margin:4px 0">此组的行与不行，谱主于本位未另作解说——本谱以各门各位的行法表为准，不另推演。可看本位原文与全部去向。</div>`);
   const cn = canonOf(p.id);
   if (ev) parts.push(...sfpEvidenceCites(ev, p.id, cn ? cn.juan : 1));
   else if (cn && cn.text) parts.push(rdCite(`「${p.name}」原文`, p.id, cn.text, cn.juan));
@@ -8276,11 +8407,12 @@ function sfpPosAnswerHtml(p     )         {
 }
 function sfpMoveAnswerHtml(p     , combo        )         {
   const mv = (p.moves         ).find((m     ) => (m.c            ).includes(combo));
-  let moveEvidence = sfpWhyEvidence(p.id, combo);
+  let moveEvidence = sfpWhyEvidence(p.id, combo) || makeSfpGlyphEvidence(p.id, combo); // v389 谱注全无时垫字义解（另署）
   if (mv && mv.bonus) moveEvidence = mergeSfpEvidence(moveEvidence, makeSfpOperationalEvidence(
     mv.to ? '先移至目的位，再由当前操作者从目的位立即续掷。' : '棋子保持本位，仍由当前操作者立即续掷。',
   ));
   const whyP = sfpEvidenceInterpretationText(moveEvidence);
+  const glyphP = sfpEvidenceGlyphText(moveEvidence);
   const operation = sfpEvidenceOperationText(moveEvidence);
   const paras           = [];
   if (!(p.moves         ).length) paras.push(`<div class="cPlain" style="margin:4px 0">「${esc(p.name)}」为究竟果位，无升降——任何轮相皆无行处。</div>`);
@@ -8293,6 +8425,7 @@ function sfpMoveAnswerHtml(p     , combo        )         {
   } else paras.push(`<div class="cPlain" style="margin:4px 0">在「${esc(p.name)}」掷得「${combo}」：本位行法未列此组合——依谱例安住本位、不行棋。</div>`);
   paras.push(`<div class="cRead" style="margin:4px 0">「${combo}」：${sfpPlain(combo)}。</div>`);
   if (whyP) paras.push(`<div class="cRead" style="margin:4px 0"><b>释义：</b>${glossify(esc(whyP))}</div>`);
+  if (glyphP) paras.push(`<div class="cRead" style="margin:4px 0"><b>字义解：</b>${glossify(esc(glyphP))}<div class="cNote" style="margin-top:3px">依卷首〈輪相表法第一〉六字定诠——本项目理解层，非谱曰按语</div></div>`); // v389
   if (operation) paras.push(`<div class="cRead" style="margin:4px 0"><b>本项目操作规则：</b>${glossify(esc(operation))}</div>`);
   const cn = canonOf(p.id);
   const cites           = [];
@@ -8354,7 +8487,7 @@ function sfpPlainLibSearch(qs          )         {
     let ci = -1;
     for (let i = 0; i < (SFP_POS         ).length; i++) { const cn = canonOf((SFP_POS         )[i].id); if (cn && cn.text.includes(k)) { ci = i; break; } }
     const at = v.indexOf(q);
-    hits.push(`<div style="margin:5px 0;font-size:var(--fs-sm);color:#9cc3b2">白话文对照：「…${esc(v.slice(Math.max(0, at - 20), at + q.length + 50))}…」${ci >= 0 ? `——<span class="rdMore lnk" data-ci="${ci}">${esc((SFP_POS         )[ci].name)}</span>` : ''}</div>`);
+    hits.push(`<div style="margin:5px 0;font-size:var(--fs-sm);color:var(--ck-bai)">白话文对照：「…${esc(v.slice(Math.max(0, at - 20), at + q.length + 50))}…」${ci >= 0 ? `——<span class="rdMore lnk" data-ci="${ci}">${esc((SFP_POS         )[ci].name)}</span>` : ''}</div>`);
   }
   return hits.join('');
 }
@@ -8460,7 +8593,7 @@ async function agentAskRun(q        , msg                              , rerende
   const ck = q + (sfpS.active && sfpS.pos ? `＠${sfpS.pos}` : ''); // 缓存键并入现居位：随问携带局面上下文后，答案不可跨局面复用
   const hitCache = askCacheGet(ck);
   if (hitCache) { msg.a = agentAnswerHtml(hitCache, 'local') + localFolded; rerender(); return; }
-  if (askQuotaLeft() <= 0) { msg.a = '<div style="color:#f08f7a">今日智能体问答已满一百次，明日再来；本谱本地速查仍可继续使用。</div>' + localOpen; rerender(); return; }
+  if (askQuotaLeft() <= 0) { msg.a = '<div style="color:#f0af9e">今日智能体问答已满一百次，明日再来；本谱本地速查仍可继续使用。</div>' + localOpen; rerender(); return; }
   // 三段式检索反馈（仿文钞）：检索常需十余秒，静句易被当成卡死——过 5 秒换一句仍然诚实的等待语
   msg.a = '<div class="cbStage">选佛谱智能体正在检证 G 版经据库……约十余秒，请稍候</div>' + localOpen;
   rerender();
@@ -8497,7 +8630,7 @@ async function agentAskRun(q        , msg                              , rerende
     clearTimeout(slowTimer);
     const limited = e instanceof Error && e.message.includes('今日问义生成次数已满');
     msg.a = limited
-      ? '<div style="color:#f08f7a">今日智能体生成次数已满；本机及云端已缓存的问答仍可继续查看。</div>' + localOpen
+      ? '<div style="color:#f0af9e">今日智能体生成次数已满；本机及云端已缓存的问答仍可继续查看。</div>' + localOpen
       : '<div class="cNote" style="margin:4px 0">智能体暂未连接（网络或服务未就绪）；以下为本谱本地速查，稍后可重问。</div>' + localOpen;
   }
   rerender();
@@ -8559,7 +8692,7 @@ function openSfpReading(ctx                                                     
     <div class="body" id="cbLog" style="display:flex;flex-direction:column"></div>
     <div id="cbChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${chips.map(c => `<span class="chipQ">${esc(c)}</span>`).join('')}</div>
     <div style="display:flex;gap:6px;margin-top:7px"><input id="cbQ" class="cbInput" type="text" placeholder="问谱位·名相·行法…"><button class="gbtn primary" id="cbGo" style="min-height:46px;padding:0 18px">问</button></div>
-    <div style="display:flex;gap:8px;margin-top:8px"><button class="gbtn" id="cbClr">清空对话</button><button class="gbtn primary" id="cbOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+    <div style="display:flex;gap:8px;margin-top:8px"><button class="gbtn" id="cbClr">清空对话</button><button class="gbtn" id="cbOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   const log = pnl.querySelector('#cbLog')               ;
   const render = () => {
     log.innerHTML = zh(sfpChat.map(m => `${m.u ? `<div class="cbRow"><div class="cbU">${esc(m.u)}</div></div>` : ''}<div class="cbRow"><div class="cbA">${m.a}</div></div>`).join(''));
@@ -8612,7 +8745,7 @@ function openSfpIntro() {
       <div class="igTwo"><div><b>豎入</b><span>依自力沿藏通別圓四教位次拾级而登</span></div>
         <div><b>橫超</b><span>念佛往生净土，径趋毕局——第十四门「淨土橫超門」</span></div></div></details>
     <details class="sec"><summary>轮相六字 · 善恶升沉</summary>
-      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0 3px">${[['那', '見惑', 0], ['謨', '思惑', 0], ['阿', '施善', 1], ['彌', '戒善', 1], ['陀', '定善', 1], ['佛', '善慧', 1]].map(([ch, sub, good]) => `<div style="text-align:center;border:1.5px solid ${good ? 'rgba(215,170,69,.6)' : 'rgba(176,84,63,.7)'};border-radius:9px;padding:7px 2px 5px;background:${good ? 'rgba(215,170,69,.07)' : 'rgba(176,84,63,.08)'}"><div style="font-size:var(--fs-xl);line-height:1.25;color:${good ? '#f4e6b8' : '#f0af9e'}">${ch}</div><div style="font-size:var(--fs-xs);color:#c9bd93;margin-top:1px">${sub}</div><div style="font-size:var(--fs-xs);letter-spacing:1px;color:${good ? '#d7aa45' : '#cf7f66'};margin-top:2px">${good ? '善 ↑' : '惡 ↓'}</div></div>`).join('')}</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0 3px">${[['那', '見惑', 0], ['謨', '思惑', 0], ['阿', '施善', 1], ['彌', '戒善', 1], ['陀', '定善', 1], ['佛', '善慧', 1]].map(([ch, sub, good]) => `<div style="text-align:center;border:1.5px solid ${good ? 'rgba(215,170,69,.6)' : 'rgba(176,90,66,.7)'};border-radius:9px;padding:7px 2px 5px;background:${good ? 'rgba(215,170,69,.07)' : 'rgba(176,90,66,.08)'}"><div style="font-size:var(--fs-xl);line-height:1.25;color:${good ? '#f4e6b8' : '#f0af9e'}">${ch}</div><div style="font-size:var(--fs-xs);color:#c9bd93;margin-top:1px">${sub}</div><div style="font-size:var(--fs-xs);letter-spacing:1px;color:${good ? '#d7aa45' : '#f0af9e'};margin-top:2px">${good ? '善 ↑' : '惡 ↓'}</div></div>`).join('')}</div>
       <div class="cNote" style="text-align:center">两轮合掷——善字多则升，恶字多则降；六字合读即「南无阿弥陀佛」</div></details></div>
     <div class="igBtns">
       ${hasSave ? '<button class="gbtn primary wide" id="sfpResume">续掷上局</button>' : ''}
@@ -8907,7 +9040,7 @@ window.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && !e.repeat) { // 空格按住＝念佛蓄势，松开＝旁掷（与长按同构）
     if (sfpS.active && !overlayEl) { e.preventDefault(); sfpPalmDown(); return; }
   }
-  if (e.key === 'Enter' && verdictEl.classList.contains('show') && verdictFn) { e.preventDefault(); commitVerdict(); return; } // 回车＝判词「行」
+  if (e.key === 'Enter' && !overlayEl && verdictEl.classList.contains('show') && verdictFn) { e.preventDefault(); commitVerdict(); return; } // 回车＝判词「行」；浮层开着时不隐提交（与 Space/方向键同守卫）
   const kl = e.key.toLowerCase();
   if (flightOn && kl.length === 1 && 'wasd'.includes(kl)) { flyKeys.add(kl); return; } // 飞行时 WASD 不再切剖面
   if (!overlayEl) { // v220：弹窗开着时读卡按键不误切剖面
@@ -8923,6 +9056,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (overlayEl) closeOverlay();
     else if (card.isConnected) closeCard();
+    else if (verdictEl.classList.contains('show') && !verdictEl.classList.contains('min')) verdictEl.classList.add('min'); // Esc＝判词收签（与下滑同义，判词不自动关；Enter 落子仍在）
     else if (inBodhi && bodhiGrp >= 0) setBodhiGrp(bodhiGrp); // 先收展开的科组（v160 交互巡检）
     else if (inSky && skySel > 0) setSkySel(skySel); // 色界同法（v166）：先收选层再退场
     else if (inPure || inSky || inBodhi || inDisc) returnSaha();
@@ -8951,6 +9085,15 @@ function updateLabels() {
   const camDist = camera.position.distanceTo(controls.target);
   // 矩形避让：已占屏幕区域记入 rects，后来者重叠则隐（选中位与 tier1 优先）
   const rects                                          = [];
+  // 保留导航区占位（2026-07-29 标签避让补盲）：右天梯/左档位簇/左探底杆在场时其矩形先入避让集，
+  // 标签不再挤入竖沟、不再压「因/佛」顶底签；取实时 DOM 矩形，几何随 CSS 演进自动正确
+  for (const rail of [ladder, tierDotsEl, secWrap]) {
+    if (!rail) continue;
+    const rr = rail.getBoundingClientRect();
+    if (rr.width < 1 || rr.height < 1) continue;
+    const padV = rail === ladder ? 22 : 0; // 天梯顶底签（#ladTop/#ladBot 各越界 20px）并入矩形高度
+    rects.push([rr.left, rr.top - padV, rr.width, rr.height + padV * 2]);
+  }
   // 同节点主标签占区：副标签（善见城/天王名/月）遇自家主标重叠时让位——免「善见城」压住「忉利天」
   for (const k in nodeLabelRects) delete nodeLabelRects[k]; // v320：提升为模块级，门观附位签同查
   const mainRect = nodeLabelRects;
@@ -9039,7 +9182,9 @@ function updateLabels() {
   const rectsAux                                          = [];
   auxViews.forEach(av => {
     const nv = byId[av.nodeId];
-    let vis = !inPure && !inDoor && !browseDoor && !inSky && !inBodhi && !inDisc && modeTarget === 0 && modeT <= 0.5 && camDist <= 380 && passFilter(nv.d); // 签栏开门/色界场/菩萨道场/因地星盘中辅标同隐（v143/v314）
+    let vis = !inPure && !inDoor && !browseDoor && !inSky && !inBodhi && !inDisc && modeTarget === 0 && modeT <= 0.5 && camDist <= 380
+      && (!av.fam || auxFamOK[av.fam]) // 同族同进退接线（原 auxFamOK 算完从未使用）：远于族门整族隐，免「七山只剩一山有名」
+      && passFilter(nv.d); // 签栏开门/色界场/菩萨道场/因地星盘中辅标同隐（v143/v314）
     if (vis) {
       av.obj.getWorldPosition(tmpV);
       if (tmpV.y > sectionH + 3) vis = false;
@@ -9060,8 +9205,9 @@ function updateLabels() {
     const x = (tmpV.x * 0.5 + 0.5) * w, y = (-tmpV.y * 0.5 + 0.5) * h;
     const lw = ((av.label.textContent || '').length) * 11.5 + 22, lh = 24;
     const x0 = x - lw / 2, y0 = y - lh * 1.4;
-    const mr = mainRect[av.nodeId];
-    if (mr && x0 < mr[0] + mr[2] + 4 && x0 + lw + 4 > mr[0] && y0 < mr[1] + mr[3] + 3 && y0 + lh + 3 > mr[1]) {
+    // 辅让主全局化（原只查自家节点 mainRect，跨节点如「增长天王」压「七金山与七香水海」漏防）：
+    // 全部节点标签矩形与保留导航区都在 rects 里，一并避让——T4 永远让位于节点标
+    if (rects.some(r => x0 < r[0] + r[2] + 4 && x0 + lw + 4 > r[0] && y0 < r[1] + r[3] + 3 && y0 + lh + 3 > r[1])) {
       av.label.style.display = 'none'; return;
     }
     if (x0 < 2 || x0 + lw > w - 2 || y0 < 2 || y > h - 4) { av.label.style.display = 'none'; return; }
@@ -9312,7 +9458,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
       cancelFly();
       if (sfpTimer) clearTimeout(sfpTimer);
       wheelAnim = null;
-      palmHeld = false;
+      sfpPalmAbort(); // 强制水合若正长按：掷轮钮不再滞留「按住」态与满格进度环
       sfpS.rolling = false;
       sfpDice.classList.remove('on', 'settle');
       sfpQuiet(false);

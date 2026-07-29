@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>须弥山十法界 · 世界地图（经证版）</title>
+<style>
+  /* 敦煌矿物色系：靛青夜空 / 土红 / 石青 / 石绿 / 泥金 / 宣纸 */
+  :root {
+    --ink-sky: #131b2e;      /* 藏经洞夜空 */
+    --ink-sky-2: #1b2740;
+    --paper: #f2e6cf;        /* 宣纸 */
+    --earth-red: #b0522d;    /* 土红 */
+    --azurite: #4a6d94;      /* 石青 */
+    --azurite-d: #2e4a6b;
+    --malachite: #5f8f74;    /* 石绿 */
+    --gold: #cfa63b;         /* 泥金 */
+    --gold-l: #e8c96a;
+    --soot: #241d18;         /* 烟炱 */
+    --ochre: #8a6a4f;        /* 枯赭 */
+    --white-lotus: #f6efe2;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: linear-gradient(180deg, #0d1322 0%, var(--ink-sky) 30%, var(--ink-sky-2) 100%);
+    color: var(--paper);
+    font-family: "Songti SC", "Noto Serif CJK SC", "STSong", serif;
+  }
+  header {
+    text-align: center;
+    padding: 34px 16px 10px;
+  }
+  header h1 {
+    font-size: 26px;
+    letter-spacing: .35em;
+    color: var(--gold-l);
+    font-weight: 600;
+  }
+  header p.sub {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #b8a986;
+    letter-spacing: .12em;
+  }
+  header p.vow {
+    margin: 10px auto 0;
+    max-width: 620px;
+    font-size: 12.5px;
+    line-height: 1.9;
+    color: #9d8f70;
+  }
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 10px 18px;
+    justify-content: center; margin: 14px auto 4px; max-width: 760px;
+    font-size: 12px; color: #b8a986;
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .wrap {
+    display: flex; justify-content: center; align-items: flex-start;
+    gap: 0; padding: 8px 12px 80px;
+  }
+  #scroll-map { max-width: 900px; width: 100%; }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { user-select: none; }
+  .node-hit { cursor: pointer; }
+  .node-hit:hover .node-label { fill: var(--gold-l); }
+  .node-hit:hover .node-dot { stroke: var(--gold-l); stroke-width: 2; }
+
+  /* 经证卡 */
+  #card {
+    position: fixed; top: 0; right: 0; height: 100vh; width: min(460px, 94vw);
+    background: linear-gradient(180deg, #f4e9d3, #eee0c4);
+    color: #3a2e20;
+    box-shadow: -12px 0 40px rgba(0,0,0,.55);
+    transform: translateX(105%);
+    transition: transform .28s ease;
+    z-index: 50;
+    display: flex; flex-direction: column;
+  }
+  #card.open { transform: translateX(0); }
+  #card .card-head {
+    padding: 20px 22px 12px;
+    border-bottom: 1px solid rgba(138,106,79,.35);
+  }
+  #card .card-head h2 { font-size: 20px; color: #7c3b1d; letter-spacing: .06em; }
+  #card .card-head .meta { margin-top: 8px; font-size: 12.5px; line-height: 1.8; color: #6b5335; }
+  #card .card-head .meta b { color: #4a3a26; }
+  #card .card-body { overflow-y: auto; padding: 14px 22px 40px; flex: 1; }
+  .summary-block {
+    background: rgba(176,82,45,.08);
+    border-left: 3px solid var(--earth-red);
+    padding: 10px 12px; font-size: 13.5px; line-height: 1.9; color: #5d4429;
+    border-radius: 0 6px 6px 0;
+  }
+  .summary-block .tag { font-size: 11px; color: #a4502e; letter-spacing: .1em; }
+  .claim {
+    margin-top: 16px; padding: 12px 14px;
+    background: rgba(255,252,244,.75);
+    border: 1px solid rgba(138,106,79,.28);
+    border-radius: 8px;
+  }
+  .claim .quote {
+    font-size: 14.5px; line-height: 2.0; color: #2f2519;
+  }
+  .claim .src {
+    margin-top: 8px; font-size: 12px; color: #7a5f3e; line-height: 1.7;
+    display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
+  }
+  .claim .src a { color: #8c5a20; text-decoration: none; border-bottom: 1px dotted #b08f56; }
+  .claim .badge {
+    font-size: 10.5px; padding: 1px 7px; border-radius: 999px;
+    background: #5f8f74; color: #fdf9ee; letter-spacing: .08em;
+  }
+  .claim .badge.pending { background: #a08a5f; }
+  #card .close-btn {
+    position: absolute; top: 14px; right: 16px;
+    background: none; border: none; font-size: 22px; color: #7c5b34; cursor: pointer;
+  }
+  footer {
+    text-align: center; padding: 10px 16px 60px;
+    font-size: 12px; color: #7d7157; line-height: 2;
+  }
+  footer .quote { color: #a3936f; }
+</style>
+</head>
+<body>
+<header>
+  <h1>须弥山十法界 · 世界地图</h1>
+  <p class="sub">依 CBETA 经典原文重构 · 每一处皆可点看逐字经证 · 图为示意非等比</p>
+  <p class="vow">「深念此圖利益。能使人即遊戲間。頓知六道往還之疲苦。三乘出要之差別。」——蕅益大师《选佛谱叙》</p>
+  <div class="legend">
+    <span><i class="dot" style="background:#cfa63b"></i>经论明文定位</span>
+    <span><i class="dot" style="background:#8f86a8"></i>非方所（经明言无方位，栏位仅为教学【今设】）</span>
+    <span><i class="dot" style="background:#c47a4a"></i>义理总纲</span>
+    <span><i class="dot" style="background:#5f8f74"></i>净土（横出，不在竖轴）</span>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="scroll-map"></div>
+</div>
+
+<aside id="card">
+  <button class="close-btn" onclick="closeCard()">✕</button>
+  <div class="card-head">
+    <h2 id="card-title">—</h2>
+    <div class="meta" id="card-meta"></div>
+  </div>
+  <div class="card-body">
+    <div class="summary-block" id="card-summary"></div>
+    <div id="card-claims"></div>
+  </div>
+</aside>
+
+<footer>
+  <div class="quote">「是心作佛，是心是佛。」（观无量寿佛经）</div>
+  <div>数据：data/world.json · 经证逐字核证：scripts/verify-claims.mjs（96 条全绿）· 语料：CBETA 电子佛典</div>
+</footer>
+
+<script>
+// ============ 数据装载 ============
+let WORLD = null;
+fetch("../data/world.json").then(r => r.json()).then(w => { WORLD = w; drawMap(w); });
+
+// ============ 经证卡 ============
+function openCard(nodeId) {
+  const node = WORLD.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+  document.getElementById("card-title").textContent = node.name;
+  const locusTypeName = WORLD.meta.locusTypes[node.locus.type] || node.locus.type;
+  let meta = `<b>界属：</b>${node.realm}　<b>定位性质：</b>${locusTypeName}`;
+  if (node.locus.position && node.locus.position !== "—") meta += `<br><b>方位：</b>${node.locus.position}`;
+  if (node.locus.extent && node.locus.extent !== "—") meta += `<br><b>量度（经说）：</b>${node.locus.extent}`;
+  document.getElementById("card-meta").innerHTML = meta;
+  document.getElementById("card-summary").innerHTML =
+    `<div class="tag">今注（白话导读，非经文）</div>${node.summary}`;
+  const claimsEl = document.getElementById("card-claims");
+  claimsEl.innerHTML = node.claims.map(c => {
+    const src = WORLD.sources[c.source] || { title: c.source };
+    const url = `https://cbetaonline.dila.edu.tw/zh/${c.ref}`;
+    const badge = c.status === "verified"
+      ? `<span class="badge">已核·逐字</span>`
+      : `<span class="badge pending">待核</span>`;
+    return `<div class="claim">
+      <div class="quote">「${c.text}」</div>
+      <div class="src">${badge}<span>《${src.title}》${c.locator}</span>
+        <a href="${url}" target="_blank" rel="noopener">${c.ref} ↗</a></div>
+    </div>`;
+  }).join("");
+  document.getElementById("card").classList.add("open");
+}
+function closeCard() { document.getElementById("card").classList.remove("open"); }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeCard(); });
+
+// ============ 立轴地图绘制 ============
+const NS = "http://www.w3.org/2000/svg";
+function el(name, attrs, children) {
+  const e = document.createElementNS(NS, name);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  (children || []).forEach(c => e.appendChild(c));
+  return e;
+}
+function txt(x, y, s, attrs) {
+  const t = el("text", Object.assign({ x, y, fill: "#d9c9a3", "font-size": 15 }, attrs || {}));
+  t.textContent = s;
+  return t;
+}
+
+function drawMap(world) {
+  const W = 900, H = 2350;
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}` });
+
+  // ---------- 纵向基准（示意非等比；经说数值见各节点经证卡） ----------
+  const SEA = 1745;          // 海面
+  const AXIS = 470;          // 须弥中轴 x（东侧留出非方所栏）
+  const bands = [
+    { y0: 2255, y1: 2330, color: "#232e45", name: "风轮（厚十六亿踰缮那·广无数）", id: "wind-wheel" },
+    { y0: 2185, y1: 2255, color: "#2a3d5e", name: "水轮（深十一亿二万）", id: "water-wheel" },
+    { y0: 2140, y1: 2185, color: "#6b5626", name: "金轮（厚三亿二万）", id: "gold-wheel" }
+  ];
+
+  // 底部三轮
+  bands.forEach(b => {
+    svg.appendChild(el("rect", { x: 70, y: b.y0, width: W - 140, height: b.y1 - b.y0,
+      fill: b.color, rx: 8, class: "node-hit", "data-node": b.id }));
+    svg.appendChild(txt(W / 2, (b.y0 + b.y1) / 2 + 5, b.name,
+      { "text-anchor": "middle", "font-size": 14, fill: "#cbb98d", class: "node-label", "pointer-events": "none" }));
+  });
+  svg.appendChild(txt(W / 2, 2348, "依止虚空", { "text-anchor": "middle", "font-size": 12, fill: "#5d6a85" }));
+
+  // ---------- 地下幽冥（金轮之上 · 海面之下） ----------
+  // 大地剖面
+  svg.appendChild(el("rect", { x: 70, y: SEA, width: W - 140, height: 2140 - SEA, fill: "#1d1712" }));
+  // 无间狱（洲下二万）
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "hell" }, [
+    el("rect", { x: 150, y: 2020, width: 250, height: 90, fill: "#2a1c14", stroke: "#4a2e1c", rx: 6 }),
+    el("rect", { x: 175, y: 1955, width: 200, height: 58, fill: "#31221732", stroke: "#4a2e1c", "stroke-dasharray": "4 3", rx: 5 }),
+    txt(275, 2072, "地狱法界", { "text-anchor": "middle", fill: "#c78c5a", class: "node-label", "font-size": 17 }),
+    txt(275, 2098, "无间狱·洲下过二万（俱舍）", { "text-anchor": "middle", "font-size": 11.5, fill: "#8a6a4f" }),
+    txt(275, 1984, "七狱重累其上", { "text-anchor": "middle", "font-size": 11.5, fill: "#8a6a4f" })
+  ]));
+  // 琰魔王国（洲下五百）
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "preta" }, [
+    el("rect", { x: 590, y: 1892, width: 200, height: 56, fill: "#2c2620", stroke: "#59493a", rx: 6 }),
+    txt(690, 1917, "饿鬼法界", { "text-anchor": "middle", fill: "#b39b78", class: "node-label", "font-size": 15 }),
+    txt(690, 1938, "琰魔王国·洲下五百", { "text-anchor": "middle", "font-size": 11, fill: "#8a7a60" })
+  ]));
+
+  // ---------- 海面与九山八海 ----------
+  // 外海
+  svg.appendChild(el("rect", { x: 70, y: SEA - 6, width: W - 140, height: 8, fill: "#31537a" }));
+  // 须弥山：下狭上阔（起世经）
+  const sumeruTop = 1030, sumeruHalfTop = 150, sumeruHalfBase = 84;
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "sumeru" }, [
+    el("path", { d: `M ${AXIS - sumeruHalfBase} ${SEA}
+                     L ${AXIS - sumeruHalfTop} ${sumeruTop}
+                     L ${AXIS + sumeruHalfTop} ${sumeruTop}
+                     L ${AXIS + sumeruHalfBase} ${SEA} Z`,
+      fill: "url(#sumeruGrad)", stroke: "#7591b5", "stroke-width": 1.2 }),
+    // 入水部分（虚线示意）
+    el("path", { d: `M ${AXIS - sumeruHalfBase} ${SEA} L ${AXIS - 60} ${2100} L ${AXIS + 60} ${2100} L ${AXIS + sumeruHalfBase} ${SEA} Z`,
+      fill: "#22334f66", stroke: "#3d557a", "stroke-dasharray": "5 4", "stroke-width": 1 }),
+    txt(AXIS, 1400, "须弥山", { "text-anchor": "middle", "font-size": 26, fill: "#dfe8f2", class: "node-label", "letter-spacing": ".3em" }),
+    txt(AXIS, 1432, "四宝为体 · 下狭上阔", { "text-anchor": "middle", "font-size": 12, fill: "#9fb3cc" }),
+    txt(AXIS, 2085, "入水八万（俱舍）", { "text-anchor": "middle", "font-size": 11, fill: "#54688a" })
+  ]));
+
+  // 须弥四层级（山腰台阶）——台阶宽度按山体轮廓计算（下狭上阔）
+  const halfAt = (y) => sumeruHalfBase + (sumeruHalfTop - sumeruHalfBase) * (SEA - y) / (SEA - sumeruTop);
+  const terraceYs = [1690, 1622, 1554, 1486];
+  const terraceNames = ["坚手", "持鬘", "恒憍"];
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "sumeru-terraces" },
+    terraceYs.slice(0, 3).map((y, i) => {
+      const half = halfAt(y);
+      return el("g", {}, [
+        el("rect", { x: AXIS - half - 26, y: y - 7, width: 26, height: 9, fill: "#7f6a3f", rx: 2 }),
+        el("rect", { x: AXIS + half, y: y - 7, width: 26, height: 9, fill: "#7f6a3f", rx: 2 }),
+        txt(AXIS - half - 34, y + 1, terraceNames[i], { "text-anchor": "end", "font-size": 12, fill: "#b7a578", class: "node-label" })
+      ]);
+    })
+  ));
+  // 四王天（第四层级）
+  (() => {
+    const y = terraceYs[3], half = halfAt(y) + 4;
+    svg.appendChild(el("g", { class: "node-hit", "data-node": "caturmaharaja" }, [
+      el("rect", { x: AXIS - half - 30, y: y - 9, width: 30, height: 12, fill: "#cfa63b", rx: 2 }),
+      el("rect", { x: AXIS + half, y: y - 9, width: 30, height: 12, fill: "#cfa63b", rx: 2 }),
+      txt(AXIS - half - 38, y + 3, "四大王众天", { "text-anchor": "end", "font-size": 14, fill: "#e2c46f", class: "node-label" }),
+      txt(AXIS - half - 38, y + 21, "去海四万·与日月齐", { "text-anchor": "end", "font-size": 10.5, fill: "#8f7f57" })
+    ]));
+  })();
+
+  // 日月绕山腰
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "sun-moon" }, [
+    el("ellipse", { cx: AXIS, cy: 1486, rx: 300, ry: 40, fill: "none", stroke: "#c9a22766", "stroke-width": 1.4, "stroke-dasharray": "7 5" }),
+    el("circle", { cx: AXIS + 296, cy: 1478, r: 15, fill: "#e8c96a", class: "node-dot" }),
+    el("circle", { cx: AXIS - 297, cy: 1494, r: 12, fill: "#e9e3d4", class: "node-dot" }),
+    txt(AXIS + 296, 1452, "日", { "text-anchor": "middle", "font-size": 13, fill: "#e8c96a", class: "node-label" }),
+    txt(AXIS - 297, 1470, "月", { "text-anchor": "middle", "font-size": 13, fill: "#e9e3d4", class: "node-label" }),
+    txt(AXIS + 210, 1540, "日月绕山·依风而住", { "font-size": 11.5, fill: "#9a8a5f" })
+  ]));
+
+  // 七金山（左右各七峰，向外渐低）与八海
+  const goldXs = [118, 146, 176, 208, 243, 281, 322];
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "seven-mountains" },
+    goldXs.flatMap((dx, i) => {
+      const h = 150 - i * 17;
+      const mk = (cx) => el("path", {
+        d: `M ${cx - 13} ${SEA} L ${cx} ${SEA - h} L ${cx + 13} ${SEA} Z`,
+        fill: "#8c7434", stroke: "#c9a227", "stroke-width": .8
+      });
+      return [mk(AXIS - sumeruHalfBase - dx), mk(AXIS + sumeruHalfBase + dx)];
+    }).concat([
+      txt(AXIS + sumeruHalfBase + 190, SEA - 158, "七金山", { "font-size": 14, fill: "#d3b054", class: "node-label" }),
+      txt(AXIS + sumeruHalfBase + 190, SEA - 138, "出水四万起·半半渐卑", { "font-size": 10.5, fill: "#93803f" })
+    ])
+  ));
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "eight-seas" }, [
+    txt(AXIS - sumeruHalfBase - 190, SEA - 158, "七香水海", { "font-size": 14, fill: "#7ea3c9", "text-anchor": "end", class: "node-label" }),
+    txt(AXIS - sumeruHalfBase - 190, SEA - 138, "八功德水·外为咸海", { "font-size": 10.5, fill: "#5c7ba1", "text-anchor": "end" })
+  ]));
+
+  // 铁围山（两端）
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "cakravada" }, [
+    el("path", { d: `M 76 ${SEA} L 92 ${SEA - 46} L 108 ${SEA} Z`, fill: "#3c3a45", stroke: "#5d5a6b" }),
+    el("path", { d: `M ${W - 108} ${SEA} L ${W - 92} ${SEA - 46} L ${W - 76} ${SEA} Z`, fill: "#3c3a45", stroke: "#5d5a6b" }),
+    txt(92, SEA - 56, "铁围山", { "text-anchor": "middle", "font-size": 12, fill: "#8c88a0", class: "node-label" }),
+    txt(W - 92, SEA - 56, "铁围山", { "text-anchor": "middle", "font-size": 12, fill: "#8c88a0", class: "node-label" })
+  ]));
+
+  // 四大洲（外海中示意：南前、东右、西左、北后）
+  const isle = (cx, cy, shape, fill) => {
+    if (shape === "trapezoid") return el("path", { d: `M ${cx - 26} ${cy} L ${cx - 16} ${cy - 16} L ${cx + 16} ${cy - 16} L ${cx + 26} ${cy} Z`, fill });
+    if (shape === "halfmoon") return el("path", { d: `M ${cx - 24} ${cy} A 24 20 0 0 1 ${cx + 24} ${cy} Z`, fill });
+    if (shape === "circle") return el("circle", { cx, cy: cy - 9, r: 17, fill });
+    return el("rect", { x: cx - 17, y: cy - 20, width: 34, height: 20, fill });
+  };
+  const continents = [
+    { id: "godaniya", name: "西牛货洲", cx: AXIS - 285, cy: SEA + 34, shape: "circle", note: "圆如满月" },
+    { id: "jambu", name: "南赡部洲", cx: AXIS - 155, cy: SEA + 44, shape: "trapezoid", note: "形如车·佛出其土", major: true },
+    { id: "kuru", name: "北俱卢洲", cx: AXIS + 155, cy: SEA + 34, shape: "square", note: "形如方座" },
+    { id: "purva", name: "东胜身洲", cx: AXIS + 285, cy: SEA + 34, shape: "halfmoon", note: "形如半月" }
+  ];
+  continents.forEach(c => {
+    svg.appendChild(el("g", { class: "node-hit", "data-node": c.id }, [
+      isle(c.cx, c.cy, c.shape, c.major ? "#b0522d" : "#8a6a4f"),
+      txt(c.cx, c.cy + 20, c.name, { "text-anchor": "middle", "font-size": c.major ? 15 : 13,
+        fill: c.major ? "#e0956a" : "#bfa585", class: "node-label" }),
+      txt(c.cx, c.cy + 37, c.note, { "text-anchor": "middle", "font-size": 10.5, fill: "#8f7a5e" })
+    ]));
+  });
+  // 人法界 + 畜生 + 修罗（海洲带下方三条侧记，错行避让）
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "human" }, [
+    el("circle", { cx: AXIS - 320, cy: SEA + 118, r: 7, fill: "#cfa63b", class: "node-dot" }),
+    txt(AXIS - 306, SEA + 123, "人法界（四洲八中洲）", { "font-size": 13.5, fill: "#dbc189", class: "node-label" })
+  ]));
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "animal" }, [
+    el("circle", { cx: AXIS + 118, cy: SEA + 118, r: 6, fill: "#5f8f74", class: "node-dot" }),
+    txt(AXIS + 132, SEA + 123, "畜生法界·本处大海", { "font-size": 12.5, fill: "#8fae95", class: "node-label" })
+  ]));
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "asura" }, [
+    el("circle", { cx: AXIS - 320, cy: SEA + 152, r: 6, fill: "#7b5f8f", class: "node-dot" }),
+    txt(AXIS - 306, SEA + 157, "阿修罗·山北海底城（四种四摄）", { "font-size": 12.5, fill: "#a08cb5", class: "node-label" })
+  ]));
+
+  // ---------- 忉利天（山顶） ----------
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "trayastrimsa" }, [
+    el("rect", { x: AXIS - sumeruHalfTop, y: sumeruTop - 66, width: sumeruHalfTop * 2, height: 66, fill: "#2e4a6b", stroke: "#cfa63b", "stroke-width": 1.4, rx: 8 }),
+    el("rect", { x: AXIS - 40, y: sumeruTop - 50, width: 80, height: 34, fill: "#cfa63b33", stroke: "#e8c96a", "stroke-width": 1, rx: 4 }),
+    txt(AXIS, sumeruTop - 27, "善见城", { "text-anchor": "middle", "font-size": 12, fill: "#eed9a0" }),
+    txt(AXIS, sumeruTop + 26, "忉利天（三十三天）· 妙高顶八万", { "text-anchor": "middle", "font-size": 15.5, fill: "#dbe7f4", class: "node-label" })
+  ]));
+
+  // ---------- 空居四天（依空宫殿·云岛） ----------
+  const cloudy = [
+    { id: "yama", name: "夜摩天", y: 925, note: "离忉利八万（谱曰）" },
+    { id: "tusita", name: "兜率天 · 弥勒说法处", y: 835, note: "离夜摩十六万" },
+    { id: "nirmanarati", name: "化乐天", y: 745, note: "离兜率三十二万" },
+    { id: "paranirmita", name: "他化自在天（欲界顶）", y: 655, note: "离化乐六十四万" }
+  ];
+  cloudy.forEach((c, i) => {
+    const w = 240 - i * 10;
+    svg.appendChild(el("g", { class: "node-hit", "data-node": c.id }, [
+      el("ellipse", { cx: AXIS, cy: c.y, rx: w / 2, ry: 21, fill: "#3d5878", stroke: "#7d98bb", "stroke-width": 1, "stroke-dasharray": "1 0" }),
+      el("ellipse", { cx: AXIS, cy: c.y + 13, rx: w / 2 + 26, ry: 9, fill: "#2a3c5566" }),
+      txt(AXIS, c.y + 5, c.name, { "text-anchor": "middle", "font-size": 14.5, fill: "#d7e2ef", class: "node-label" }),
+      txt(AXIS + w / 2 + 14, c.y + 4, c.note, { "font-size": 10.5, fill: "#7d8ba3" })
+    ]));
+  });
+  svg.appendChild(txt(AXIS - 140, 930, "自此以上住依空宫殿（俱舍）→", { "text-anchor": "end", "font-size": 11.5, fill: "#6f80a0" }));
+
+  // ---------- 色界（依禅而住·光带） ----------
+  const dhyanas = [
+    { id: "rupa-1", name: "初禅三天（梵众·梵辅·大梵）", y: 570 },
+    { id: "rupa-2", name: "二禅三天（少光·无量光·极光净）", y: 494 },
+    { id: "rupa-3", name: "三禅三天（少净·无量净·遍净）", y: 418 },
+    { id: "rupa-4", name: "四禅八天（无云·福生·广果＋五净居）", y: 342 }
+  ];
+  dhyanas.forEach((d, i) => {
+    const w = 380 - i * 30;
+    svg.appendChild(el("g", { class: "node-hit", "data-node": d.id }, [
+      el("rect", { x: AXIS - w / 2, y: d.y - 24, width: w, height: 48, rx: 24,
+        fill: `rgba(120,160,205,${0.10 + i * 0.05})`, stroke: "#8fb0d4", "stroke-width": .9 }),
+      txt(AXIS, d.y + 5, d.name, { "text-anchor": "middle", "font-size": 13.5, fill: "#cfe0f2", class: "node-label" })
+    ]));
+  });
+  svg.appendChild(txt(AXIS, 300, "色究竟天：从此向上无复所居（俱舍）", { "text-anchor": "middle", "font-size": 11.5, fill: "#8fa6c4" }));
+  svg.appendChild(txt(AXIS, 620, "── 色界十七处·依四静虑（俱舍；大梵有十六处异说） ──", { "text-anchor": "middle", "font-size": 11.5, fill: "#6f80a0" }));
+
+  // ---------- 非方所栏（无色界 + 四圣） ----------
+  const RX = 726, RW = 168;
+  svg.appendChild(el("rect", { x: RX - 14, y: 96, width: RW + 28, height: 500, rx: 12,
+    fill: "rgba(143,134,168,.07)", stroke: "#8f86a8", "stroke-width": 1, "stroke-dasharray": "6 5" }));
+  svg.appendChild(txt(RX + RW / 2, 126, "非方所栏", { "text-anchor": "middle", "font-size": 14, fill: "#aca3c4" }));
+  svg.appendChild(txt(RX + RW / 2, 146, "经明言无方所·栏位仅教学【今设】", { "text-anchor": "middle", "font-size": 9.5, fill: "#7d7595" }));
+  const nonspatial = [
+    { id: "buddha", name: "佛法界", y: 196, gold: true },
+    { id: "bodhisattva", name: "菩萨法界", y: 262 },
+    { id: "pratyeka", name: "缘觉法界", y: 328 },
+    { id: "sravaka", name: "声闻法界", y: 394 },
+    { id: "arupa", name: "无色界四处", y: 486, sub: "都无有处（俱舍）" }
+  ];
+  nonspatial.forEach(n => {
+    svg.appendChild(el("g", { class: "node-hit", "data-node": n.id }, [
+      el("rect", { x: RX, y: n.y - 22, width: RW, height: n.sub ? 56 : 44, rx: 10,
+        fill: n.gold ? "rgba(207,166,59,.14)" : "rgba(143,134,168,.12)",
+        stroke: n.gold ? "#cfa63b" : "#8f86a8", "stroke-width": n.gold ? 1.4 : .9 }),
+      txt(RX + RW / 2, n.y + 5, n.name, { "text-anchor": "middle", "font-size": 14,
+        fill: n.gold ? "#e8c96a" : "#c9c2dd", class: "node-label" }),
+      ...(n.sub ? [txt(RX + RW / 2, n.y + 24, n.sub, { "text-anchor": "middle", "font-size": 10, fill: "#8d84a5" })] : [])
+    ]));
+  });
+  // 佛法界光柱（以光表德，不作形像）
+  svg.appendChild(el("rect", { x: RX + RW / 2 - 2, y: 96, width: 4, height: 78, fill: "url(#goldRay)", "pointer-events": "none" }));
+
+  // ---------- 西方极乐（横轴分支·画面左缘） ----------
+  const PX = 40, PY = 1180;
+  svg.appendChild(el("g", { class: "node-hit", "data-node": "pureland" }, [
+    el("path", { d: `M ${AXIS - sumeruHalfBase - 340} ${SEA + 60} C ${260} ${1560}, ${150} ${1400}, ${PX + 62} ${PY + 120}`,
+      fill: "none", stroke: "url(#goldRayH)", "stroke-width": 3.5, "stroke-dasharray": "10 7" }),
+    el("rect", { x: PX - 18, y: PY - 96, width: 164, height: 216, rx: 14,
+      fill: "rgba(95,143,116,.13)", stroke: "#5f8f74", "stroke-width": 1.3 }),
+    txt(PX + 64, PY - 62, "西方极乐世界", { "text-anchor": "middle", "font-size": 15.5, fill: "#a8d3b5", class: "node-label" }),
+    txt(PX + 64, PY - 40, "从是西方·过十万亿佛土", { "text-anchor": "middle", "font-size": 10.5, fill: "#7fa98c" }),
+    el("circle", { cx: PX + 64, cy: PY + 18, r: 34, fill: "none", stroke: "#cfa63b", "stroke-width": 1.2 }),
+    txt(PX + 64, PY + 23, "莲", { "text-anchor": "middle", "font-size": 20, fill: "#e8c96a" }),
+    txt(PX + 64, PY + 84, "七宝池·八功德水", { "text-anchor": "middle", "font-size": 10.5, fill: "#7fa98c" }),
+    txt(PX + 64, PY + 102, "横出三界·不在竖轴", { "text-anchor": "middle", "font-size": 10.5, fill: "#7fa98c" })
+  ]));
+
+  // ---------- 总纲（页顶三枚印章式入口） ----------
+  const seals = [
+    { id: "shifajie", name: "十法界总纲", x: 120 },
+    { id: "sanjie", name: "三界总纲", x: 300 },
+    { id: "rupa-elevation", name: "高程之则", x: 480 },
+    { id: "xuanfopu-origin", name: "选佛谱缘起", x: 660 }
+  ];
+  seals.forEach(s => {
+    svg.appendChild(el("g", { class: "node-hit", "data-node": s.id }, [
+      el("rect", { x: s.x - 62, y: 20, width: 124, height: 40, rx: 6,
+        fill: "rgba(196,122,74,.12)", stroke: "#c47a4a", "stroke-width": 1.1 }),
+      txt(s.x, 45, s.name, { "text-anchor": "middle", "font-size": 13.5, fill: "#dfa480", class: "node-label" })
+    ]));
+  });
+
+  // ---------- 渐变定义 ----------
+  const defs = el("defs", {});
+  defs.innerHTML = `
+    <linearGradient id="sumeruGrad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#2e4a6b"/>
+      <stop offset="55%" stop-color="#46698c"/>
+      <stop offset="100%" stop-color="#7591b5"/>
+    </linearGradient>
+    <linearGradient id="goldRay" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#cfa63b" stop-opacity=".9"/>
+      <stop offset="100%" stop-color="#f6e6b0" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="goldRayH" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0%" stop-color="#cfa63b" stop-opacity=".25"/>
+      <stop offset="100%" stop-color="#e8c96a" stop-opacity=".95"/>
+    </linearGradient>`;
+  svg.insertBefore(defs, svg.firstChild);
+
+  // 点击委托
+  svg.addEventListener("click", (e) => {
+    const g = e.target.closest("[data-node]");
+    if (g) openCard(g.getAttribute("data-node"));
+  });
+
+  document.getElementById("scroll-map").appendChild(svg);
+}
+</script>
+</body>
+</html>

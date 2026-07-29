@@ -1,13 +1,19 @@
 import { SFP_WHY } from './sfp-data.js';
 import { SFP_CANON_DOORS } from './sfp-canon.js';
 import { SFP_WHY_PLAIN } from './sfp-why-plain.js';
+import { SFP_GLYPH_WHY } from './sfp-glyph-why.js'; // v389 字义解：依卷首〈輪相表法第一〉逐位生成的理解层
+import { SFP_REFER_WHY } from './sfp-refer-why.js'; // v390 总括句溯源：「餘如前說」类谱注所指位之按语
 
 // 判词证据严格分层：逐字引文、项目释义、项目操作规则不得互相冒充。
 export const SFP_EVIDENCE_TYPE = Object.freeze({
   source: 'source_quote',
   interpretation: 'interpretation',
   operation: 'operational_interpretation',
+  glyph: 'glyph_interpretation', // v389 字义解另立一类：界面另栏署名，不与谱注白话「释义」混排身份
 });
+
+// v390 总括句名单：谱主以此类语总括处，白话不重复含糊句，改由 SFP_REFER_WHY 溯源到被指位按语。
+export const SFP_VAGUE_FORMS = new Set(['餘如前說。', '餘如上說。', '餘亦如前。', '餘皆例前可知。', '餘並如前。', '餘可知。', '餘准前知。', '例可知。', '餘同前釋。', '餘同前說。', '餘如前。可例知。', '餘並如前可知。', '餘同西洲。', '此中趋道之相。亦可例如前說。', '從此增進。亦可例知。', '阿阿等如前可解。']);
 
 const SOURCE_ATTRIBUTION = '蕅益智旭《選佛譜》';
 
@@ -17,6 +23,20 @@ function sourceQuote(text, subtype, ref) {
 
 function interpretation(text) {
   return { type: SFP_EVIDENCE_TYPE.interpretation, text, attribution: '本项目白话释义' };
+}
+
+function glyphInterpretation(text) {
+  return { type: SFP_EVIDENCE_TYPE.glyph, text, attribution: '本项目字义解 · 依卷首〈輪相表法第一〉六字定诠' };
+}
+
+export function sfpGlyphWhyText(position, combo) {
+  return SFP_GLYPH_WHY[`${position}|${combo}`] || '';
+}
+
+// v389 字义解兜底证据：谱主于本位本组未另作按语时，依卷首表法与行法表去向补一层理解（另署，不冒谱曰）。
+export function makeSfpGlyphEvidence(position, combo) {
+  const text = sfpGlyphWhyText(position, combo);
+  return text ? evidence(position, combo, [glyphInterpretation(text)]) : null;
 }
 
 function evidence(position, combo, items) {
@@ -133,8 +153,28 @@ for (const [position, combos] of Object.entries(SFP_WHY)) {
     const quote = recoverSfpSourceQuote(rawText, canonical ? canonical.text : '');
     if (!quote) throw new Error(`判词无法回溯校正原本：${position}/${combo}`);
     const items = [sourceQuote(quote, 'pu_explanation', `《選佛譜》卷${canonical.juan} · ${position}譜曰`)];
-    const plain = sfpWhyPlainText(rawText);
-    if (plain) items.push(interpretation(plain));
+    // v390 总括句展开：谱注是「餘如前說」类指代句时，白话取被指位同组按语（仍是谱主的话），
+    // 被指位逐字引文另列一条并标所指——玩家不再只读到「其余如前说」而无从知前文何指。
+    const refer = SFP_REFER_WHY[`${position}|${combo}`];
+    const referCanon = refer ? CANON_BY_POSITION[refer.s] : null;
+    if (refer && referCanon && referCanon.text.includes(refer.t)) {
+      const short = rawText.trim().replace(/。$/, '');
+      items.push({
+        ...sourceQuote(refer.t, 'refer_note', `《選佛譜》卷${referCanon.juan} · ${refer.s}譜曰（本位「${short}」所指）`),
+        refName: refer.s,
+        refId: refer.s === '佛' ? '圓教究竟妙覺位' : refer.s,
+        refJuan: referCanon.juan,
+      });
+      items.push(interpretation(`${sfpWhyPlainText(refer.t) || refer.p}（谱曰「${short}」——所指即「${refer.s}」本组之注）`));
+    } else {
+      const plain = sfpWhyPlainText(rawText);
+      if (plain) items.push(interpretation(plain));
+      // v389：总括句无溯源可依时，补字义解层坐实所指（另栏署名；谱主有实义按语处不加）
+      if (SFP_VAGUE_FORMS.has(rawText.trim())) {
+        const gw = sfpGlyphWhyText(position, combo);
+        if (gw) items.push(glyphInterpretation(gw));
+      }
+    }
     SFP_WHY_EVIDENCE[position][combo] = evidence(position, combo, items);
   }
 }
@@ -153,7 +193,8 @@ export function mergeSfpEvidence(...values) {
 }
 
 export function makeSfpInterpretationEvidence(text) {
-  return evidence('', '', [interpretation(text)]);
+  // 空文本不造释义项：否则判词卡渲出只剩「释义：」标签的空行（首掷与无谱注行棋必现）
+  return evidence('', '', text && String(text).trim() ? [interpretation(text)] : []);
 }
 
 export function makeSfpSourceEvidence(text, subtype, ref) {
