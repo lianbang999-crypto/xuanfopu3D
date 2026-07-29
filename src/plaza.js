@@ -3,6 +3,8 @@
 // 规则判定与谱义一律不在此处；本模块只做展示与上报。
 // 名字口径：进大厅／看广播／一人行谱皆不问名；真人入座才问，功课榜沿用该名或稳定匿名莲号。
 
+import { ico } from './icons.js'; // 内联 SVG：一人／众人两张模式卡先认形，再认字
+
 const PENDING_KEY = 'sm10.plaza.pending'; // 未送达的掷数（关页面也不丢）
 const NAME_KEY = 'sm10.net.name';         // 与联机名号共用，免重复填写
 const PRACTICE_ID_KEY = 'sm10.practice.id'; // 本机匿名功课身份：不含账号、IP 等个人信息
@@ -17,6 +19,8 @@ export function savedName() {
 export function saveName(name) {
   try { localStorage.setItem(NAME_KEY, name); } catch (e) {}
 }
+let memPracticeId = ''; // localStorage 不可用（隐私模式/配额满）时的会话内兜底：同一会话必须始终同一身份，
+                        // 否则上报与查询各拿一个 actor，功课散成服务端幽灵行、「我的」永远查空
 export function practiceId() {
   try {
     const old = localStorage.getItem(PRACTICE_ID_KEY) || '';
@@ -28,7 +32,8 @@ export function practiceId() {
     localStorage.setItem(PRACTICE_ID_KEY, id);
     return id;
   } catch (e) {
-    return `p_${String(Date.now()).padStart(24, '0').slice(-24)}`;
+    if (!memPracticeId) memPracticeId = `p_${String(Date.now()).padStart(24, '0').slice(-24)}`;
+    return memPracticeId;
   }
 }
 export function practiceName() {
@@ -189,11 +194,12 @@ function paintTable(button, t, esc, here) {
   setCell(button, '.who', quiet ? '' : (who || '&nbsp;'));
 }
 
-// 哪一行是「我」：服务端不外发匿名莲号，故按本机上报的那个名号比对；
-// 重名时服务端会缀上「 · 尾号」，一并认。
+// 哪一行是「我」：服务端不外发匿名莲号，故按本机上报的那个名号比对。
+// 重名时服务端缀「 · 莲号尾四位」（worker plaza 同名去重规则）——须按本机尾号精确比对，
+// 旧式 startsWith 会把同名他人的行也误标成「您」。
 function isMine(name) {
   const mine = practiceName();
-  return name === mine || String(name).startsWith(`${mine} · `);
+  return name === mine || name === `${mine} · ${practiceId().slice(-4).toUpperCase()}`;
 }
 
 // 共修动态：一人一行，按最近用功时刻倒序。**不列名次**——
@@ -252,9 +258,8 @@ export function updatePlaza(p, data, ui) {
   tables.forEach((t, i) => { if (cells[i]) paintTable(cells[i], t, activeUi.esc, activeUi.seatedAt); });
   p.querySelector('.pzOnline').textContent = num(data.online);
   p.querySelector('.pzPlaying').textContent = num(data.playingTables);
-  // 跑马灯只在动态条目本身变了才重写：每次重写都会把 34 秒的滚动动画打回起点，
-  // 八秒一刷则后面的条目永远滚不出来。比对用条目身份（时刻＋正文），
-  // 不用渲染结果——「几分钟前」每分钟都在变，拿它比对等于白比。
+  // 顶条最近几位只在条目身份（时刻＋正文）变了才重写——「几分钟前」每分钟都在变，
+  // 拿渲染结果比对等于白比。（滚动动画已随极简方案撤除，此比对仍保住选中态与无谓的 DOM 重排）
   p.querySelector('.pzTickerSay').innerHTML = sayHtml(data);
   const track = p.querySelector('.pzTickerTrack');
   const key = (data.stream || []).slice(0, 3).map(r => `${r.at}:${r.name}`).join('|');
@@ -289,10 +294,10 @@ export function renderPlaza(data, ui) {
 
       <section class="pzModes" aria-label="选择行谱方式">
         <button class="pzMode solo" id="pzSolo" type="button">
-          <span class="pzModeNo">一</span><span><b>一人行谱</b><i>随时开始 · 独自完成一局</i></span><em>开始</em>
+          <span class="pzModeNo">${ico('person')}</span><span><b>一人行谱</b><i>随时开始 · 独自完成一局</i></span><em>开始</em>
         </button>
         <button class="pzMode multi primary" id="pzQuick" type="button">
-          <span class="pzModeNo">众</span><span><b>与人共修</b><i>2–4 人 · 自动加入合适的共修室</i></span><em>随喜入座</em>
+          <span class="pzModeNo">${ico('group')}</span><span><b>与人共修</b><i>2–4 人 · 自动入座</i></span><em>随喜入座</em>
         </button>
       </section>
 
@@ -338,7 +343,7 @@ export function renderSitName(code, ui) {
   const ord = TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
   const verb = rename ? '记名' : '入座';
   const p = el(`<div class="panel pzAsk pzAskName center" role="dialog" aria-modal="true" aria-labelledby="pzNameTitle">
-    <div class="askEyebrow">${rename ? '念佛功课榜 · 记名' : `共修室${ord} · 入座前一步`}</div>
+    <div class="askEyebrow">${rename ? '共修名号 · 记名' : `共修室${ord} · 入座前一步`}</div>
     <h2 id="pzNameTitle">${rename ? (savedName() ? '改名号' : '取个共修名号') : '留下共修名号'}</h2>
     <form class="body" id="pzNameForm" novalidate>
       <p class="lead">${rename ? '功课与及第都记在这个名下' : '方便同座莲友认得您'}</p>
@@ -351,7 +356,7 @@ export function renderSitName(code, ui) {
           <span id="pzNameCount">0 / 12</span>
         </div>
       </div>
-      <p class="scope" id="pzNameScope">将显示在本室名单与念佛功课榜，并保存在本机。</p>
+      <p class="scope" id="pzNameScope">将显示在本室名单与共修动态，并保存在本机。</p>
       <button class="gbtn primary big" id="pzNameSubmit" type="submit">
         <span id="pzNameGo">以「莲友」${verb}</span>
       </button>
@@ -495,9 +500,11 @@ export const PLAZA_CSS = `
 .pzMode.primary{border-color:rgba(232,199,102,.45);background:linear-gradient(110deg,rgba(197,150,51,.19),rgba(232,199,102,.07))}
 .pzModeNo{width:40px;height:40px;display:grid;place-items:center;border:1px solid rgba(232,199,102,.35);
   border-radius:50%;color:#e8c766;font-family:var(--f-display);font-size:17px}
+.pzModeNo .ico{width:21px;height:21px;vertical-align:0}  /* 圆章内的形：一人与三人一眼分得开 */
+.pzMode.primary .pzModeNo{border-color:rgba(232,199,102,.5);background:rgba(232,199,102,.07)}
 .pzMode span:nth-child(2){display:grid;gap:4px;min-width:0}
 .pzMode b{color:#f0dfa8;font-size:var(--fs-lg,16px);letter-spacing:3px;font-weight:600}
-.pzMode i{font-style:normal;color:#8f8774;font-size:var(--fs-sm,12.5px);letter-spacing:1px}
+.pzMode i{font-style:normal;color:#8f8774;font-size:var(--fs-sm,12.5px);letter-spacing:1px;text-wrap:balance}
 .pzMode em{font-style:normal;color:#c8b988;font-size:var(--fs-sm,12.5px);letter-spacing:2px}
 .pzPanel.joining .pzMode,.pzPanel.joining .pzT{pointer-events:none;opacity:.56}
 .pzPanel.joining #pzQuick{border-color:rgba(232,199,102,.7);opacity:1}
@@ -524,8 +531,8 @@ export const PLAZA_CSS = `
 .pzT.s-empty{justify-content:center;align-items:center;border-color:rgba(216,197,139,.09);background:rgba(255,255,255,.012)}
 .pzT.s-empty .ord{color:#6d6754;font-size:var(--fs-lg,16px)}
 .pzT.s-empty:hover:not(:disabled),.pzT.s-empty:focus-visible:not(:disabled){border-color:rgba(232,199,102,.4);background:rgba(232,199,102,.05)}
-.pzT .ord em{font-style:normal;font-size:9px;margin-left:3px}
-.pzT.locked{border-style:dashed}.pzT.locked .st{color:#b9a7e0}
+.pzT .ord em{font-style:normal;font-size:var(--fs-xs,11px);margin-left:3px} /* 字级五档：散点 9px 收编 */
+.pzT.locked{border-style:dashed}.pzT.locked .st{color:#c8b988} /* 守「色不过三」：锁定语义已有 🔒＋虚线边双重表达，状态字用现有金 */
 .pzT.mine{border-color:rgba(232,199,102,.86);background:rgba(232,199,102,.12)}.pzT.mine .st{color:#e8c766}
 .pzT.s-playing{border-color:rgba(150,225,214,.38)}.pzT.s-playing .st{color:#96e1d6}
 .pzT.s-waiting{border-color:rgba(232,199,102,.48)}.pzT.s-waiting .st{color:#e8c766}
@@ -560,12 +567,16 @@ export const PLAZA_CSS = `
   /* 窄屏只留主句与入口，最近几位收起——主句本身已把规模说清 */
   .pzTicker{min-height:40px;padding:0 11px;gap:9px}.pzTickerViewport{display:none}.pzTickerMore{font-size:11px}
   .pzTickerSay{white-space:normal;line-height:1.45}
-  .pzModes{gap:8px}.pzMode{grid-template-columns:1fr;gap:4px;min-height:78px;padding:11px 12px}
-  .pzModeNo{display:none}.pzMode span:nth-child(2){gap:2px}.pzMode b{font-size:14px;letter-spacing:2px}
+  /* 窄屏留形去环：字最挤的地方反而最需要那个形，只把圆圈脱掉，不占额外的一行高度 */
+  .pzModes{gap:8px}.pzMode{grid-template-columns:auto minmax(0,1fr);gap:3px 9px;min-height:78px;padding:11px 12px}
+  .pzMode .pzModeNo,.pzMode.primary .pzModeNo{width:22px;height:22px;border:0;background:none;align-self:start;margin-top:2px}
+  .pzModeNo .ico{width:19px;height:19px}
+  .pzMode span:nth-child(2),.pzMode em{grid-column:2}
+  .pzMode span:nth-child(2){gap:2px}.pzMode b{font-size:14px;letter-spacing:2px}
   .pzMode i{font-size:10.5px;line-height:1.35}.pzMode em{font-size:11px;margin-top:4px}
   .pzMain{display:block;overflow:auto}.pzRooms{padding:12px;overflow:visible}.pzBack{margin-top:10px}
   .pzSectionHead{align-items:flex-start;margin-bottom:10px}.pzSectionHead p{max-width:160px;text-align:right;line-height:1.5}
-  .pzGrid{grid-template-columns:repeat(3,1fr);gap:7px}.pzT{min-height:78px;padding:10px 9px}.pzT .who{font-size:10px}
+  .pzGrid{grid-template-columns:repeat(3,1fr);gap:7px}.pzT{min-height:78px;padding:10px 9px}.pzT .who{font-size:var(--fs-xs,11px)}
   .fsShell{padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));gap:10px}
   .pzRankRow{grid-template-columns:minmax(60px,1fr) auto auto;gap:8px}
 }

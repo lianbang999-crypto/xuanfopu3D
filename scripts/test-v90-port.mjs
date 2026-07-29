@@ -112,15 +112,21 @@ try {
   ok(beadInfo.goldTone > beadInfo.ironTone, '轮王珠明度按铁至金递增');
   ok(beadInfo.fx && beadInfo.fx.beam === false, '蒙光光幢自测接口可用且初始静默');
 
-  console.log('\n【V90 保留：行门谱页】');
-  // 首掷会自动进入第一门星盘；先返回娑婆，再验证第六门的独立谱页。
+  console.log('\n【谱页深读（v364 后：220 位全归主图，谱页为可选深读）】');
+  // v364 起首掷不再自动转场谱页（落位即主图铺珠）；此处验证谱页深读入口仍可用。
   await page.evaluate(() => window.__discGo?.(false));
   await page.waitForFunction(() => !window.__discInfo?.().on, undefined, { timeout: 8_000 });
   await page.waitForFunction(() => document.querySelector('#fadeWhite')?.style.opacity !== '1', undefined, { timeout: 8_000 });
-  await page.evaluate(() => window.__discGo?.(true, 6));
-  await page.waitForTimeout(1_400);
+  // 首掷乘光飞行（v361 长途最长约 2.9s）可能尚未收尾：入场做重试等待，免与转场赛跑
+  for (let i = 0; i < 5; i++) {
+    await page.evaluate(() => window.__discGo?.(true, 6));
+    try {
+      await page.waitForFunction(() => window.__discInfo?.().on === true, undefined, { timeout: 3_000 });
+      break;
+    } catch {}
+  }
   const disc = await page.evaluate(() => window.__discInfo?.());
-  ok(disc?.door === 6, '第六门进入独立谱页而非铺在主图');
+  ok(disc?.door === 6, '第六门谱页深读可进入（主图另有铺珠）');
   ok(disc?.beads === 6, '生善灭恶谱页完整显示六位');
   await capture(page, '01-door-6-disc-page');
 
@@ -158,7 +164,7 @@ try {
   const logTitle = page.getByRole('heading', { name: '见闻录 · 历局所见' });
   await logTitle.waitFor({ state: 'visible' });
   ok(await page.locator('.lgRow').count() === 15, '见闻录按十五门显示曾见进度');
-  ok((await page.locator('.lgNums').innerText()).includes('总掷数'), '见闻录显示可数行程账且不作修证判语');
+  ok((await page.locator('.lgNums').innerText()).includes('称名'), '见闻录显示可数行程账且不作修证判语'); // v353：掷数栏依上游改题「称名」（一掷即一称名）
   await page.locator('#lgOk').click({ force: true });
 
   ok(pageErrors.length === 0, `页面运行无异常${pageErrors.length ? `：${pageErrors.join(' | ')}` : ''}`);

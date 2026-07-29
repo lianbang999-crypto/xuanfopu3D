@@ -83,6 +83,7 @@ export const Net = {
   _retry: 0,
   _unread: 0,
   _pendingToss: '',
+  _onFirstSync: null, // 入座后等首拍 sync 才兑现 joinRoom 承诺（见 joined 分支）
   _pendingGrant: '',
   _grantTick: 0,
   _chatAt: 0,
@@ -233,7 +234,9 @@ export const Net = {
       if (this._joinCode === code) return this._joinPromise;
       return Promise.reject(new Error(`正在进入${this.roomLabel(this._joinCode)}，请稍候`));
     }
-    if (!this._claimLocalRoom(code)) {
+    // 重连＝回自己已坐着的座（服务器按 playerId 认人），本机租约不得拦路——
+    // 否则僵尸页签的心跳会把自动重连链条整个掐死（reject 被 .catch(()=>{}) 吞掉，无人再试）
+    if (!this._claimLocalRoom(code, reconnecting)) {
       const err = new Error('本机另一个页面正在别的共修室里；一个人同一时间只入一间室');
       err.code = 'other_tab';   // 上层会问一句是否接管——那个页面很可能已经关了
       return Promise.reject(err);
@@ -289,7 +292,13 @@ export const Net = {
           if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname);
           this._uiRoomSync();
           this.onJoined?.({ reconnecting });
-          if (!settled) { settled = true; resolve(message); }
+          // 座位确认后先等首拍房态再兑现承诺（服务器紧随 joined 必发 sync）——
+          // 否则上层 await 续段在微任务里读 this.room 仍是空房，「旁观/入局」判断必错
+          if (!settled) {
+            const settle = () => { if (!settled) { settled = true; this._onFirstSync = null; resolve(message); } };
+            this._onFirstSync = settle;
+            window.setTimeout(settle, 800);   // 兜底：首拍意外缺席也不悬死
+          }
           return;
         }
         if (message.type === 'error') {
@@ -422,7 +431,9 @@ export const Net = {
     return true;
   },
   startMatch() {
-    if (this._pendingStart || !this.active || !this.isHost() || this.room.status === 'playing') return false;
+    // 房主可开局；非房主须已到「房主久未开局」的放权点（canStart）——UI 亮钮与此同则，
+    // 服务端 canStartMatch 亦支持非房主开局，旧式 !isHost() 一刀切会把放权做成空话
+    if (this._pendingStart || !this.active || !(this.isHost() || this.canStart()) || this.room.status === 'playing') return false;
     const id = requestId('start');
     if (!this._send({ type: 'start_match', requestId: id })) return false;
     this._pendingStart = id;
@@ -444,6 +455,12 @@ export const Net = {
     if (!this._send({ type: 'toss_request', requestId: id })) return false;
     this._pendingToss = id;
     this._uiRoomSync();
+    window.setTimeout(() => {                       // 与 setReady/startMatch 同则的超时自清：请求丢失时一手不再锁死
+      if (this._pendingToss !== id) return;
+      this._pendingToss = '';
+      this._uiRoomSync();
+      this._toastCb?.(this.zh('掷轮请求未得回音，请再掷一次'));
+    }, 8000);
     return true;
   },
   finishTurn() {
@@ -496,6 +513,7 @@ export const Net = {
     }
     if (this.room.status === 'playing') this._pendingStart = '';
     if (this.room.phase !== 'choosing_grant') this._pendingGrant = '';
+    this._onFirstSync?.();   // 入座承诺在首拍房态落地后兑现（见 joined 分支）
     this._uiRoomSync();
     this._grantSync();
     this._pillSync();

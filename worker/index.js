@@ -120,8 +120,11 @@ function plazaForward(request, env, path, search = '') {
 
 // 桌态：空室／候莲友（有人未起行）／行谱中／满座
 function tableState(seats) {
+  // 满座尺用「占座数」（含断线保座九十秒者）——与房间 join 的满员检查同一把尺，
+  // 免得大厅按在线数显示可坐、点进去却被 full 拒（保座者的座确实还占着）
+  const held = seats.length;
   const live = seats.filter(s => s.online).length;
-  if (live >= ROOM_MAX) return 'full';
+  if (held >= ROOM_MAX) return 'full';
   if (live === 0) return 'empty';
   return seats.some(s => s.online && s.roomStatus === 'playing') ? 'playing' : 'waiting';
 }
@@ -716,15 +719,15 @@ export class RoomDO {
     };
   }
 
-  readyIds() {
-    const live = this.liveIds();
+  readyIds(exceptWs = null) {
+    const live = this.liveIds(exceptWs);
     return Object.values(this.players).filter((p) => p.ready && live.has(p.id)).map((p) => p.id);
   }
 
   // 记下「人已齐备」的时刻：房主久久不开局时，据此把开局权让给在座诸位
-  syncReadyGate() {
+  syncReadyGate(exceptWs = null) {
     if (this.meta.status === 'playing') { this.meta.readySince = 0; return; }
-    if (this.readyIds().length >= 2) {
+    if (this.readyIds(exceptWs).length >= 2) {
       if (!this.meta.readySince) this.meta.readySince = Date.now();
     } else this.meta.readySince = 0;
   }
@@ -1238,13 +1241,15 @@ export class RoomDO {
   // 名单同步（入座/离席/行棋/上锁都会广播）不再夹带整段聊天——
   // 否则每有人掷一轮，全室都要重收上百条聊天、并整段重建聊天 DOM，
   // 既费流量，又会把行棋公报的系统消息一并冲掉（公报刚插入即被 _chatFill 清空）。
-  syncMsg(withChat = false) {
+  syncMsg(withChat = false, exceptWs = null) {
+    // exceptWs：webSocketClose 期间正在关闭的连接仍在 getWebSockets() 里（见 liveIds 注），
+    // 名单不排除他就会把断线者广播成 online:true，等候室人数虚高最长九十秒
     const msg = {
       type: 'sync',
       protocolVersion: SFP_PROTOCOL_VERSION,
       revision: this.meta.revision,
       room: this.roomState(),
-      players: this.roster(),
+      players: this.roster(exceptWs),
       locked: !!this.meta.lockHash,
     };
     if (withChat) msg.chat = this.chat.slice(-CHAT_KEEP);
@@ -1636,7 +1641,7 @@ export class RoomDO {
     const p = this.players[att.playerId];
     if (p) {
       p.seenAt = Date.now();
-      this.syncReadyGate();   // 断线者不再计入齐备人数，等候门槛随之回退
+      this.syncReadyGate(ws); // 断线者不再计入齐备人数，等候门槛随之回退（排掉正在关闭的连接）
       if (this.meta.status === 'playing' && this.currentPlayerId() === p.id) {
         this.meta.turnDeadline = Math.min(
           Number(this.meta.turnDeadline || Infinity),
@@ -1646,7 +1651,7 @@ export class RoomDO {
       this.bumpRevision();
       await this.save();
       await this.setRoomAlarm(this.meta.turnDeadline || (Date.now() + OFFLINE_GRACE));
-      this.broadcast(this.syncMsg(), ws);
+      this.broadcast(this.syncMsg(false, ws), ws);
       this.state.waitUntil(this.plazaReport(ws));
     }
   }
@@ -1706,20 +1711,25 @@ export class RoomDO {
     const live = this.liveIds();
 
     // 无连接的旧座到期后回收；房间真正空了才清密码和聊天。
+    // turnIdx 重映射同 sweepSeats 之例：先记住当前行动者，删完人按其新下标回定——
+    // 旧式只在「被删者恰是当前者」时取模，被删者排在当前者之前时轮次会整体前移（偷手），
+    // 极端时 turnIdx 越界指空致房间僵死在 playing。
+    const currentId = this.currentPlayerId();
     let removed = false;
     for (const p of Object.values(this.players)) {
       if (!live.has(p.id) && now - Number(p.seenAt || 0) >= OFFLINE_GRACE) {
-        const wasCurrent = this.currentPlayerId() === p.id;
         delete this.players[p.id];
         this.meta.order = this.meta.order.filter((id) => id !== p.id);
         this.meta.giftQueue = (this.meta.giftQueue || []).filter(
           (gift) => gift.giverId !== p.id && gift.recipientId !== p.id);
         if (this.meta.actorId === p.id) this.meta.actorId = '';
-        if (wasCurrent && this.meta.order.length) this.meta.turnIdx %= this.meta.order.length;
         removed = true;
       }
     }
     if (removed) {
+      if (currentId && this.meta.order.includes(currentId)) this.meta.turnIdx = this.meta.order.indexOf(currentId);
+      else if (this.meta.order.length) this.meta.turnIdx %= this.meta.order.length;
+      else this.meta.turnIdx = 0;
       this.promoteHost();
       if (this.prunePendingGrant() && this.meta.phase === 'choosing_grant') this.meta.phase = 'waiting_toss';
       this.normalizeGiftQueue();

@@ -80,7 +80,7 @@ try {
   await dialog.waitFor({ state: 'visible' });
   const input = page.locator('#pzName');
   ok(await dialog.isVisible(), '未存名号时先打开独立填写对话框');
-  ok((await page.locator('#pzNameScope').innerText()).includes('本室名单与念佛功课榜'), '明确说明名号的展示范围');
+  ok((await page.locator('#pzNameScope').innerText()).includes('本室名单与共修动态'), '明确说明名号的展示范围'); // 口径随页面现名「共修动态」（原「念佛功课榜」旧称已清）
   ok(await input.getAttribute('autocomplete') === 'nickname'
     && (await input.getAttribute('aria-describedby'))?.includes('pzNameScope'), '输入框具备标签、自动填充与用途说明关联');
   await page.waitForTimeout(120);

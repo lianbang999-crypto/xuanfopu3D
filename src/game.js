@@ -17,6 +17,7 @@ import { ZH_T2S, ZH_S2T } from './zh-conv.js';
 import { Net } from './net.js'; // 联机同修：房间/轮次/聊天（渲染在本文件「联机同修珠」段）
 import { quickShare } from './share.js'; // 分享卡：荐游戏/邀莲友（二维码+一键转发）
 import * as Plaza from './plaza.js'; // 共修大厅：12 桌网格·动态广播·念佛功课榜
+import { ico, ICON_CSS } from './icons.js'; // 内联 SVG 图标：去处与行项先认形，再认字
 import { sfpDirOf as sfpDirOfRule } from './sfp-rules.js'; // 行棋升降判定（与 check-dir 核证脚本同源）
 import { SFP_FACE_ORDER, canonicalSfpCombo } from './sfp-engine.js'; // 单机/联机共用轮面与组合归一化
 
@@ -37,6 +38,7 @@ const save = {
   lg: { seen: [], tos: 0, evil: 0, back: 0, up: 0, games: 0 },
   sfpFocus: true,
   sfpHelp: false,
+  seenBeadTip: false, // v362 触屏「位珠可点」一次性引导（桌面有 hover 浮名，触屏无等价物）
   askq: { d: '', n: 0 }, // 问义日额（每日 100 次）
   zh: 's'             ,
   cardTheme: 'night'  , // 卡片主题：'night' 暗夜（默认）/ 'paper' 写经纸（浅底墨字，好读）
@@ -64,6 +66,7 @@ function loadSave() {
     }
     if (typeof d.sfpFocus === 'boolean') save.sfpFocus = d.sfpFocus;
     save.sfpHelp = !!d.sfpHelp;
+    save.seenBeadTip = !!d.seenBeadTip;
     if (d.askq && typeof d.askq.d === 'string') save.askq = { d: d.askq.d, n: Number(d.askq.n) || 0 };
     if (d.zh === 't' || d.zh === 's') save.zh = d.zh;
     if (d.settings) Object.assign(save.settings, d.settings);
@@ -1924,7 +1927,7 @@ html.paperCards .panel .sfpChip{color:var(--ck-plain)!important}
 /* 次要褐字（解读/标签/坐标/键值/表条） */
 html.paperCards #cardSub,html.paperCards .panel .tag,html.paperCards .panel .tag.ns,
 html.paperCards .panel .chipRow .chip,html.paperCards .panel .coordBox,
-html.paperCards .panel .mindBars .row,html.paperCards .panel .citeItem .txt,
+html.paperCards .panel .citeItem .txt,
 html.paperCards .panel details.citeD .txt,html.paperCards .panel .profRow .pv,
 html.paperCards .panel .smStat,
 html.paperCards .panel #sfpMsg,html.paperCards .panel #vWhy,html.paperCards .panel #vSrc,
@@ -2027,18 +2030,25 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 #topbar>*{pointer-events:auto}
 #title{font-size:var(--fs-xl);letter-spacing:4px;color:#f0dfa8;font-weight:600;text-shadow:0 1px 6px #000}
 /* 右上角两枚去处（大厅｜我的）：与题字分踞两角，安静地待着，不与中央星图争。
-   position:static 是必须的——.ui 基类是绝对定位，不还原就会掉出顶栏的 flex 流（同 #backBtn 之例）。 */
-#hallBtn,#mineBtn{position:static;flex:none;min-height:36px;padding:7px 15px;border-radius:18px;letter-spacing:2px;
+   position:relative 是必须的——.ui 基类是绝对定位，不还原就会掉出顶栏的 flex 流（同 #backBtn 之例）；
+   取 relative 而非 static，是给窄屏 ::after 热区当定位基。 */
+#hallBtn,#mineBtn{position:relative;flex:none;display:inline-flex;align-items:center;gap:6px;
+  min-height:36px;padding:7px 14px;border-radius:18px;letter-spacing:2px;
   font-size:var(--fs-sm);color:#cbbb8d;border:1px solid rgba(215,170,69,.34);background:rgba(20,17,34,.62);
   backdrop-filter:blur(6px);cursor:pointer}
+#hallBtn .btTx,#mineBtn .btTx{margin-right:-2px}   /* 抵掉字尾多出的一格字距，图标与字看着才等距 */
 #hallBtn{margin-left:auto}
 #mineBtn{margin-left:8px}
 #hallBtn:hover,#hallBtn:focus-visible,#mineBtn:hover,#mineBtn:focus-visible{color:#f0dfa8;border-color:rgba(232,199,102,.62);background:rgba(30,25,50,.78)}
-@media (max-width:380px){#hallBtn,#mineBtn{padding:7px 11px;letter-spacing:1px}#title{letter-spacing:2px}}
-#compass{top:58px;right:12px;width:74px;height:74px;border-radius:50%;pointer-events:none;
-  border:1px solid rgba(215,170,69,.5);background:rgba(23,20,38,.5)}
-#compass span{position:absolute;left:50%;top:50%;font-size:var(--fs-xs);color:#e9dcae;transform:translate(-50%,-50%)}
-#compass .n{color:#f08f7a}
+/* 窄屏收起字，只留形：两枚去处收成等宽圆钮，把顶栏让回给题字 */
+@media (max-width:380px){
+  #hallBtn,#mineBtn{padding:0;width:36px;justify-content:center}
+  #hallBtn::after,#mineBtn::after{content:'';position:absolute;inset:-4px} /* 视觉 36px，热区补足 44px 触控惯例 */
+  #hallBtn .btTx,#mineBtn .btTx{display:none}
+  #hallBtn .ico,#mineBtn .ico{width:1.35em;height:1.35em}
+  #title{letter-spacing:2px}
+}
+/* 罗盘已撤（极简屏定案）：元素、样式与 updateCompass 一并清除——若复用须重算与 #topbar 右上两钮的位置关系 */
 #freeDock{bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center}
 #joy{left:calc(14px + env(safe-area-inset-left));bottom:calc(104px + env(safe-area-inset-bottom));width:108px;height:108px;border-radius:50%;display:none;z-index:12;
   background:rgba(26,22,44,.45);border:1px solid rgba(215,170,69,.45);touch-action:none}
@@ -2080,10 +2090,32 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
 .causeBox .cs{font-size:var(--fs-xs);color:#9d9170;margin-top:4px}
 #cardBody .one{color:#efe0b4}
 .coordBox{margin:8px 0;padding:8px 10px;border:1px dashed rgba(215,170,69,.45);border-radius:8px;font-size:var(--fs-sm);color:#dccf9f}
-.mindBars{margin:8px 0}
-.mindBars .row{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);margin:4px 0;color:#cbbb8d}
-.mindBars .bar{flex:1;height:6px;background:rgba(215,170,69,.15);border-radius:3px;overflow:hidden}
-.mindBars .fill{height:100%;background:linear-gradient(90deg,#8b3f32,#d7aa45);border-radius:3px}
+/* v363 位卡地理坐标行：方位＋高下依经直陈；.gk 类型小标（依经有处/非方所摄） */
+.geoLn{margin:7px 0 0;padding:6px 9px;font-size:var(--fs-sm);line-height:1.55;display:flex;flex-wrap:wrap;gap:5px;align-items:baseline}
+.geoLn b{font-weight:600;color:#d7aa45;letter-spacing:1px;flex:0 0 auto}
+.geoLn .gk{font-style:normal;font-size:var(--fs-xs);padding:1px 5px;border:1px solid rgba(215,170,69,.4);border-radius:5px;color:#c3ad74;flex:0 0 auto}
+.geoLn .gk.ns{border-color:rgba(150,160,175,.4);color:#98a2b0}
+.geoLn span{color:#cbbb8d;flex:1 1 160px;min-width:0}
+/* v365 极简：多位锚芯片区限高内滚 */
+.chipScroll{max-height:168px;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px}
+/* v355 谱文页位名目录：单行横滑（换行铺开时窄屏占 41% 视野，把正文挤出去） */
+.cnToc{display:flex;gap:4px;margin:8px 0 2px;padding:7px 8px;border-radius:9px;background:rgba(239,224,180,.04);border:1px solid rgba(215,170,69,.14);overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.cnToc::-webkit-scrollbar{display:none}
+.cnToc .cnT{flex:0 0 auto;font-size:var(--fs-xs);padding:2px 8px;border-radius:8px;border:1px solid rgba(215,170,69,.22);color:#d9c894;cursor:pointer;white-space:nowrap}
+.cnToc .cnT:active{background:rgba(215,170,69,.16)}
+/* v348 解读卡极简：去向条＋标签短行（长段白话退役），色阶仍从三层一序 */
+.rdRoute{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:2px 0 9px}
+.rdRoute .p{font-size:var(--fs-lg);color:#f4e6b8;letter-spacing:1px;cursor:pointer;border-bottom:1px dotted rgba(215,170,69,.45)}
+.rdRoute .ar{font-size:var(--fs-sm);letter-spacing:2px;color:#d7aa45;white-space:nowrap}
+.rdRoute .ar.up{color:#e8c766}.rdRoute .ar.down{color:#f08f7a}.rdRoute .ar.pure{color:#f6ecc8}.rdRoute .ar.stay{color:#9d9170}
+.rdRoute .p .ag{font-weight:400;font-size:var(--fs-xs);color:#9d9170;margin-left:3px}
+.rdRow{display:flex;gap:10px;padding:8px 0;border-top:1px solid rgba(215,170,69,.13)}
+.rdRow .k{flex:0 0 2.6em;font-size:var(--fs-xs);color:#d7aa45;letter-spacing:1px;padding-top:3px}
+.rdRow .v{flex:1;min-width:0;font-size:var(--fs-md);color:#dccf9f;line-height:1.78}
+.rdRow.m .v{color:#f7eed6}
+.rdRow .v i{font-style:normal;color:#9d9170;font-size:var(--fs-xs);margin-left:6px}
+.rdGlyph{font-size:var(--fs-xs);color:#9d9170;letter-spacing:1px;padding:0 0 8px}
+/* 心相量表已撤（v365：数值系自撰非经论所载），样式一并清除 */
 #cardBtns{display:flex;gap:8px;padding:0 0 8px;flex-wrap:wrap}
 #cardBtns .gbtn{padding:7px 12px;font-size:var(--fs-md);min-height:36px}
 .citeItem{margin:8px 0;padding:8px 10px;background:rgba(215,170,69,.07);border-left:2px solid #d7aa45;border-radius:0 8px 8px 0}
@@ -2216,6 +2248,12 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .lgTop{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;padding:2px 0 10px}.lgTop b{font-size:30px;color:#f4e6b8;line-height:1}
 .lgTop span{font-size:13px;color:#d7aa45;letter-spacing:1px}.lgTop i{flex:1 0 100%;font-style:normal;font-size:11.5px;color:#9d9170;line-height:1.6;margin-top:4px}
 .lgRow{display:flex;align-items:center;gap:7px;width:100%;padding:5px 0;border:0;border-top:1px solid rgba(215,170,69,.12);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.lgRow.z{opacity:.45}
+/* v353 一屏可见：门表两列紧排（原十五行竖排把行程账挤出视野） */
+.lgG2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+@media (max-width:520px){.lgG2{grid-template-columns:1fr}}
+.lgG2 .lgRow{padding:4px 0}
+.lgG2 .lgRow .bar{flex:0 0 34px}
+.lgG2 .lgRow .n{flex:0 0 40px}
 .lgRow .d{flex:0 0 24px;font-size:11px;color:#d7aa45;text-align:center}.lgRow .t{flex:1;font-size:12.8px;color:#e5d8b2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lgRow .bar{flex:0 0 58px;height:4px;border-radius:2px;background:rgba(239,224,180,.12);overflow:hidden}.lgRow .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a6a2a,#e8c766)}
 .lgRow .n{flex:0 0 46px;text-align:right;font-size:11px;color:#9d9170}.lgRow .go{flex:0 0 10px;text-align:right;color:#d7aa45;font-size:12px}
@@ -2384,7 +2422,9 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .myPanel .myCell.on i{color:#f0dfa8}
 .myPanel .myCell.on b{color:#c8a94e}
 .myPanel .myCell.now{outline:1px solid rgba(232,199,102,.55);outline-offset:-1px}
-.myPanel .myRow{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-size:var(--fs-sm);min-height:44px}
+.myPanel .myRow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-size:var(--fs-sm);min-height:44px}
+.myPanel .myRow .ico{color:#c8a94e;opacity:.92}   /* 行首的形只作辨识，比字略退半步，不抢正文 */
+.myPanel .myRow>span{min-width:0;flex:1 1 auto}
 .myPanel .myRow i{margin-left:auto;font-style:normal;color:#d7aa45}
 .myPanel .myRun{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;
   padding:8px 2px;border-bottom:1px solid rgba(215,170,69,.1);font-size:var(--fs-sm)}
@@ -2560,7 +2600,7 @@ css.textContent += `
   .smPanel .body{gap:11px}.smGrid .smRow{min-height:70px;padding:10px}
 }
 `;
-css.textContent += Plaza.PLAZA_CSS + Plaza.PEER_WIN_CSS; // 共修大厅与同修及第横幅样式随主样式一并注入
+css.textContent += Plaza.PLAZA_CSS + Plaza.PEER_WIN_CSS + ICON_CSS; // 共修大厅、同修及第横幅与图标样式随主样式一并注入
 document.head.appendChild(css);
 
 function el(html        )              {
@@ -2578,9 +2618,7 @@ titleEl.style.cursor = 'pointer';
 titleEl.addEventListener('click', () => browseMapMode()); // v258 用户点单：点题字直切观照全图（题屏仍留给开局引导）；v312 符号 ⌄→⊙（⌄暗示下拉而行为是观照，语义勘正）
 titleEl.title = '观照全图（存局退出）';
 
-const compass = el(`<div id="compass" class="ui">
-  <span class="e">东</span><span class="s">南</span><span class="w">西</span><span class="n">北</span></div>`);
-// 罗盘已撤不上屏（极简屏，用户点单）：元素保留不挂载，updateCompass 早退
+// 罗盘已撤（极简屏，用户点单）：死代码清除——按遗留坐标重挂会紧贴顶栏两钮（52px vs 58px），复用须重算
 
 const freeDock = el('<div id="freeDock" class="ui"></div>');
 app.appendChild(freeDock);
@@ -2654,10 +2692,11 @@ topbar.appendChild(backBtn);
 // 右上角两枚常驻去处：「大厅」＝公共面（共修），「我的」＝个人面（功课）。
 // 两者平级，故并排；不把「我的」塞进大厅——那会让个人面成为公共面的子页，语义拧了。
 // 题字与状态小签在左，两枚去处在右，一屏两端各管一件事。
-const hallBtn = el('<button id="hallBtn" class="ui gbtn" title="共修大厅 · 一人行谱或与人共修">大厅</button>')                     ;
+// 两枚去处：图标在前、字在后；窄屏收起字只留形（aria-label 仍在，读屏与长按提示不受影响）
+const hallBtn = el(`<button id="hallBtn" class="ui gbtn" aria-label="共修大厅" title="共修大厅 · 一人行谱或与人共修">${ico('hall')}<span class="btTx">大厅</span></button>`)                     ;
 hallBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.22); openPlaza(); });
 topbar.appendChild(hallBtn);
-const mineBtn = el('<button id="mineBtn" class="ui gbtn" title="我的功课 · 日历 · 原文与设置">我的</button>')                     ;
+const mineBtn = el(`<button id="mineBtn" class="ui gbtn" aria-label="我的功课" title="我的功课 · 日历 · 原文与设置">${ico('person')}<span class="btTx">我的</span></button>`)                     ;
 mineBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.22); openMine(); });
 topbar.appendChild(mineBtn);
 
@@ -2771,13 +2810,13 @@ const cardBtns = card.querySelector('#cardBtns')               ;
 const cardBody = card.querySelector('#cardBody')               ;
 const cardNav = card.querySelector('#cardNav')               ;
 
-function esc(s        ) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+function esc(s        ) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); } // 引号也转：esc 结果常落入属性位（data-code/style 等），收窄注入面
 
 function renderCard() {
   if (!selectedId) return;
   const nv = byId[selectedId]; const d = nv.d;
   cardName.textContent = zh(d.name); cardSub.textContent = zh(d.sub || '');
-  const kindCls = d.coordKind === 'nonspatial' ? 'ns' : (d.coordKind === 'schematic' ? 'warn' : '');
+  const kindCls = d.coordKind === 'nonspatial' ? 'ns' : ''; // v366：schematic 的橙色警示撤（已归「依经有处」）
   cardTags.innerHTML = zh(`<span class="tag">${d.group}</span><span class="tag">${d.sphere}</span>
     <span class="tag ${kindCls}">${(COORD_KIND_LABEL       )[d.coordKind]}</span>`);
   // 按钮：仅保留收藏与进入极乐世界，内容全部入单卡折叠段
@@ -2801,14 +2840,8 @@ function renderCard() {
   if (d.detail) dh += `<div style="color:#dccf9f">${esc(d.detail)}</div>`;
   if (d.cause) dh += `<div class="causeBox"><div class="ck">何因生此</div>
     <div class="cv">${esc(d.cause.v)}</div><div class="cs">${esc(d.cause.src)}</div></div>`;
-  dh += `<div class="coordBox">器世间坐标 — 方位：${esc(d.bear)}｜高度：${esc(d.elev)}</div>`;
-  if (d.realm) {
-    const m = (REALMS       )[nv.realmIdx].mind;
-    dh += `<div class="mindBars">
-      <div class="row"><span>迷执—觉照</span><div class="bar"><div class="fill" style="width:${m.awaken * 100}%"></div></div></div>
-      <div class="row"><span>苦——乐</span><div class="bar"><div class="fill" style="width:${m.joy * 100}%"></div></div></div>
-      <div class="row"><span>利己—利他</span><div class="bar"><div class="fill" style="width:${m.altru * 100}%"></div></div></div></div>`;
-  }
+  dh += `<div class="coordBox">地理坐标 — 方位：${esc(d.bear)}｜高下：${esc(d.elev)}</div>`; // v363 与位卡措辞归一（用户用语「地理坐标」；类型标已在标题行 .tag 呈）
+  // v365 心相三条量表（迷执—觉照/苦—乐/利己—利他）撤：数值系本图自撰，非经论所载，与「白话不冒充引文」同一红线
   const sec = (key        , title        , inner        , open = false) =>
     `<details class="sec" data-sec="${key}"${open ? ' open' : ''}><summary>${title}</summary>${inner}</details>`;
   // 先分段构建，再按场景定序：局中且现居位挂在本节点→谱位提前并默认展开；出处是参考材料永远压底
@@ -2816,7 +2849,7 @@ function renderCard() {
       <summary><span class="src">《${esc(c.work)}》${esc(c.juan)} · ${esc(c.ref)}</span>
       <span class="kind">${c.kind === 'quote' ? '经文摘录' : '义理概述'}</span></summary>
       <div class="txt">${esc(c.text)}</div></details>`).join('')
-    + `<div class="cNote" style="margin-top:6px">点条目展开全文；「经文摘录」依 CBETA 通行本校写。</div>`);
+  );
   // 界相·众相
   let secProf = '';
   if (d.profile || d.figures) {
@@ -2828,11 +2861,9 @@ function renderCard() {
       ph += (d.figures         ).map((f     ) => `<div class="citeItem"><div class="src">${esc(f.name)}</div>
         <div class="txt">${esc(f.note)}</div></div>`).join('');
     }
-    ph += `<div class="cNote" style="margin-top:6px">出处带「义」字者为义理概述（本图撮述），不带者为逐字原文；寿量身量诸说以《俱舍》系为主，异说不强行统一。</div>`;
     secProf = sec('prof', '界相 · 众相', ph);
   }
-  // 异说
-  const secAlt = d.alt ? sec('alt', '异说并存', `<div class="citeItem"><div class="src">异说并存 <span class="kind">不强行统一</span></div><div class="txt">${esc(d.alt)}</div></div>`) : '';
+  // v366 用户点单：诸说分歧一行也撤（d.alt 数据留档不呈）——节点卡只答「这一位是什么、在哪」，版本异同不占卡面
   // 选佛谱位（锚在本节点的谱位）：点芯片卡内就地展开譜曰，不跳转
   const posHere = (SFP_AT[d.id] || [])         ;
   const atCur = sfpS.active && !!sfpS.pos && posHere.some((p     ) => p.id === sfpS.pos);
@@ -2848,13 +2879,14 @@ function renderCard() {
       sh += `<span class="sfpChip${sfpS.pos === p.id ? ' cur' : ''}" data-pid="${esc(p.id)}">${esc(p.name)}</span>`;
     });
     sh += `<div id="inNote" class="inlineNote"></div>`;
-    sh += `<div class="cNote" style="margin-top:6px">点位名当场展开譜曰，再点收起；珠串按原谱位序盘升——低位在下，高位在上。</div>`;
-    secSfp = sec('sfp', `选佛谱位 · ${posHere.length}${atCur ? ' · 现居' : ''}`, sh, atCur);
+    // v365 极简：多位锚（菩萨法界 66 位）芯片区限高内滚（.chipScroll），免一段吃掉整卡
+    secSfp = sec('sfp', `选佛谱位 · ${posHere.length}${atCur ? ' · 现居' : ''}`,
+      posHere.length > 18 ? `<div class="chipScroll">${sh}</div>` : sh, atCur);
   }
   // 定序：探索时详说领首；局中现居时谱位领首、详说收起
   html += atCur ? secSfp : '';
   html += sec('detail', d.cause ? '详说 · 何因生此' : '详说', dh, !atCur);
-  html += secProf + secAlt;
+  html += secProf;
   html += atCur ? '' : secSfp;
   html += secCite;
   cardBody.innerHTML = zh(html);
@@ -3046,7 +3078,7 @@ function buildFiltersPane()              {
   const cats                                    = [
     ['group', '界群', ['器世间', '六凡', '四圣', '净土']],
     ['sphere', '三界', ['欲界', '色界', '无色界', '非三界摄']],
-    ['kind', '坐标类型', ['scripture', 'schematic', 'nonspatial']],
+    ['kind', '坐标类型', ['scripture', 'nonspatial']], // v366 两名制：schematic 已并入 scripture（同标签），芯片去重
     ['work', '经典', WORKS            ],
   ];
   cats.forEach(([key, label, items]) => {
@@ -3070,7 +3102,8 @@ function buildFiltersPane()              {
 function passFilter(d     )          {
   if (filters.group.size && !filters.group.has(d.group)) return false;
   if (filters.sphere.size && !filters.sphere.has(d.sphere)) return false;
-  if (filters.kind.size && !filters.kind.has(d.coordKind)) return false;
+  // v366 两名制：schematic 已并入「依经有处」，过滤时同 scripture 论（否则选依经有处会漏掉阿修罗）
+  if (filters.kind.size && !filters.kind.has(d.coordKind === 'schematic' ? 'scripture' : d.coordKind)) return false;
   if (filters.work.size && !d.citations.some((c     ) => filters.work.has(c.work))) return false;
   return true;
 }
@@ -3293,7 +3326,11 @@ const DISC_CATS = [ // 下标段落＝门1总说四分法；段色取「一轴�
 // v322 行门四门谱页（用户点单：门6-9行门非处所不铺主图，转场进入——对齐门1星盘/菩萨道场语法）；v324 门2同制（用户定案：法道流弊五位亦行门性质，全锚人间）：
 // 谱页式短行阵同 v318 制（每行≤4珠、签一律珠下、零线条）；形制 v326 用户定案：谱页珠一律球形（v147 莲台阶片退役）；
 // 门2独例：行序自上而下＝谱序（流弊本义即沉降，与他页「自下而上渐善」互为镜像，同主图盘升排除之义）
-const DISC_DOORS = new Set([1, 2, 6, 7, 8, 9]);
+// v364 用户定案「220 位全归主图」：谱页专场退为可选深读（天梯久按/门要卡入），不再是落位必经的转场。
+// 分界曾按位数密度切（21/52 位塞不进星图就转场），与义理无关且与「有无地理方所」几乎反着——
+// 门1 廿一因、门2 流弊、门6/7 戒学本在南赡部洲人间实地，理应铺珠可点可飞临。
+// 集合留空＝全门铺珠；DISC_PAGES 页面数据仍在（深读入口用），故谱页一览不失。
+const DISC_DOORS = new Set([]);
 const DISC_PAGES                                                                                                                       = {
   2: { lines: [[3, 2]], ly: [[8, -8]], cats: [{ a: 0, b: 4, t: '' }], num: '五' }, // 破尸羅→增上慢：逐行逐堕
   6: { lines: [[3], [3]], ly: [[-9], [9]], cats: [{ a: 0, b: 2, t: '生善' }, { a: 3, b: 5, t: '滅惡' }], num: '六' }, // 科名即门题两分
@@ -4151,7 +4188,7 @@ function sfpLocalOf(aid        , dno        , gi        , G        , n        , 
   const V = (x        , y        , z        ) => new THREE.Vector3(x, y, z);
   if (aid === 'jambu' && dno === 1) { const a = k * Math.PI * 2 / n - Math.PI / 2; return V(Math.cos(a) * 7.2, 1.0 + 0.15 * k, Math.sin(a) * 7.2); }
   if (aid === 'jambu' && dno === 2) { // 沉沦链（v150 用户报不显）：五位出洲沿朝地狱法界方向逐级沉降，悬于海上而非埋于洲下；方向取 jambu[0,4,104]→hell[8,-34,26] 水平分量
-    const h = 7 + 4.5 * k;
+    const h = 9.4 + 4.5 * k; // v364 全铺后门1 因地环（洲面 r7.2）已在此，起点外推让开（流弊本义即出洲沉沦，推远更合）
     return V(0.102 * h, 2.5 - 1.3 * k, -0.995 * h); // 世界 y 6.5→1.3，尾位贴浪不入水（海面 y=0）
   }
   if (aid === 'jambu' && dno === 7) { const a = -Math.PI / 2 + k * 0.52; return V(Math.cos(a) * 6.8, 4.5 + 1.5 * k, Math.sin(a) * 6.8); } // 戒梯（v147）：在家五戒→无上道戒，自洲面盘旋拾级增上
@@ -4167,23 +4204,26 @@ function sfpLocalOf(aid        , dno        , gi        , G        , n        , 
   }
   if (aid === 'bodhi' && dno === 13) { const a = (k - (n - 1) / 2) * 0.5; return V(Math.cos(a) * 7.8, 34 + 1.1 * k, Math.sin(a) * 7.8); } // 圆教八位：位塔之上的顶冠弧（v149 随塔加宽），a0=0 朝佛法界(+x)扬起
   if (aid === 'buddha' && dno === 15) { return V(0, 5.2, 0); } // 妙觉独星，立佛界节点顶
+  // v364 门9 慧学发心＝各法界「前庭」低弧：发心尚未入位次，故列于该界诸位次之下（义理：闻慧发心在证位之前），
+  // 同时让开通例扇弧首环（原与门10 藏教位最近 1.47）
+  if (dno === 9) { const a = _faceA(aid) + (k - (n - 1) / 2) * 0.62; return V(Math.cos(a) * 6.2, -2.6 + k * 0.5, Math.sin(a) * 6.2); }
   // v320 门4八附位专属坐标（十有为骨八附为缀，门总说四条安置令字面化）：
   // ①四輪王＝南洲面山「轮宝阶」斜列渐升（王一二三四洲，出俊舍）；②十仙＝外海孤峰顶（楞严「休止深山或大海島絕於人境」，
   // 峰高仅高于金輪王一籌＝「雖離人世不離人類」，谱序高度仍单调）
   if (aid === 'jambu' && dno === 4) {
     if (k === 0) return V(0, 2.2, 0); // k0=南贍部洲（asNode 自归节点，此值不用）
-    if (k <= 4) { const a = _faceA(aid) + 0.55, r = 9.5 + (k - 1) * 2.6; return V(Math.cos(a) * r, 1.8 + (k - 1) * 1.15, Math.sin(a) * r); }
+    if (k <= 4) { const a = _faceA(aid) + 0.55, r = 9.5 + (k - 1) * 2.6; return V(Math.cos(a) * r, 2.6 + (k - 1) * 1.15, Math.sin(a) * r); } // v361 起点抬过洲心 2.2：门内谱序字面单调（轮王出南洲、居洲面山道）
     const a2 = _faceA(aid) + 1.05; return V(Math.cos(a2) * 24, 6.8, Math.sin(a2) * 24);
   }
   // ③蒙光天子居兜率殿侧（华严：兜率天中闻天鼓处）、弥勒内院居殿顶正中轴高一层（上生经：内院在兜率中，补处说法处尊）
-  if (aid === 'tusita' && dno === 4) { return k === 1 ? V(4.4, 1.0, 1.6) : k === 2 ? V(0, 5.0, 0) : V(0, 2.2, 0); } // k0=兜率天（节点）
+  if (aid === 'tusita' && dno === 4) { return k === 1 ? V(4.4, 2.6, 1.6) : k === 2 ? V(0, 5.0, 0) : V(0, 2.2, 0); } // k0=兜率天（节点）；v361 蒙光天子 1.0→2.6：仍居殿侧、但高过兜率节点，门内谱序字面单调（内院 5.0 仍最尊）
   // ④魔罗天＝他化宫上别宫一珠（翻译名义集「第六天上別有魔羅所居天。他化天攝」），欲网光丝另建（见珠建处 guide）
   if (aid === 'paranirmita' && dno === 4) { return V(6.0, 8.0, 0); }
   // 通例：面山扇弧，同锚多门按门序左右错开、半径渐外，弧内依谱序渐升
   const a0 = _faceA(aid) + (gi - (G - 1) / 2) * 1.15;
   const da = Math.min(0.5, 3.4 / Math.max(1, n - 1));
   const a = a0 + (k - (n - 1) / 2) * da;
-  const r = 4.4 + gi * 0.9;
+  const r = 4.4 + gi * 1.25; // v360 同锚多门半径步进 0.9→1.25：全铺后 sravaka 锚上藏教/通教邻珠原最近 1.54（珠径 .62 已近粘连），拉开后 ≥2.0
   return V(Math.cos(a) * r, 1.6 + gi * 1.6 + k * Math.min(0.7, 8 / n), Math.sin(a) * r);
 }
 Object.keys(SFP_AT).forEach(aid => {
@@ -4194,14 +4234,8 @@ Object.keys(SFP_AT).forEach(aid => {
   doors.forEach((dno     , gi        ) => {
     const g = list.filter((p     ) => p.door === dno);
     const n = g.length;
-    if (dno === 1) { // v316 因地无地理坐标（用户定案）：门1不在主图铺珠——廿一因安居星盘专场；
-      // 行棋接驳（起飞点/足迹/同修）一律取「门户点」＝南贍部洲上空（發心在人道）
-      const jd = byId['jambu'].d.pos;
-      g.forEach((p     ) => { sfpBeadLocal[p.id] = new THREE.Vector3(jd[0] - nv.d.pos[0], jd[1] + 7.5 - nv.d.pos[1], jd[2] - nv.d.pos[2]); });
-      (DOOR_ANCHORS[1] = DOOR_ANCHORS[1] || new Set()).add('jambu');
-      return;
-    }
-    if (DISC_DOORS.has(dno)) { // v322 行门四门＋v324 门2（用户点单）：行门非处所，主图不铺珠——
+    // v364 门1特判删：廿一因随 jambu 因地环铺回主图（sfpLocalOf 洲面 r7.2 环），星盘专场退为深读
+    if (DISC_DOORS.has(dno)) { // v322 行门四门＋v324 门2（用户点单）曾不铺珠——v364 集合已清空，本支不再命中（留式以防回流）
       // 观照/落位一律转场谱页专场（对齐门1星盘语法）；门户点＝各自锚上空（听法在人间、修禅对色界、发心对四圣），飞行足迹由此起讫
       g.forEach((p     ) => { sfpBeadLocal[p.id] = new THREE.Vector3(0, 7.5, 0); });
       return;
@@ -5031,12 +5065,15 @@ function syncRollGlow() {
   const localReady = sfpS.active && !terminal && !sfpS.rolling && !sfpTransit && !verdictFn;
   const canRoll = localReady && (!Net.active || Net.canToss());
   const waiting = localReady && Net.active && !canRoll;
+  const vdGo = verdictMine(); // v360 掷钮＝同一动作：判词等本座落子时，掷钮亮着、题「行」字（点即落子）
   const button = sfpBar.querySelector('#sfpRoll')               ;
-  button.classList.toggle('glow', canRoll);
+  button.classList.toggle('glow', canRoll || vdGo);
   button.classList.toggle('wait', waiting);
-  button.classList.toggle('dis', !canRoll && !sfpS.rolling);
+  button.classList.toggle('dis', !canRoll && !sfpS.rolling && !vdGo);
   const txt = button.querySelector('#rollTxt')               ;
-  if (!sfpS.rolling && !sfpTransit) {
+  if (vdGo) {
+    txt.textContent = (verdictEl.querySelector('#vGoTxt')               ).textContent || zh('行 ▸');
+  } else if (!sfpS.rolling && !sfpTransit) {
     let label = terminal
       ? (Net.active && !Net.isFinished() ? '本座已及第 · 等待结算' : '本局已结束')
       : (waiting ? Net.turnHint() : '长按掷轮');
@@ -5136,7 +5173,8 @@ function cometUpdate(dt        ) {
   const a = comet.fromNv.marker.localToWorld(_ca.copy(comet.fromLp));
   const b = comet.toNv.marker.localToWorld(_cb.copy(comet.toLp));
   const span = a.distanceTo(b);
-  const arcH = comet.dir === 'down' ? -Math.min(13, span * 0.28 + 3) : Math.min(20, span * 0.34 + 4);
+  // v361 弧高随跨距续增（旧式封顶后，长途弧线相对跨距被压平成直线）：改用 sqrt 增长＋更高的上限
+  const arcH = comet.dir === 'down' ? -Math.min(30, 3 + Math.sqrt(span) * 1.9) : Math.min(46, 4 + Math.sqrt(span) * 2.6);
   const inv = 1 - e;
   const cx = (a.x + b.x) / 2, cy = (a.y + b.y) / 2 + arcH, cz = (a.z + b.z) / 2;
   _cp.set(
@@ -5157,7 +5195,7 @@ function cometUpdate(dt        ) {
   // 乘光随行：相机在光点后上方跟飞，把每一掷变成一段小飞行
   if (!rideAbort) {
     _rd.subVectors(b, a).normalize();
-    const back = THREE.MathUtils.clamp(span * 0.6, 18, 42);
+    const back = THREE.MathUtils.clamp(span * 0.6, 18, 78); // v361 长途放宽（旧封顶 42 使跨界飞行贴太近，弧顶出画）：随跨距退到 78
     const hOff = comet.dir === 'down' ? 16 : (comet.dir === 'up' || comet.dir === 'start') ? 8 : 11;
     _rd.set(_cp.x - _rd.x * back, _cp.y - _rd.y * back * 0.4 + hOff, _cp.z - _rd.z * back);
     camera.position.lerp(_rd, Math.min(1, dt * 2.6));
@@ -5188,7 +5226,9 @@ function cometUpdate(dt        ) {
   }
 }
 function cometStart(fromNv          , fromLp               , toNv          , toLp               , dir        , span        , onDone            , durOv         , via                                    ) {
-  let dur = durOv ?? Math.min(1.6, 0.7 + span * 0.008);
+  // v361 长途不再「嗖一下直线闪过」：旧式 dur 在 span≥112 封顶 1.6s，260 跨距速度达 163 单位/s（20 跨距的 6 倍）；
+  // 改分段——近程仍轻快（手感不拖），远程按 sqrt 增长，速度上限压到约 95 单位/s，升沉看得清
+  let dur = durOv ?? Math.min(2.9, 0.42 + Math.sqrt(span) * 0.155);
   if (via && via.length) dur = Math.max(dur, Math.min(4.4, 1.0 + 1.1 * via.length)); // 越门多则飞得久，字幕来得及读
   if (cometNextQuick) dur *= 0.72;
   cometNextQuick = false;
@@ -5675,6 +5715,7 @@ function showVerdict(body        , why                                      , go
   verdictEl.classList.remove('min');
   verdictEl.classList.add('show');
   verdictFn = fn;
+  syncRollGlow(); // v360 掷钮＝同一动作：判词一出，掷钮即题「行」字亮起
   // v319：判词木鱼撤——每掷双响合并为一响（方向音在行棋提交时 sfpShowMsg 处播）
 }
 function pauseVerdict() { // 点面板正文＝展开白话全句＋谱曰原文细读（判词不自动关，想看多久看多久）
@@ -5684,6 +5725,7 @@ function pauseVerdict() { // 点面板正文＝展开白话全句＋谱曰原文
 function commitVerdict() {
   const f = verdictFn; verdictFn = null;
   sfpBar.classList.remove('vd');
+  syncRollGlow(); // v360 掷钮题字随判词退场即时复位（勿滞留「行 ▸」）
   if (!f) { verdictEl.classList.remove('show', 'paused', 'min', 'src'); return; }
   // ① 承接拍：判词窗收光入轮相牌、牌面脉冲一记，再起飞（不再瞬切）
   const vr = verdictEl.getBoundingClientRect();
@@ -5703,6 +5745,7 @@ function cancelVerdict() {
   verdictFn = null; verdictEl.classList.remove('show', 'paused', 'min', 'zap', 'src');
   verdictEl.style.removeProperty('--zx'); verdictEl.style.removeProperty('--zy');
   sfpBar.classList.remove('vd');
+  syncRollGlow(); // v360 同 commit：题字复位
 }
 let vdY0 = -1, vdSwipeT = 0;
 verdictEl.addEventListener('pointerdown', (e) => {
@@ -5796,8 +5839,21 @@ function railDoorTap(dno        , dbl         ) {
 }
 ladder.querySelectorAll('.ladDoor').forEach(item => {
   const dno = Number((item               ).dataset.d);
+  // v364 谱页退为可选深读：短按/双击照旧走聚焦与门观（220 位已全在主图），久按 460ms 入本门谱页
+  let ldHold = 0, ldFired = false;
+  const ldDown = () => {
+    if (!DISC_PAGES[dno]) return;
+    ldFired = false;
+    ldHold = window.setTimeout(() => { ldFired = true; playSfx('sfx-tap', 0.24); enterDiscTransit(dno); }, 460);
+  };
+  const ldUp = () => { if (ldHold) { clearTimeout(ldHold); ldHold = 0; } };
+  item.addEventListener('pointerdown', ldDown);
+  item.addEventListener('pointerup', ldUp);
+  item.addEventListener('pointercancel', ldUp);
+  item.addEventListener('pointerleave', ldUp);
   item.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (ldFired) { ldFired = false; return; } // 久按已入谱页：不再触发聚焦/门观
     const t = performance.now(); const dbl = dno === railLD && t - railLT < 350;
     railLT = dbl ? 0 : t; railLD = dno;
     railDoorTap(dno, dbl);
@@ -6050,7 +6106,7 @@ function updateWheelToss(dt        ) {
       Math.min(0.3 + t * 0.1, 0.5) + Math.sin(t * 2.2) * 0.12;
     return;
   }
-  const T2 = 1.5;
+  const T2 = tossFastOn() ? 0.95 : 1.5; // v360 连掷节奏：熟手（第6掷起）缩旋时，仪轨不减（仍是掌心→旁掷→定相）
   const p = Math.min(t / T2, 1), ep = 1 - Math.pow(1 - p, 3);
   // 位移：自掌心缓缓浮升至帧心，微弧而不甩；落定后带一丝阻尼余沉
   const st = Math.max(0, t - T2);
@@ -6583,7 +6639,7 @@ function sfpApply(combo        , chain = false) {
   if (!mv) {
     const w = why(p.id, combo);
     vib(10);
-    showVerdict(`${SFP_DIR_BADGE.stay}此位不行，安住<b class="vdst">「${p.name}」</b>`, w || makeSfpInterpretationEvidence('原谱于本位未列此组合，依谱例安住不行。'), '知道了', () => {
+    showVerdict(`${SFP_DIR_BADGE.stay}此位不行，安住<b class="vdst">「${p.name}」</b>`, w || makeSfpInterpretationEvidence('原谱于本位未列此组合，依谱例安住不行。'), '安住 ▸', () => {
       sfpLog(combo, `安住「${p.name}」`, 'stay', p.id, p.id);
       sfpShowMsg(`安住「${p.name}」`, 'stay', combo); // 谱曰缘由判词卡已呈，消息栏短式不复述（v151/v319 静场）
       sfpStatus(); sfpSave();
@@ -6644,8 +6700,19 @@ function sfpQuiet(on         ) { // 掷轮静场：暗纱罩景、星名隐去�
   sfpVeil.classList.toggle('on', on);
   labelLayer.style.opacity = on ? '0.08' : '';
 }
+// v360 行棋节奏：前五掷完整仪轨（初学者看清掌心→旁掷→定相），第六掷起旋时/停留收紧——
+// 一局常几十掷，固定 2.12s 前摇是后期最实的摩擦；义理不减（仍长按称名、仍判词点行）
+function tossFastOn()          { return sfpS.n > 5; }
+// 判词是否正等本座落子（solo 恒是；联机须是本座的 resolving 手）
+function verdictMine()          {
+  return sfpS.active && !!verdictFn && !sfpTransit
+    && (!Net.active || (Net.isPlaying() && Net.room.phase === 'resolving' && Net.room.turnId === Net.myId));
+}
 // 依「置輪掌心，仰手旁擲」：按住→置輪掌心至心称念；松手→旁掷
 function sfpPalmDown() {
+  // v360 连掷一手：判词在场时按掷钮＝先落子再起新掷（守「判词不自动关」——此关闭由用户按下所发起，
+  // 非计时自动收；只在掷钮上生效，判词窗自身仍等用户点「行 ▸」或下滑收签）
+  if (verdictMine()) { commitVerdict(); return; }
   if (!sfpS.active || sfpS.rolling || sfpTransit) return;
   if (sfpS.finished) {
     showToast(zh(Net.active && !Net.isFinished()
@@ -6724,7 +6791,7 @@ function sfpAnimateCommittedToss(combo        , authoritativeN                ) 
       sfpQuiet(false);
       // rolling 保持到判词卡 commit，防判词未行又起新掷
       sfpApply(combo);
-    }, 620);
+    }, tossFastOn() ? 380 : 620); // v360 定相停留同步收紧
   });
 }
 function sfpTossUp() {
@@ -6922,14 +6989,15 @@ function openLogbook() {
   }).join('');
   const p = el(`<div class="panel"><h2>见闻录 · 历局所见</h2><div class="body">
     <div class="lgTop"><b>${lg.seen.length}</b><span>/ ${total} 位</span><i>全谱十五门二百二十位；每落一位、每途经一位即记，跨局只增不减</i></div>
-    <div class="lgWrap">${rows}</div>
     <div class="lgNums">
-      <div><b>${lg.games}</b><span>开局</span></div><div><b>${lg.tos}</b><span>总掷数</span></div>
+      <div><b>${lg.games}</b><span>开局</span></div><div><b>${lg.tos}</b><span>称名</span></div>
       <div><b>${lg.up}</b><span>升</span></div><div><b>${lg.back}</b><span>沉</span></div>
       <div><b>${lg.evil}</b><span>入恶趣</span></div><div><b>${save.sfpWins || 0}</b><span>及第</span></div>
     </div>
-    <div class="verse" style="margin-top:10px"><i class="duL">敘</i>能使人即遊戲間。頓知六道往還之疲苦。三乘出要之差別。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div>
-    <div class="cNote">只记掷数、升沉次数和曾见之位；不计先后，不判高下。</div></div>
+    <div class="lgWrap lgG2">${rows}</div>
+    <details class="sec"><summary>谱主作谱之意</summary>
+      <div class="verse" style="margin-top:6px"><i class="duL">敘</i>能使人即遊戲間。頓知六道往還之疲苦。三乘出要之差別。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div>
+      <div class="cNote">只记掷数、升沉次数和曾见之位；不计先后，不判高下。</div></details></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <button class="gbtn primary" id="lgGo" style="flex:1 0 100%">${sfpS.active ? '回到局中' : '入选佛场'}</button>
       <button class="gbtn" id="lgMap" style="flex:1">十五门全图</button>
@@ -6965,9 +7033,12 @@ function openDoorBrief(dn        ) {
     <div class="cNote">上列为本门诸位，已见者亮显；见闻录只记曾见。</div></div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <button class="gbtn primary" id="dbCanon" style="flex:1 0 100%">读本门谱文原文</button>
+      ${DISC_PAGES[dn] ? `<button class="gbtn" id="dbDisc" style="flex:1 0 100%">观本门谱页（次第一览）</button>` : ''}
       <button class="gbtn" id="dbBack" style="flex:1">回见闻录</button>
       <button class="gbtn" id="dbOk" style="flex:1">关闭</button></div></div>`);
   (p.querySelector('#dbCanon')               ).addEventListener('click', () => { closeOverlay(); openCanon(dn); });
+  { const dd = p.querySelector('#dbDisc')                      ; // v364 谱页深读入口（220 位已全在主图，谱页转为可选一览）
+    if (dd) dd.addEventListener('click', () => { closeOverlay(); enterDiscTransit(dn); }); }
   (p.querySelector('#dbBack')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
   (p.querySelector('#dbOk')               ).addEventListener('click', closeOverlay);
   openOverlay(p);
@@ -7056,6 +7127,7 @@ function startSfp(resume         ) {
   cometCancel();
   setModeInstant(0);
   sfpS.active = true; sfpS.rolling = false; sfpS.finished = false;
+  beadTipOnce(); // v362 触屏首局一次性告知位珠可点（桌面走 hover 浮名，无需此告）
   sfpVictoryHandled = false;
   sfpBonusLeft = 0;
   sfpMsgLog = [];
@@ -7096,11 +7168,12 @@ function startSfp(resume         ) {
   freeDock.style.display = 'none';
   updateModeChip();
   playBell(196, 0.05);
-  // 首次开局：自动弹白话玩法速览。
-  // 但联机已开局时绝不弹——共同开局后轮次限时立刻开始跑，满屏教程压在掷轮台上，
-  // 新人读完往往已超时被跳，两次即被移出行动序列。联机的教程改在准备室里出（见 Net.onJoined）。
+  // v352 开局动线去重：题屏引导卡已含缘起/主旨＋掷法三步＋轮相六字，首局不再自动叠一张
+  // 「谱意与玩法」全卡（原三遍重复：题屏卡→谱意卡→toast）；全卡仍可从谱务菜单读。
+  // 联机已开局时同理（轮次限时立刻开始跑，教程改在准备室里出，见 Net.onJoined）。
   if (!(save       ).sfpHelp && !(Net.active && Net.isPlaying())) {
-    (save       ).sfpHelp = true; persist(); openSfpHelp();
+    (save       ).sfpHelp = true; persist();
+    showToast('第一掷定「發始因地」：长按掷钮置轮掌心，至心称念一句「南无阿弥陀佛」，念毕松手旁掷', 5600);
   }
 }
 function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续掷') {
@@ -7222,9 +7295,10 @@ function sfpVictory(settled = false) {
   if (againBtn) againBtn.addEventListener('click', takeAction(() => {
     stopChant();
     if (Net.active) {
-      Net.setReady(true);
+      const sent = Net.setReady(true);   // 新局已在他人之间开打时 setReady 静默拒发——不可假报「已准备」
       Net.openPanel();
-      showToast('已准备下一局——待至少两位准备后由房主共同开局', 4200);
+      showToast(sent ? '已准备下一局——待至少两位准备后由房主共同开局'
+        : '本局已在进行，您先旁观——本局结束后再点准备', 4200);
     } else startSfp(false);
   }));
   (p.querySelector('#sfpLg')               ).addEventListener('click', takeAction(() => openLogbook()));
@@ -7314,6 +7388,10 @@ function sfpPeerWin(name, n) {
 let plazaTimer = 0;
 let plazaJoining = false;
 function plazaStop() { if (plazaTimer) { clearInterval(plazaTimer); plazaTimer = 0; } }
+// 大厅内程序化转场必经此口：先解除手关回调再停表——否则 closeOverlay/openOverlay 连锁会把
+// 「✕＝回题屏」的回调在转场中误发（openOverlay 入口先关旧层，旧层回调即刻执行，题屏会盖住新页）。
+function plazaNavAway() { overlayOnClose = null; plazaStop(); }
+let plazaGen = 0; // openPlaza 重入护栏：并发两次开厅时，旧一代的 draw/interval 见代号不符即退位（修幽灵 interval 泄漏）
 function plazaSetJoining(on) {
   plazaJoining = !!on;
   const panel = document.querySelector('.pzPanel');
@@ -7330,12 +7408,12 @@ function plazaSetJoining(on) {
 
 async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
   const name = nameArg || Plaza.savedName();
-  if (!name) { openPlazaSitName(code, keyArg); return; }      // 无存名：只问这一次
+  if (!name) { openPlazaSitName(code, keyArg, needKey); return; }   // 无存名：只问这一次（needKey 随行，免问完名先白打一次注定失败的请求）
   if (needKey && !keyArg) { openPlazaSitKey(code); return; }  // 上锁之室：先问密码
   if (plazaJoining) { showToast(zh('正在入座，请稍候'), 1800); return; }
   const ord = Plaza.TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
   if (Net.active) {
-    if (Net.code === code) { plazaStop(); closeOverlay(); Net.openPanel(); return; } // 点的就是自己那室
+    if (Net.code === code) { plazaNavAway(); closeOverlay(); Net.openPanel(); return; } // 点的就是自己那室
     // 换室＝先让出原座。正在行谱时这一走可能中止全房的局，不能无声无息。
     if (!await confirmLeaveMatch(`离开本局，换到共修室${ord}`)) return;
   }
@@ -7343,7 +7421,7 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
   try {
     if (Net.active) await Net.leave({ notify: false });        // 一人只在一室：旧座释放后才能换房
     await Net.joinRoom(code, name, null, keyArg);
-    plazaStop(); closeOverlay();
+    plazaNavAway(); closeOverlay();
     Net.openPanel();
     // 中途入室是旁观，不是入局：别拿「两位准备即可开局」糊弄他等一个不属于他的轮次
     showToast(zh(Net.isSpectator()
@@ -7372,8 +7450,8 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
   }
 }
 
-function openPlazaSitName(code, keyArg = '') {
-  plazaStop();
+function openPlazaSitName(code, keyArg = '', locked = false) {
+  plazaNavAway();
   const returnToPlaza = () => {
     overlayOnClose = null;
     openPlaza();
@@ -7382,7 +7460,7 @@ function openPlazaSitName(code, keyArg = '') {
     el, esc,
     onSit: (c, name) => {
       overlayOnClose = null;
-      return plazaSit(c, name, false, keyArg);
+      return plazaSit(c, name, locked, keyArg);   // locked 原样带回：上锁室问完名接着问密码，不先发注定失败的请求
     },
     onBack: returnToPlaza,
   });
@@ -7457,12 +7535,12 @@ function openMine() {
         <div class="myDays">${html}</div>
       </div>
       <div class="myLine2">行谱见闻 · 本机</div>
-      <button class="gbtn myRow" id="myLg">
+      <button class="gbtn myRow" id="myLg">${ico('eye')}
         <span>开局 ${lg.games} · 升 ${lg.up} · 沉 ${lg.back} · 见 ${lg.seen.length}/${(SFP_POS         ).length} 位</span><i>›</i></button>
       ${runs ? `<div class="myLine2">我的行谱记录</div><div class="myRuns">${runs}</div>` : ''}
       <div class="myLine2">谱与设置</div>
-      <button class="gbtn myRow" id="myCanon"><span>六卷原文 · 逐字读谱</span><i>›</i></button>
-      <button class="gbtn myRow" id="mySet"><span>设置 · 声音 · 简繁 · 卡片</span><i>›</i></button>
+      <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文 · 逐字读谱</span><i>›</i></button>
+      <button class="gbtn myRow" id="mySet">${ico('sliders')}<span>设置 · 声音 · 简繁 · 卡片</span><i>›</i></button>
       <div class="cNote">一掷一称念「南无阿弥陀佛」，只作随喜记录，不作修证高下。功课记在本机莲号下，换设备会另计。</div>
       <button class="gbtn primary" id="myOk" style="margin-top:12px;width:100%">${sfpS.active ? '回到局中' : '关闭'}</button>`;
     zhDom(p);
@@ -7498,7 +7576,7 @@ const myNum = (n         ) => Number(n || 0).toLocaleString('en-US');
 
 // 共修动态：独立全屏页（从大厅顶条进），关闭即回大厅——一层，一条退路
 async function openStream() {
-  plazaStop();
+  plazaNavAway();
   Net.closePanel();          // 全屏页与同修面板不并存：面板 z 更高，会盖住整页
   const back = () => { overlayOnClose = null; openPlaza(); };
   try {
@@ -7513,19 +7591,20 @@ async function openStream() {
   }
 }
 
-// 取名／改名（从「我的」进）：只存本机名号，不涉入座
-function openPlazaRename() {
-  plazaStop();
-  const back = () => { overlayOnClose = null; openPlaza(); };
+// 取名／改名（从「我的」进）：只存本机名号，不涉入座。
+// 同路往返（个人面发起回个人面，勿落公共面）：默认回「我的」，将来若从大厅进可传 backTo。
+function openPlazaRename(backTo = openMine) {
+  plazaNavAway();
+  const back = () => { overlayOnClose = null; backTo(); };
   const p = Plaza.renderSitName('', {
     el, esc, rename: true,
     onSit: async (_c, name) => {
       Plaza.saveName(name);
-      // 先把改名送达再重开大厅，否则大厅那一拉取比改名快，榜上还是旧名
+      // 先把改名送达再回页，否则那一拉取比改名快，动态上还是旧名
       await Plaza.flush();
       await Plaza.pushName();
       overlayOnClose = null;
-      openPlaza();
+      backTo();
       showToast(zh(`功课自此记在「${name}」名下`), 3600);
     },
     onBack: back,
@@ -7536,63 +7615,81 @@ function openPlazaRename() {
 }
 
 function openPlazaSitKey(code, errText = '') {
-  plazaStop();
+  plazaNavAway();
+  const returnToPlaza = () => { overlayOnClose = null; openPlaza(); };
   const p = Plaza.renderSitKey(code, {
     el,
-    onKey: (c, key) => plazaSit(c, '', false, key),
-    onBack: () => openPlaza(),
+    onKey: (c, key) => { overlayOnClose = null; plazaSit(c, '', false, key); },
+    onBack: returnToPlaza,
   }, errText);
   openOverlay(p); zhDom(p);
+  overlayOnClose = returnToPlaza; // ✕/Esc/背景与「返回大厅」同去向：密码卡上一手滑不该丢整条入座路
 }
 
 function plazaRender(data) {
   const p = Plaza.renderPlaza(data, {
     el, esc, zh,
     seatedAt: Net.active ? Net.code : '',
-    backText: sfpS.active ? '回到局中' : '返回',
+    backText: sfpS.active ? '回到局中' : '回题屏', // 钮上写去处（✕ 同去向）：无局关大厅回题屏，不落裸场景
     onSolo: async () => {                           // 一人行谱：不占座，若在房先离席
+      // 护栏与 ⋯菜单「重开一局」同则（smNew 之例）：掷轮/飞行中不换局，免旧局残手落入新局
+      if (sfpS.rolling || sfpTransit) { showToast(zh('本掷落定后再换'), 2200); return; }
       if (!await confirmLeaveMatch('离开本局，改为一人行谱')) return;
-      plazaStop(); closeOverlay();
+      // 单机局中经此路重开＝丢当前行处：与「重开一局」同等确认，右上大厅恒在不该成为零确认旁路
+      if (sfpS.active && !Net.active && !await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
+      cancelVerdict();                              // 旧判词闭包一并清（否则大厅盖住的判词卡会在新局重现）
+      plazaNavAway(); closeOverlay();
       if (Net.active) Net.leave({ notify: false });
       startSfp(false);
     },
     onSit: (code, _n, locked) => plazaSit(code, '', !!locked),
     onStream: () => openStream(),
     onQuick: (code) => {
-      if (!code) { showToast(zh('本厅诸室皆满——请稍候或一人行谱'), 3200); return; }
+      if (!code) { showToast(zh('本厅诸室皆满或已上锁——请稍候或一人行谱'), 3200); return; }
       plazaSit(code);
     },
-    onClose: () => { plazaStop(); closeOverlay(); if (!sfpS.active) openTitle(); },
+    onClose: () => closeOverlay(),                  // 手关回调（overlayOnClose）统一善后：停表，无局回题屏
   });
   zhDom(p);
   return p;
 }
 
 async function openPlaza() {
-  plazaStop();
+  const gen = ++plazaGen;    // 本代代号：并发重入时旧代自退（勿两套定时器互踩）
+  plazaNavAway();
   Net.closePanel();          // 同上：全屏页与同修面板不并存
+  // 手关（✕/Esc/背景/右滑）与底部「返回」同去向：停表，无局回题屏——两个退出一个去处
+  const handClose = () => { plazaStop(); if (!sfpS.active) openTitle(); };
   const loading = el(`<div class="panel pzPanel pzLoading"><div class="pzLoadingInner">
     <span>选佛谱</span><h2>共修大厅</h2><div class="body"><div class="cbStage">正在入大厅……</div></div>
   </div></div>`);
   openOverlay(loading); zhDom(loading);
+  overlayOnClose = handClose;
   let panel = null;
   const draw = async () => {
+    if (gen !== plazaGen) return;                   // 已被后来者接管
     try {
       const data = await Plaza.fetchPlaza();
+      if (gen !== plazaGen) return;
       if (!loading.isConnected && !(panel && panel.isConnected)) { plazaStop(); return; } // 已离开大厅
       if (!panel) {
         panel = plazaRender(data);
+        overlayOnClose = null;                      // openOverlay 会先关 loading 层：解除回调免误发
         openOverlay(panel);
+        overlayOnClose = handClose;
       } else {
         // 定时刷新只补写数字与桌况：不重开覆盖层，保住滚动、焦点与已展开的功课榜。
         Plaza.updatePlaza(panel, data, {
           ...panel._plazaUi,
           seatedAt: Net.active ? Net.code : '',
-          backText: sfpS.active ? '回到局中' : '返回',
+          backText: sfpS.active ? '回到局中' : '回题屏', // 钮上写去处（✕ 同去向）：无局关大厅回题屏，不落裸场景
         });
         zhDom(panel);
       }
     } catch (e) {
+      if (gen !== plazaGen) return;
+      // 大厅已在场时的偶发失败：保住定时器，下一拍自愈（旧式一失即 plazaStop，桌况从此冻结且无提示）
+      if (panel && panel.isConnected) return;
       plazaStop();
       if (!loading.isConnected) return;
       loading.querySelector('.body').innerHTML =
@@ -7600,10 +7697,16 @@ async function openPlaza() {
         `<button class="gbtn primary" id="pzRetry" style="margin-top:10px;width:100%">${zh('重试')}</button>` +
         `<button class="gbtn" id="pzSolo2" style="margin-top:8px;width:100%">${zh('一人行谱')}</button>`;
       loading.querySelector('#pzRetry').addEventListener('click', () => openPlaza());
-      loading.querySelector('#pzSolo2').addEventListener('click', () => { closeOverlay(); startSfp(false); });
+      loading.querySelector('#pzSolo2').addEventListener('click', async () => { // 与大厅 onSolo 同护栏：此兜底钮同样不该是丢局旁路
+        if (sfpS.rolling || sfpTransit) { showToast(zh('本掷落定后再换'), 2200); return; }
+        if (sfpS.active && !Net.active && !await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
+        cancelVerdict();
+        overlayOnClose = null; closeOverlay(); startSfp(false);
+      });
     }
   };
   await draw();
+  if (gen !== plazaGen) return;                     // 转场/重入已发生：定时器归新代管
   plazaTimer = window.setInterval(draw, 8000);      // 桌况随人来人往变，八秒一refresh
 }
 function sfpMovesHtml(p     )         {
@@ -7729,25 +7832,46 @@ function openCanon(doorNo        , jumpName         ) {
     `<details class="sec" open><summary>卷末 · ${esc(f.title)}</summary><div class="verse" style="margin-top:6px">${verseHtml(f.text)}</div></details>`).join('') : '';
   const introHtml = d.intro ? `<div class="verse" style="margin-top:8px"><i>${doorNo === 15 ? '圖注' : '本門總說'}</i>${verseHtml(d.intro)}</div>`
     : ''; // v224：無總說之門不再掛說明行（引文才標出處，白话直说）
-  const posHtml = d.positions.map((cp                                , ci        ) =>
-    `<div data-ci="${ci}" style="margin-top:12px;border-top:1px solid rgba(215,170,69,.18);padding-top:8px">
+  // v355 谱文页三事：位名目录（46 段文言墙里找一位原需滚 6000px）／每位名下垫一句白话／按钮依用户面正名「位卡」
+  const posOf = (nm        ) => (SFP_POS         ).find((x     ) => x.name === nm || x.id === nm || (nm === '佛' && x.id === '圓教究竟妙覺位'))       ;
+  const tocHtml = d.positions.length > 3 ? `<div class="cnToc">${d.positions.map((cp, ci) =>
+    `<span class="cnT" data-ci="${ci}">${esc(cp.name)}</span>`).join('')}</div>` : '';
+  const posHtml = d.positions.map((cp                                , ci        ) => {
+    const sp = posOf(cp.name);
+    const body = cp.text.replace(/^譜曰。/, '');
+    // v356 谱文页＝深读层（位卡只呈本位之注，想学更多来此）：全文照录 + 逐段文白对读；
+    // 对读未覆盖的段落垫本位整段白话，不留「只有原文」的死角
+    let du = duiduHtml(body);
+    if (sp && !du.includes('<div class="dd">')) {
+      const pl = (SFP_POS_PLAIN       )[sp.id];
+      if (pl) du += `<div class="dd">${glossify(esc(String(pl)))}</div>`;
+    }
+    return `<div data-ci="${ci}" style="margin-top:12px;border-top:1px solid rgba(215,170,69,.18);padding-top:8px">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <b style="color:#f0dfa8;font-size:var(--fs-md);letter-spacing:2px">${esc(cp.name)}</b>
-        <button class="gbtn cnCard" data-ci="${ci}" style="font-size:var(--fs-xs);padding:3px 10px;min-height:28px">譜注卡 ›</button>
+        ${sp ? `<button class="gbtn cnCard" data-ci="${ci}" style="font-size:var(--fs-xs);padding:3px 10px;min-height:28px">位卡 ›</button>` : ''}
       </div>
-      <div class="verse" style="margin-top:4px">${verseHtml(cp.text.replace(/^譜曰。/, ''))}</div>
-    </div>`).join('');
+      <div style="margin-top:4px">${du}</div>
+    </div>`;
+  }).join('');
   const inner = el(`<div class="panel" style="max-width:min(680px,94vw)"><h2>選佛譜 · 卷第${SFP_CN[d.juan - 1]} · ${esc(door.title)}</h2><div class="body">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span class="cMeta">第${SFP_CN[doorNo - 1]}門 · 原文（校正原本 B0136 逐字轉寫）</span><button class="gbtn" id="cnLib" style="font-size:var(--fs-xs);padding:3px 10px;min-height:28px;flex:none">所据经论 ›</button></div>
-    ${frontHtml}${introHtml}${posHtml}${jiHtml}
-    <div class="cNote" style="margin-top:10px">六卷原文按門分挂：卷首三篇見第一門，卷末紀事見第十五門；原刻缺字依《靈峰宗論》及文内互证定字。</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span class="cMeta">第${SFP_CN[doorNo - 1]}門 · ${d.positions.length}位 · 原文與白話對讀</span><button class="gbtn" id="cnLib" style="font-size:var(--fs-xs);padding:3px 10px;min-height:28px;flex:none">所据经论 ›</button></div>
+    ${tocHtml}${frontHtml}${introHtml}${posHtml}${jiHtml}
+    <div class="cNote" style="margin-top:10px">標「原文」者為譜文逐字（校正原本 B0136 逐字轉寫），白話係今譯助讀。</div>
     <div class="cardNav"><button class="gbtn${doorNo > 1 ? '' : ' dis'}" id="cnPrev">‹ 上一門</button><button class="gbtn${doorNo < 15 ? '' : ' dis'}" id="cnNext">下一門 ›</button></div>
     <button class="gbtn primary" style="margin-top:10px;width:100%" id="cnOk">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   inner.querySelectorAll('.cnCard').forEach(b => b.addEventListener('click', () => {
     playSfx('sfx-tap', 0.25);
     const cp = d.positions[Number((b               ).dataset.ci)];
-    const sp = cp && (SFP_POS         ).find(x => x.name === cp.name || (cp.name === '佛' && x.id === '圓教究竟妙覺位'));
+    const sp = cp && posOf(cp.name);
     if (sp) openSfpNote(sp.id);
+  }));
+  inner.querySelectorAll('.cnT').forEach(t => t.addEventListener('click', () => { // v355 位名目录跳段
+    playSfx('sfx-tap', 0.22);
+    const tgt = inner.querySelector(`div[data-ci="${(t               ).dataset.ci}"]`)                      ;
+    const sc = inner.querySelector('.body')                      ;
+    // scrollIntoView 在 overlay 内被祖先裁剪层吃掉（上游实测不动）：直接算 scrollTop 差值
+    if (tgt && sc) sc.scrollTo({ top: sc.scrollTop + (tgt.getBoundingClientRect().top - sc.getBoundingClientRect().top) - 6, behavior: 'smooth' });
   }));
   const pv = inner.querySelector('#cnPrev')                      ;
   if (pv && doorNo > 1) pv.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(doorNo - 1); });
@@ -7759,8 +7883,10 @@ function openCanon(doorNo        , jumpName         ) {
   openOverlay(inner);
   if (jumpName) {
     const ji = d.positions.findIndex(x => x.name === jumpName || (x.name === '佛' && jumpName === '圓教究竟妙覺位'));
-    const t = ji >= 0 ? inner.querySelector(`[data-ci="${ji}"]`)                       : null;
-    if (t) setTimeout(() => t.scrollIntoView({ block: 'start' }), 80);
+    const t = ji >= 0 ? inner.querySelector(`div[data-ci="${ji}"]`)                       : null;
+    const sc = inner.querySelector('.body')                      ;
+    // scrollIntoView 在 overlay 裁剪层内实测不动（同 .cnT 目录跳转）：用 scrollTop 差值
+    if (t && sc) setTimeout(() => { sc.scrollTop += t.getBoundingClientRect().top - sc.getBoundingClientRect().top - 6; }, 80);
   }
 }
 // v169 發始因地廿一因总览（作者自撰助读，非原谱原文）：四类分组、逐位互链谱注——入口在门1总说浮文
@@ -7804,6 +7930,39 @@ function duiduHtml(text        )         {
   return segs.filter(sg => sg.t.trim()).map(sg =>
     `<div class="verse">${verseHtml(sg.t)}</div>${sg.p ? `<div class="dd">${glossify(esc(sg.p))}</div>` : ''}`).join('');
 }
+// v354 位注／行法按语切分：本位谱文常「位注＋逐组行法按语」连写（全谱多数位如此），
+// 而位卡「升降行法」栏已逐组列过按语——对读栏若照铺全段即同卡重复第二遍。
+// 切点＝本位任一行法按语（走证据层的逐字引文，勿直读 SFP_WHY——check-evidence-types 护栏）在谱文中最早的出现处，
+// 且须落在句界（「。」后）；不合则不切，宁全不错。
+function canonPosOnly(pid        , text        )         {
+  const combos = (SFP_WHY_EVIDENCE       )[pid] || {};
+  let idx = -1;
+  for (const evd of Object.values(combos)) {
+    for (const it of sfpEvidenceItems(evd, SFP_EVIDENCE_TYPE.source)) {
+      const i = text.indexOf(String(it.text)); if (i > 0 && (idx < 0 || i < idx)) idx = i;
+    }
+  }
+  if (idx < 0) return text;
+  const head = text.slice(0, idx);
+  return /。$/.test(head) ? head : text;
+}
+// v363 用户定案「坐标＝地理坐标」：位卡标本位在器世间的依经处所（方位＋高下，真源 data.js 节点 bear/elev/coordKind），
+// 不标 x/y/z 数值（那是排布参数）。四圣/四空 coordKind=nonspatial：不伪造方所，照实说「非方所·以断惑浅深论」。
+// 净土诸位另有横超一路，取极乐国土之说。
+function sfpGeoLineHtml(p     )         {
+  const nd = byId[p.anchor]; if (!nd) return '';
+  const d = nd.d       ;
+  const ns = d.coordKind === 'nonspatial';
+  const kind = (COORD_KIND_LABEL       )[d.coordKind] || '依经有处'; // v365 三名与 data.js 单一真源归一（勿再自造别名）
+  const bear = String(d.bear || '').trim();
+  let elev = String(d.elev || '').trim();
+  // 色界诸天的 elev 多写作「色界 · <与 bear 同语>」：同语则不复述（免一行说两遍）
+  if (elev === '—' || !elev) elev = '';
+  else { const tail = elev.replace(/^色界\s*·\s*/, '').trim(); if (tail === bear || bear.indexOf(tail) >= 0 || tail.indexOf(bear) >= 0) elev = elev.startsWith('色界') ? '色界' : ''; }
+  if (!bear && !elev) return '';
+  return zh(`<div class="coordBox geoLn"><b>地理坐标</b><i class="gk${ns ? ' ns' : ''}">${esc(kind)}</i>` +
+    `<span>${esc(d.name)}${bear ? ` · 方位 ${esc(bear)}` : ''}${elev ? ` · 高下 ${esc(elev)}` : ''}</span></div>`);
+}
 function openSfpNote(pid         ) {
   const p = pid ? SFP_BY[pid] : (sfpS.pos ? SFP_BY[sfpS.pos] : null);
   const door = p ? SFP_DOOR_BY[p.door] : null;
@@ -7813,19 +7972,19 @@ function openSfpNote(pid         ) {
   const canonP = p ? (((SFP_CANON_DOORS       )[p.door]?.positions || [])                                         )
     .find(x => x.name === p.name || x.name === p.id || (x.name === '佛' && p.id === '圓教究竟妙覺位')) : undefined;
   const juanCn = p ? SFP_CN[(((SFP_CANON_DOORS       )[p.door]?.juan) || 1) - 1] : '';
-  const dPlain = p ? (SFP_DOOR_PLAIN       )[p.door] : '';
-  // v228 卡片三层一序：一句白话（这是什么）→ AI 解读（在何门何界）→ 谱曰原文对读（依据）
+  // v363 三层一序改四事直陈：在何门何界（cMeta 双链）→ 地理坐标 → 一句白话 → 本位原文对读；
+  // 「AI 解读」段撤（所在门白话与门要卡重复、修行并入「门义」折叠），同一句话不在位卡说两遍
   const inner = el(`<div class="panel"><h2>${p ? esc(p.name) : '發始因地'} · 原文说明</h2><div class="body">
-    ${door ? `<div class="cMeta">${esc(door.title)}${p.pure ? ' · 净土' : ''}${idx >= 0 ? ` · 第${idx + 1}/220位` : ''} <span id="spCanon" class="lnk">卷第${juanCn} · 本門譜文 ›</span></div>` : ''}
+    ${door ? `<div class="cMeta">${esc(door.title)}${p.pure ? ' · 净土' : ''}${idx >= 0 ? ` · 第${idx + 1}/220位` : ''} <span id="spCanon" class="lnk">卷第${juanCn} · 本門譜文 ›</span>${byId[p.anchor] ? ` <span id="spAnchor" class="lnk">${esc(byId[p.anchor].d.name)}界相 ›</span>` : ''}</div>` : ''}
+    ${p ? sfpGeoLineHtml(p) : ''}
     ${p && (SFP_POS_PLAIN       )[p.id] ? `<div class="cPlain">${glossify(esc((SFP_POS_PLAIN       )[p.id]))}</div>` : ''}
-    ${p ? `<details class="sec" open><summary>AI 解读</summary>
-      ${dPlain ? `<div class="cRead">所在门：第${SFP_CN[p.door - 1]}门「${esc(door.title)}」——${glossify(esc(dPlain))}</div>` : ''}
-      ${byId[p.anchor] ? `<div class="cRead">所在法界：<span id="spAnchor" class="lnk">${esc(byId[p.anchor].d.name)}</span>　<span style="font-size:11px;color:#9d9170">点法界名观其界相·众相·出处</span></div>` : ''}
-      ${p.terminal ? `<div class="cRead">此为全谱毕局之位——升沉至此，无复行处。</div>` : ''}
-      ${SFP_DOOR_PRACTICE[p.door] ? `<div class="cRead">修行：${glossify(esc(SFP_DOOR_PRACTICE[p.door]))}</div>${doorCiteHtml(p.door)}` : ''}</details>` : ''}
-    ${p && !p.terminal ? `<details class="sec"><summary>升降行法 · 二十一组轮相</summary>${sfpMovesHtml(p)}</details>` : ''}
-    ${p ? `<details class="sec" open><summary>原文 · 白话文对照</summary>${duiduHtml((canonP ? canonP.text : p.note).replace(/^譜曰。/, ''))}
-      <div class="cSrc">《選佛譜》卷第${juanCn}；${esc(SFP_META.source)}。本栏依校正原本逐字收录，保留原括注与校勘标记。</div></details>` : `<div style="margin-top:6px">${esc(SFP_META.dice)}</div>`}</div>
+    ${p && p.terminal ? `<div class="cRead" style="margin-top:6px">此为全谱毕局之位——升沉至此，无复行处。</div>` : ''}
+    ${p ? `<details class="sec" open><summary>本位原文 · 對讀</summary>${duiduHtml(canonPosOnly(p.id, (canonP ? canonP.text : p.note).replace(/^譜曰。/, '')))}
+      <span class="lnk" id="spRead" style="display:inline-block;margin-top:6px;font-size:var(--fs-xs)">阅读原文 ›</span></details>` : `<div style="margin-top:6px">${esc(SFP_META.dice)}</div>`}
+    ${p && !p.terminal ? `<details class="sec"${sfpS.active && sfpS.pos === p.id ? ' open' : ''}><summary>升降行法 · 二十一组轮相</summary>${sfpMovesHtml(p)}</details>` : ''}
+    ${p && door ? `<details class="sec"><summary>〈${esc(door.title)}〉· 门义</summary>
+      ${SFP_DOOR_PRACTICE[p.door] ? `<div class="cRead">${glossify(esc(SFP_DOOR_PRACTICE[p.door]))}</div>${doorCiteHtml(p.door)}` : ''}
+      ${door.intro ? `<div class="cRead" style="color:#cbbb8d;margin-top:6px"><i style="font-style:normal;color:#9d9170">${[1, 2, 15].includes(p.door) ? '本门导语（白话直陈，原谱无此门总说）：' : '本门总说（白话）：'}</i>${glossify(esc(door.intro))}</div>` : ''}</details>` : ''}</div>
     ${p ? `<div class="cardNav"><button class="gbtn${prev ? '' : ' dis'}" id="spPrev">‹ ${prev ? esc(prev.name) : '已是首位'}</button><button class="gbtn${next ? '' : ' dis'}" id="spNext">${next ? esc(next.name) : '已是末位'} ›</button></div>` : ''}
     <div style="margin-top:10px;display:flex;gap:8px">${p ? '<button class="gbtn" id="sfpNoteLoc">定位此位</button>' : '<button class="gbtn" id="spCanon2">譜文原文</button>'}<button class="gbtn primary" id="sfpNoteOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   const pv = inner.querySelector('#spPrev')                      ;
@@ -7834,6 +7993,8 @@ function openSfpNote(pid         ) {
   if (nx && next) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpNote(next.id); });
   const loc = inner.querySelector('#sfpNoteLoc')                      ;
   if (loc && p) loc.addEventListener('click', () => { closeOverlay(); sfpLocate(p.id); });
+  const rdBtn = inner.querySelector('#spRead')                      ; // v356 对读栏只呈位注（行法按语已在升降行法栏），全文入谱文页
+  if (rdBtn && p) rdBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(p.door, p.name); });
   const openCn = () => { playSfx('sfx-tap', 0.25); openCanon(p ? p.door : (sfpS.pos ? SFP_BY[sfpS.pos].door : 1), p ? p.name : undefined); };
   const cnBtn = inner.querySelector('#spCanon')                      ;
   if (cnBtn) cnBtn.addEventListener('click', openCn);
@@ -7959,15 +8120,29 @@ function sfpLocalSearch(qRaw        )         {
       }
     }
   }
-  if (snips.length) parts.push(`<div style="font-size:var(--fs-xs);color:#d7aa45;margin-top:6px">谱文检得</div>` + snips.join(''));
+  if (snips.length) parts.push(`<div style="font-size:var(--fs-xs);color:#d7aa45;margin-top:6px">谱文</div>` + snips.join('')); // v350 撤过程自述措辞
   return parts.length ? parts.join('') : '<div style="color:#9d9170;font-size:var(--fs-sm);margin-top:5px">谱内与词典未检得此词——可换更短的词，或试原文用字（繁体）。</div>';
 }
 const sfpChat                                  = [];
 const SFP_ORD = '那謨阿彌陀佛';
-const SFP_CHAT_HELLO = '<div class="cRead" style="margin:4px 0">南无阿弥陀佛。这里可与本谱对话——可以问我：<br>· 谱位：如「無想天」「上品上生」<br>· 行法：如「在南贍部洲掷得彌陀会怎样」<br>· 名相：如「八背捨」「四如意足」<br>· 某一门：如「第八门」；修行：如「圆教怎么修」<br>· 或「这局怎么玩」。<br>每次提问都会交由 G 版选佛谱智能体依经据库检证；本地谱内速查同时保留，等待或离线时也可继续阅读。</div>';
+// v350 迎语极简（撤过程自述）：机制说明退场——每条智能体答语自带「AI 生成·依经检证」标注，迎语不再预讲一遍
+const SFP_CHAT_HELLO = '<div class="cRead" style="margin:4px 0">南无阿弥陀佛。此谱之事，皆可相问——谱位、名相、行法去向、教路次第，或此局如何玩。</div>';
 const askCite = (t        , src        ) => `<div class="verse" style="margin-top:6px"><i class="duL">谱曰原文</i>${verseHtml(t)}<span class="cSrc" style="display:block">《選佛譜》${esc(src)}</span></div>`;
 const SFP_RULES_A = '<div class="cPlain" style="margin:4px 0">两枚轮相各刻「那·謨·阿·彌·陀·佛」，合读正是「南无阿弥陀佛」——掷轮即是称名。长按掷钮至心称念一句佛号、念毕松手即掷；第一掷定「發始因地」，此后每掷依当位行法表升降，判词窗点「行」落子。那謨二字下坠、阿彌陀佛四字上升；堕三途亦不出谱，仍依本位行法续掷。</div>' + askCite('那謨表惡阿彌陀佛表善', '卷第一 · 輪相表法第一') + askCite('若但有善無惡。則應有升無降。', '卷第一 · 輪相表法第一');
 const SFP_WHEEL_A = '<div class="cPlain" style="margin:4px 0">两轮合读即「南无阿弥陀佛」，掷轮即称名。六字各有表法：那表见惑、謨表思惑（二恶）；阿表布施、彌表持戒、陀表禅定、佛表善慧（四善）——诸门诸位取义各异，以当位谱注为准。</div>' + askCite('那謨表惡阿彌陀佛表善那表屬見煩惱', '卷第一 · 輪相表法第一') + askCite('阿表施善彌表戒善陀表定善佛表善慧', '卷第一 · 輪相表法第一');
+// v348 解读卡极简（上游用户点单）：去向条（谁→谁）＋标签短行制——长段白话与「位义前已读过」类元话术退役；
+// 引文仍分层折叠压底（逐字引文／项目释义／操作规则不得互相冒充，与 sfp-evidence 同则）
+const RD_ARROW                         = { up: '升 ↑', down: '降 ↓', pure: '横超 ⇢', stay: '安住 ·', start: '因地 ◇', bonus: '贈掷 ✦', side: '转 →' };
+function rdRow(k        , v        , main          )         {
+  return `<div class="rdRow${main ? ' m' : ''}"><span class="k">${zh(esc(k))}</span><span class="v">${v}</span></div>`;
+}
+function rdRouteHtml(F     , T     , dir        , again         )         {
+  const chip = (p     , mark         ) => p ? `<span class="p rdMore" data-ci="${(SFP_POS         ).findIndex((x     ) => x.id === p.id)}">${esc(p.name)}${mark ? `<b class="ag">${zh(mark)}</b>` : ''}</span>` : '';
+  const ar = `<span class="ar ${dir}">${zh(RD_ARROW[dir] || '往')}</span>`;
+  if (!F && T) return `<div class="rdRoute">${ar}${chip(T, again)}</div>`;
+  if (!T || (F && T.id === F.id)) return `<div class="rdRoute">${chip(F, again)}${ar}</div>`;
+  return `<div class="rdRoute">${chip(F)}${ar}${chip(T, again)}</div>`;
+}
 function sfpTossAnswerHtml(ctx                                                         )         {
   const F = ctx.from ? SFP_BY[ctx.from] : null;
   const T = ctx.to ? SFP_BY[ctx.to] : null;
@@ -7979,39 +8154,50 @@ function sfpTossAnswerHtml(ctx                                                  
       tossMove.to ? '先移至目的位，再由当前操作者从目的位立即续掷。' : '棋子保持本位，仍由当前操作者立即续掷。',
     ));
   }
-  const paras           = []; const cites           = [];
-  paras.push(`此掷两轮得「${ctx.c}」：${ctx.c.split('').map(ch => `「${ch}」${(SFP_PLAIN       )[ch] || ''}`).join('；')}。`);
-  if (!F && T) paras.push(`第一掷不论升降——二十一种轮相组合各定一种「發始因地」（此生起点的业因）。「${ctx.c}」所定因地为「${T.name}」：${(SFP_POS_PLAIN       )[T.id] || ''}`);
-  else if (stay && F) { const fSeen = sfpS.trail.filter(x => x === F.id).length; paras.push(`现居「${F.name}」——${fSeen > 1 ? '' : (SFP_POS_PLAIN       )[F.id] || ''}依本位行法，「${ctx.c}」于此位无行处，故安住不动。`); }
-  else if (F && T) {
-    const dir = sfpDirOf(F, T, ctx.c);
-    const fSeen = sfpS.trail.filter(x => x === F.id).length;
-    const tSeen = sfpS.trail.filter(x => x === T.id).length;
-    paras.push(`现居「${F.name}」——${fSeen > 1 ? '' : (SFP_POS_PLAIN       )[F.id] || ''}依本位行法，「${ctx.c}」${RD_DIR_VERB[dir] || '往'}「${T.name}」${tSeen >= 1 ? `——本局第 ${tSeen + 1} 次到此位，位义前已读过（下方原文可回看），这次不同的只在来路与轮相。` : `——${(SFP_POS_PLAIN       )[T.id] || ''}`}`);
-  }
-  else paras.push('此组合依本位行法为「贈掷」：棋子不移位，增加的掷数以本位行法表所记为准。');
+  const dir = !F ? 'start' : stay ? 'stay' : T ? sfpDirOf(F, T, ctx.c) : 'bonus';
+  const rows           = []; const cites           = [];
+  // v351 三层收作两层：轮相表法并入去向条下小字；重访不写元话术，只在位名后缀「第N次」
+  const glyph = ctx.c.split('').map(ch => `${ch}＝${String((SFP_PLAIN       )[ch] || '').replace(/^表/, '').replace(/（[^）]*）/g, '')}`).join('　');
+  const tgt = T && !stay ? T : F;
+  const tSeen = tgt ? sfpS.trail.filter(x => x === tgt.id).length : 0;
+  rows.push(rdRouteHtml(F, T, dir, tSeen >= 1 ? `第${tSeen + 1}次` : '') + `<div class="rdGlyph">${esc(glyph)}</div>`);
+  let head = '';
+  if (!F && T) head = `二十一轮相各定一种發始因地，「${ctx.c}」定于此位。${(SFP_POS_PLAIN       )[T.id] || ''}`;
+  else if (stay) head = `「${ctx.c}」于本位行法无行处，故安住不动。`;
+  else if (!T) head = `本位行法以此组合为贈掷：棋子不移位，增加的掷数以本位行法表所记为准。`;
+  else head = String((SFP_POS_PLAIN       )[T.id] || '');
+  if (head) rows.push(rdRow('落处', glossify(esc(head)), true));
   const wp = sfpEvidenceInterpretationText(tossEvidence);
+  if (wp) rows.push(rdRow('缘由', glossify(esc(wp))));
   const op = sfpEvidenceOperationText(tossEvidence);
-  if (wp) paras.push(`释义：${wp}`);
-  if (op) paras.push(`本项目操作规则：${op}`);
-  if (F && ctx.c) {
-    const prev = [...sfpHist].reverse().find(h => h.c === ctx.c && h.f && h.f !== F.id && SFP_BY[h.f] && (h.to || '') !== (ctx.to || ''));
-    if (prev) {
-      const PF = SFP_BY[prev.f          ]; const PT = prev.to ? SFP_BY[prev.to] : null;
-      paras.push(`同一轮相，因位异行：第${prev.n}掷也曾掷得「${ctx.c}」——那时在「${PF.name}」，${PT ? (PT.id === PF.id ? '安住不动' : `走向「${PT.name}」`) : '得的是贈掷'}；这次在「${F.name}」，去向不同。谱的行法系于「位」：同一轮相，所居之位不同，行法即不同——逐位读谱注，读的正是这一点。`);
-    }
-  }
-  const pDoor = (T || F) ? (T || F) .door : 0; // 「怎么修行」随去处之门；安住、贈掷则随本位门
-  const tgt = T || F;
-  const tgtOld = tgt ? sfpS.trail.filter(x => x === tgt.id).length >= ((stay || !T) ? 2 : 1) : false;
-  if (pDoor && SFP_DOOR_PRACTICE[pDoor] && !tgtOld) {
-    paras.push(`修行：${SFP_DOOR_PRACTICE[pDoor]}`);
-    cites.push(doorCiteHtml(pDoor));
-  }
+  if (op) rows.push(rdRow('规则', `${glossify(esc(op))}<i>本项目定稿操作规则</i>`));
+  // v351 引文收敛：缘由白话已说尽此掷所据——只留行法依据（分层引文）与落处位原文两处折叠，
+  // 「怎么修行」「同一轮相因位异行」等长段退役（门义在位卡与门要各有一份，掷卡不重给）
   if (tossEvidence && F) { const cn = canonOf(F.id); cites.push(...sfpEvidenceCites(tossEvidence, F.id, cn ? cn.juan : 1)); }
-  if (F) { const cn = canonOf(F.id); if (cn && cn.text) cites.push(rdCite(`现在的位置「${F.name}」原文怎么说`, F.id, cn.text, cn.juan)); }
-  if (T && !stay) { const cn = canonOf(T.id); if (cn && cn.text) cites.push(rdCite(`要去的位置「${T.name}」原文怎么说`, T.id, cn.text, cn.juan)); }
-  return paras.map((t, i) => `<div class="${i === 0 ? 'cPlain' : 'cRead'}" style="margin:4px 0">${glossify(esc(t))}</div>`).join('') + cites.join('');
+  const cTgt = T && !stay ? T : F;
+  if (cTgt) { const cn = canonOf(cTgt.id); if (cn && cn.text) cites.push(rdCite(`「${cTgt.name}」原文`, cTgt.id, cn.text, cn.juan)); }
+  return rows.join('') + cites.join('');
+}
+// v359 缘由专答：「为什么这样走」主体＝该位该组行法按语的白话释义（门次不同、每位之因各异），
+// 附逐字依据可查；谱文未释此组者诚实说明，不以通则代答（通则不如本位谱注精确）
+function sfpWhyAnswerHtml(p     , combo        )         {
+  const mv = (p.moves         ).find((m     ) => (m.c            ).includes(combo));
+  const ev = sfpWhyEvidence(p.id, combo);
+  const whyP = sfpEvidenceInterpretationText(ev);
+  const dest = mv && mv.to ? SFP_BY[mv.to] : null;
+  const parts           = [];
+  let route = '';
+  if (!mv) route = `本位行法未列「${combo}」——依谱例安住本位、不行棋`;
+  else if (dest && dest.id !== p.id) route = `「${combo}」往「${dest.name}」`;
+  else if (mv.bonus) route = `「${combo}」贈${'一二三四'[mv.bonus - 1]}掷、不移位`;
+  else route = `「${combo}」于本位无行处`;
+  parts.push(`<div class="cPlain" style="margin:4px 0">在「${esc(p.name)}」：${esc(route)}。</div>`);
+  if (whyP) parts.push(`<div class="cRead" style="margin:4px 0">${glossify(esc(whyP))}</div>`);
+  else parts.push(`<div class="cRead" style="margin:4px 0">此组的行与不行，谱主于本位未另作解说——本谱以各门各位的行法表为准，不另推演。可看本位原文与全部去向。</div>`);
+  const cn = canonOf(p.id);
+  if (ev) parts.push(...sfpEvidenceCites(ev, p.id, cn ? cn.juan : 1));
+  else if (cn && cn.text) parts.push(rdCite(`「${p.name}」原文`, p.id, cn.text, cn.juan));
+  return parts.join('');
 }
 function sfpPosAnswerHtml(p     )         {
   const cn = canonOf(p.id);
@@ -8146,6 +8332,14 @@ function sfpChatAnswer(qRaw        )         {
   const qC = pHit ? qT.split(pHit.name).join(' ') : qT;
   const toks = qC.replace(/[^那謨阿彌陀佛]/g, ' ').split(' ').filter(t => t.length === 2);
   const combo = toks.length ? (SFP_ORD.indexOf(toks[0][0]) <= SFP_ORD.indexOf(toks[0][1]) ? toks[0] : toks[0][1] + toks[0][0]) : '';
+  const asksWhy = /為什麼|为什么|為何|为何|何以|憑什麼|凭什么|原因|緣由|缘由/.test(qq);
+  if (asksWhy) { // v359 缘由专答：位＋组皆可从问句取，缺组则取最近一掷
+    const lastH = sfpHist[sfpHist.length - 1];
+    const pW = pHit || (sfpS.active && sfpS.pos ? SFP_BY[sfpS.pos] : null)
+      || (lastH && lastH.f ? SFP_BY[String(lastH.f)] : null); // 无局时依最近一掷的起点位
+    const cW = combo || (lastH && lastH.c ? String(lastH.c) : '');
+    if (pW && cW) return sfpWhyAnswerHtml(pW, cW);
+  }
   if (combo && (pHit || (sfpS.active && sfpS.pos))) return sfpMoveAnswerHtml(pHit || SFP_BY[sfpS.pos          ], combo);
   if (combo) return `<div class="cPlain" style="margin:4px 0">「${combo}」：${sfpPlain(combo)}。</div><div class="cRead" style="margin:4px 0">升降要看所在位的行法表——可这样问：「在南贍部洲掷得${combo}会怎样」。</div>`;
   if (/怎麼修|怎么修|如何修|怎樣修|怎样修/.test(qq)) {
@@ -8171,7 +8365,7 @@ function sfpChatAnswer(qRaw        )         {
   const base = sfpLocalSearch(term);
   const plainHits = sfpPlainLibSearch([...new Set([term, zhWith(term, ZH_S2T, ZH_MAXLEN.t), zhWith(term, ZH_T2S, ZH_MAXLEN.s)])]);
   const empty = base.indexOf('未检得') >= 0;
-  const note = term !== q0.trim() && (!empty || plainHits) ? `<div class="cNote" style="margin:2px 0">依「${esc(term)}」检得：</div>` : '';
+  const note = ''; // v350 用户点单：撤「依「X」检得」之类过程自述
   if (empty && !plainHits) return '<div class="cRead" style="margin:4px 0">本地谱内、词典与白话库未检到这个词；G 版选佛谱智能体仍会继续依经据库检证。也可换更短的词、试繁体原文用字，或问某一谱位、轮相行法与门类。</div>';
   return note + (empty ? '' : base) + plainHits;
 }
@@ -8200,7 +8394,8 @@ function agentLocalAnswerHtml(localHtml        , opened = false)         {
 async function agentAskRun(q        , msg                              , rerender            , localHtml = '') {
   const localOpen = agentLocalAnswerHtml(localHtml, true);
   const localFolded = agentLocalAnswerHtml(localHtml);
-  const hitCache = askCacheGet(q);
+  const ck = q + (sfpS.active && sfpS.pos ? `＠${sfpS.pos}` : ''); // 缓存键并入现居位：随问携带局面上下文后，答案不可跨局面复用
+  const hitCache = askCacheGet(ck);
   if (hitCache) { msg.a = agentAnswerHtml(hitCache, 'local') + localFolded; rerender(); return; }
   if (askQuotaLeft() <= 0) { msg.a = '<div style="color:#f08f7a">今日智能体问答已满一百次，明日再来；本谱本地速查仍可继续使用。</div>' + localOpen; rerender(); return; }
   // 三段式检索反馈（仿文钞）：检索常需十余秒，静句易被当成卡死——过 5 秒换一句仍然诚实的等待语
@@ -8210,9 +8405,18 @@ async function agentAskRun(q        , msg                              , rerende
   try {
     const ctl = new AbortController();
     const to = setTimeout(() => ctl.abort(), 45000);
+    // v350 富上下文：把现居位/门/最近轮相/足迹随问带上——智能体答「我现在该怎么走」类问题时不再盲猜局面
+    const cur = sfpS.pos && SFP_BY[sfpS.pos] ? SFP_BY[sfpS.pos] : null;
+    const last = sfpHist[sfpHist.length - 1];
     const r = await fetch(SFP_ASK_API, {
       method: 'POST', headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ question: q }), signal: ctl.signal,
+      body: JSON.stringify({
+        question: q,
+        pos: sfpS.pos || '', posName: cur ? cur.name : '', door: cur ? cur.door : 0,
+        doorTitle: cur ? SFP_DOOR_BY[cur.door].title : '',
+        combo: last && last.c ? last.c : '', n: sfpS.n || 0,
+        trail: (sfpS.trail || []).slice(-8),
+      }), signal: ctl.signal,
     });
     clearTimeout(to); clearTimeout(slowTimer);
     const d = await r.json();
@@ -8224,7 +8428,7 @@ async function agentAskRun(q        , msg                              , rerende
         : save.askq.n + 1;
       persist(); // 只计真正生成的一次；云端缓存命中不耗生成额度
     }
-    askCachePut(q, d);
+    askCachePut(ck, d);
     msg.a = agentAnswerHtml(d, edgeHit ? 'edge' : '') + localFolded;
   } catch (e) {
     clearTimeout(slowTimer);
@@ -8251,13 +8455,11 @@ function askCachePut(q        , a     ) {
 }
 // v243：AI 解读与「问」分家——解读直开本掷的既定内容卡；「问」才进入聊天模式。
 function openTossReading(ctx                                                         ) {
+  // v348 极简化：眉行（现居…）与气泡外壳撤——去向条已含两端位名；脚注退役，快捷签带「为什么」专问
   const F = ctx.from ? SFP_BY[ctx.from] : null;
   const inner = el(`<div class="panel"><h2>AI 解读 · 掷得「${esc(ctx.c)}」</h2><div class="body">
-    ${F ? `<div class="cMeta">现居「${esc(F.name)}」 · 第${SFP_CN[F.door - 1]}门「${esc(SFP_DOOR_BY[F.door].title)}」</div>` : ''}
-    <div class="cbA" style="margin-top:8px">${sfpTossAnswerHtml({ c: ctx.c, from: ctx.from, to: ctx.to, evidence: ctx.evidence })}</div>
-    ${(() => { const j = sfpJourneySummary(); return j ? `<details class="sec"><summary>这一程走势</summary><div style="margin-top:4px">${j}</div></details>` : ''; })()}
-    <div id="trChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${(() => { const P0 = (ctx.to ? SFP_BY[ctx.to] : null) || F; if (!P0) return ''; const pred = P0.pure ? '什么是横超' : (P0.door === 2 || P0.door === 3) ? '堕到这里还有救吗' : '现在掷得什么才能上进'; return [`${P0.name}是什么`, `${SFP_DOOR_BY[P0.door].title}怎么修`, pred].map(c2 => `<span class="chipQ">${esc(c2)}</span>`).join(''); })()}</div>
-    <div class="cNote">本地解读：由本谱结构化语料逐条检证拼证，不联网、不生成；引文皆逐字原文。解读未尽，点下方签或「问」追问。</div></div>
+    <div class="cbA rdCard" style="margin-top:2px;background:none;border:0;padding:0;max-width:100%">${sfpTossAnswerHtml({ c: ctx.c, from: ctx.from, to: ctx.to, evidence: ctx.evidence })}</div>
+    <div id="trChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${(() => { const P0 = (ctx.to ? SFP_BY[ctx.to] : null) || F; if (!P0) return ''; const pred = P0.pure ? '什么是横超' : (P0.door === 2 || P0.door === 3) ? '堕到这里还有救吗' : ''; const whyQ = F && ctx.c ? `在${F.name}掷得${ctx.c}为什么这样走` : ''; return [whyQ, `${P0.name}是什么`, pred].filter(Boolean).map(c2 => `<span class="chipQ">${esc(c2)}</span>`).join(''); })()}</div></div>
     <div style="display:flex;gap:8px;margin-top:10px"><button class="gbtn" id="trAsk">问</button><button class="gbtn primary" id="trOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   inner.addEventListener('click', (e) => { // 情境签带着问题进入「问」；AI 解读本身仍是固定内容卡
     const ch = (e.target               ).closest ? (e.target               ).closest('.chipQ')                : null;
@@ -8282,16 +8484,14 @@ function openSfpReading(ctx                                                     
     sfpChat.push({ u: q, a: sfpTossAnswerHtml({ c, from: f, to, evidence }) });
   };
   if (ctx && ctx.c) seedToss(ctx.c, ctx.from, ctx.to);
-  // 开「问」不再自动灌入上一掷解读；快捷签只呈现当下最可能追问的三件事。
+  // v351 快捷签精简为三枚：本位一问＋当下处境一问＋通问（原四枚含与解读卡重复的「本门有哪些位」）
   const chips           = [];
   if (sfpS.active && sfpS.pos) {
     const cur = SFP_BY[sfpS.pos];
     chips.push(`${cur.name}是什么`);
-    const last = sfpHist[sfpHist.length - 1];
-    chips.push(last && last.c ? `掷得${last.c}会怎样` : '六字轮相何义');
-    chips.push(cur.pure ? '什么是横超' : (cur.door === 2 || cur.door === 3) ? '堕到这里还有救吗' : '现在掷得什么才能上进');
-    chips.push(`${SFP_DOOR_BY[cur.door].title}有哪些位`);
-  } else chips.push('这局怎么玩', '六字轮相何义', '上品上生是什么');
+    chips.push(cur.pure ? '什么是横超' : (cur.door === 2 || cur.door === 3) ? '堕到这里还有救吗' : '如何从此位上进');
+    chips.push('这局怎么玩');
+  } else chips.push('这局怎么玩', '六字轮相何义', '什么是横超');
   const pnl = el(`<div class="panel"><h2>问 · 与本谱对话</h2>
     <div class="body" id="cbLog" style="display:flex;flex-direction:column"></div>
     <div id="cbChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${chips.map(c => `<span class="chipQ">${esc(c)}</span>`).join('')}</div>
@@ -8340,12 +8540,17 @@ function openSfpIntro() {
       <div class="verse"><i class="duL">敘</i>能使人即遊戲間。頓知六道往還之疲苦。三乘出要之差別。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div></div>
     <div class="igOr"><b class="k">精神</b><span>图中一切升沉判语皆依经论教乘而定，不出自己的猜想；三十余年反复改图，只为「易于行」。</span>
       <div class="verse"><i class="duL">敘</i>皆本教乘非出臆見。<span class="cSrc" style="display:block">《選佛譜》卷首 · 敘選佛譜敘</span></div></div>
+    <div class="igOr"><b class="k">愿力</b><span>十三日成稿，回向的不是自己的功德，而是同愿众生共生极乐。</span>
+      <div class="verse"><i class="duL">紀事</i>願以此功德。普施法界有情。同開妙解。深知法界事理性相。同發大願速生西方極樂世界。<span class="cSrc" style="display:block">《選佛譜》卷末 · 紀事（卷第六後）</span></div></div>
     <details class="sec"><summary>怎么掷 · 三步</summary>
       <div class="igStep"><span class="n">1</span><span class="tx"><b>长按掷轮</b>，至心称念一句佛号，念毕松手即掷<i>两轮合读即「南无阿弥陀佛」——掷轮即是称名</i></span></div>
       <div class="igStep"><span class="n">2</span><span class="tx"><b>首掷定發始因地</b>，此后每掷依当位行法表升降<i>那·謨二字下坠，阿·彌·陀·佛四字上升</i></span></div>
       <div class="igStep"><span class="n">3</span><span class="tx"><b>判词窗点「行」落子</b>，行至圆教究竟妙觉即选佛及第<i>无输局：堕三途亦不出谱，仍依本位行法续掷</i></span></div>
       <div class="igTwo"><div><b>豎入</b><span>依自力沿藏通別圓四教位次拾级而登</span></div>
-        <div><b>橫超</b><span>念佛往生净土，径趋毕局——第十四门「淨土橫超門」</span></div></div></details></div>
+        <div><b>橫超</b><span>念佛往生净土，径趋毕局——第十四门「淨土橫超門」</span></div></div></details>
+    <details class="sec"><summary>轮相六字 · 善恶升沉</summary>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:8px 0 3px">${[['那', '見惑', 0], ['謨', '思惑', 0], ['阿', '施善', 1], ['彌', '戒善', 1], ['陀', '定善', 1], ['佛', '善慧', 1]].map(([ch, sub, good]) => `<div style="text-align:center;border:1.5px solid ${good ? 'rgba(215,170,69,.6)' : 'rgba(176,84,63,.7)'};border-radius:9px;padding:7px 2px 5px;background:${good ? 'rgba(215,170,69,.07)' : 'rgba(176,84,63,.08)'}"><div style="font-size:var(--fs-xl);line-height:1.25;color:${good ? '#f4e6b8' : '#f0af9e'}">${ch}</div><div style="font-size:var(--fs-xs);color:#c9bd93;margin-top:1px">${sub}</div><div style="font-size:var(--fs-xs);letter-spacing:1px;color:${good ? '#d7aa45' : '#cf7f66'};margin-top:2px">${good ? '善 ↑' : '惡 ↓'}</div></div>`).join('')}</div>
+      <div class="cNote" style="text-align:center">两轮合掷——善字多则升，恶字多则降；六字合读即「南无阿弥陀佛」</div></details></div>
     <div class="igBtns">
       ${hasSave ? '<button class="gbtn primary wide" id="sfpResume">续掷上局</button>' : ''}
       <button class="gbtn ${hasSave ? '' : 'primary wide'}" id="sfpNew">新开一局</button>
@@ -8591,6 +8796,13 @@ const hovEl = el('<div id="hovTag" class="ui"></div>');
 app.appendChild(hovEl);
 let hovLast = 0;
 const isFinePtr = matchMedia('(pointer:fine)').matches;
+// v362 位珠可辨识：全谱只标「哪颗珠是哪一位」，绝不标坐标数值（坐标是实现细节，非谱相）。
+// 桌面掠过即浮名签（下方 hovTag）；触屏无 hover 等价物，故首次开局给一次引导，此后不再扰。
+function beadTipOnce() {
+  if (isFinePtr || save.seenBeadTip) return;
+  save.seenBeadTip = true; persist();
+  window.setTimeout(() => showToast('星图上诸位珠皆可点：轻点读本位谱注，久按速览，双点飞临', 4200), 900);
+}
 renderer.domElement.addEventListener('pointermove', (e) => {
   if (!isFinePtr || e.pointerType === 'touch') return;
   if (e.buttons) { hovEl.style.display = 'none'; return; }
@@ -8598,12 +8810,16 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   if (sfpTransit || overlayEl || sfpS.rolling || starView) { hovEl.style.display = 'none'; return; }
   const rect = renderer.domElement.getBoundingClientRect();
   const px = e.clientX - rect.left, py = e.clientY - rect.top;
-  let nm = '';
+  let nm = '', sub = '', col = '';
   const pidH = beadScreenPick(px, py, 22);
-  if (pidH && SFP_BY[pidH]) nm = SFP_BY[pidH].name;
-  else { const dh = doorScreenPick(px, py, 22); if (dh && SFP_DOOR_BY[dh.door]) nm = `第${SFP_CN[dh.door - 1]}门 · ${SFP_DOOR_BY[dh.door].title}`; }
+  if (pidH && SFP_BY[pidH]) { // v362 位珠名签补门属：全图观照时「哪一位·属哪门」一眼即得（坐标数值不呈——非谱相）
+    const pp = SFP_BY[pidH]; nm = pp.name;
+    const an = byId[pp.anchor];
+    sub = `第${SFP_CN[pp.door - 1]}门${an ? ' · ' + an.d.name : ''}${pp.id === sfpS.pos ? ' · 现居' : ''}`; // v363 掠过即知在何天何洲（地理处所），非坐标数值
+    col = '#' + (SFP_DOOR_COLOR[pp.door] ?? 0xd7aa45).toString(16).padStart(6, '0');
+  } else { const dh = doorScreenPick(px, py, 22); if (dh && SFP_DOOR_BY[dh.door]) nm = `第${SFP_CN[dh.door - 1]}门 · ${SFP_DOOR_BY[dh.door].title}`; }
   if (!nm) { hovEl.style.display = 'none'; return; }
-  hovEl.textContent = zh(nm);
+  hovEl.innerHTML = zh(`${esc(nm)}${sub ? `<i style="font-style:normal;opacity:.72;font-size:var(--fs-xs);margin-left:6px;color:${col}">${esc(sub)}</i>` : ''}`);
   hovEl.style.display = 'block';
   hovEl.style.left = Math.min(px + 14, rect.width - 130) + 'px';
   hovEl.style.top = (py + 16) + 'px';
@@ -8795,20 +9011,7 @@ function updateLabels() {
     av.label.style.left = `${x}px`; av.label.style.top = `${y}px`;
   });
 }
-function updateCompass() {
-  if (!compass.isConnected) return; // 罗盘已撤
-  const f = new THREE.Vector3().subVectors(controls.target, camera.position); f.y = 0;
-  if (f.lengthSq() < 0.001) return;
-  f.normalize();
-  const dirs                                  = [['e', 1, 0], ['s', 0, 1], ['w', -1, 0], ['n', 0, -1]];
-  dirs.forEach(([cls, dx, dz]) => {
-    const dot = f.x * dx + f.z * dz, cross = f.x * dz - f.z * dx;
-    const th = Math.atan2(cross, dot);
-    const sp = compass.querySelector('.' + cls)               ;
-    const r = 26;
-    sp.style.transform = `translate(${-50 + Math.sin(th) * 0 }%,-50%) translate(${Math.sin(th) * r}px,${-Math.cos(th) * r}px)`;
-  });
-}
+// updateCompass 已随罗盘一并清除（见顶部注）
 
 // ---------------- 主循环 ----------------
 // ② 缓起—巡航—缓落：五次 smootherstep，两端更缓、中段近匀速，落位前自带悬停半拍
@@ -8989,7 +9192,6 @@ function frame(now        ) {
   updateDoorLabels();
   doorLabelCullFn();
   syncBackBtn();
-  updateCompass();
 
   if (composer && !save.settings.lowPerf) composer.render();
   else renderer.render(scene, camera);
