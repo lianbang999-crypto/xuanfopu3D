@@ -289,7 +289,7 @@ export const Net = {
             localStorage.setItem(NET_KEY, JSON.stringify({ code, playerId: message.playerId, name, key }));
             localStorage.removeItem(OLD_NET_KEY);
           } catch (e) {}
-          if (location.hash.startsWith('#r=')) history.replaceState(null, '', location.pathname);
+          if (location.hash.startsWith('#r=')) history.replaceState(history.state, '', location.pathname); // state 原样保留（返回键哨兵标记在其中）
           this._uiRoomSync();
           this.onJoined?.({ reconnecting });
           // 座位确认后先等首拍房态再兑现承诺（服务器紧随 joined 必发 sync）——
@@ -606,10 +606,11 @@ export const Net = {
     }
   },
 
-  init({ toast, zh, confirm }) {
+  init({ toast, zh, confirm, armBack }) {
     if (toast) this._toastCb = toast;
     if (zh) this.zh = zh;
     if (confirm) this._confirmCb = confirm;
+    if (armBack) this._armBackCb = armBack;   // 返回键哨兵武装（见 game.js armBackGuard）
     this.clientToken = stableId(localStorage, CLIENT_KEY, 'person');
     this.tabToken = stableId(sessionStorage, TAB_KEY, 'tab');
     clearInterval(this._leaseTimer);
@@ -1007,6 +1008,7 @@ export const Net = {
   },
   closeKey() { this.$key?.classList.remove('on'); },
 
+  isPanelOpen() { return !!this.$panel && this.$panel.classList.contains('on'); },
   openPanel() {
     if (!this.$panel) return;
     this._lastFocused = document.activeElement;
@@ -1016,6 +1018,7 @@ export const Net = {
     this._unread = 0;
     this._badge();
     this._uiRoomSync();
+    this._armBackCb?.();   // 返回键接管：面板一开即武装哨兵（安卓返回＝先收面板，不离站）
   },
   closePanel() {
     if (!this.$panel) return;

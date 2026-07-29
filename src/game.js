@@ -93,6 +93,23 @@ function zh(s        )         {
 }
 // 就地转换 DOM 文本节点；缓存首见原文，切换时从原文重转，避免简→繁往返损耗
 const zhOrig = new WeakMap              ();
+// 属性同转（title/aria-label/placeholder）：tooltip 与读屏名也是显示层，不该停在开机语言。
+// 属性元素长命（不像文本节点随 innerHTML 重建即弃），故记「原文＋我们上次写出的值」两份——
+// 现值若不等于上次写出值，说明程序另行改写过（如 quickSfp.title 随行处变），以新值为原文，勿用陈值覆盖。
+const ZH_ATTRS = ['title', 'aria-label', 'placeholder'];
+const zhAttrOrig = new WeakMap                                                       ();
+function zhAttrs(el2         ) {
+  let rec = zhAttrOrig.get(el2);
+  for (const a of ZH_ATTRS) {
+    const cur = el2.getAttribute(a);
+    if (!cur || !/[㐀-鿿]/.test(cur)) continue;
+    if (!rec) { rec = {}; zhAttrOrig.set(el2, rec); }
+    let ent = rec[a];
+    if (!ent || ent.out !== cur) ent = rec[a] = { orig: cur, out: cur };
+    ent.out = zh(ent.orig);
+    if (ent.out !== cur) el2.setAttribute(a, ent.out);
+  }
+}
 function zhDom(root      ) {
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let n             ;
@@ -103,6 +120,10 @@ function zhDom(root      ) {
     let orig = zhOrig.get(t);
     if (orig === undefined) { orig = t.nodeValue; zhOrig.set(t, orig); }
     t.nodeValue = zh(orig);
+  }
+  if (root instanceof Element) { // 属性层：根自身与其内所有带译注属性的元素
+    zhAttrs(root       );
+    (root       ).querySelectorAll(`[${ZH_ATTRS.join('],[')}]`).forEach(e2 => zhAttrs(e2));
   }
 }
 
@@ -2993,6 +3014,7 @@ function openOverlay(inner             ) {
   if (isSheet) overlayEl.classList.add('ovb');
   if (isCenter) overlayEl.classList.add('ovc');
   overlayEl.appendChild(inner);
+  armBackGuard(); // 返回键接管：有浮层在场即武装哨兵（安卓返回＝先关浮层，不离站）
   // 统一右上角✕，移动端不依赖点外部空白
   if (inner.classList.contains('panel') && !inner.querySelector('.ovClose')) {
     const x = el('<button class="gbtn ovClose" aria-label="关闭" title="关闭">✕</button>');
@@ -3026,6 +3048,44 @@ function openOverlay(inner             ) {
   }
   app.appendChild(overlayEl);
 }
+
+// ── 安卓返回键（及 iOS 侧滑返回）接管：返回＝逐层退出，不再一键离站 ──
+// 首个可退层（浮层/聊天面板/场景/行谱局）出现时压一枚哨兵历史项（不改 URL）；
+// 返回键弹出哨兵触发 popstate，按「确认卡→浮层→聊天面板→门观→专场→局中缓退」次序消费一层，
+// 仍有可退层则重新武装。退无可退时不再武装——下一次返回键自然离开（数据早已随手持久化）。
+// Esc/✕ 关层不回收哨兵：其后首次返回键只是空转一格，第二次才离开，属可接受的一格冗余。
+let backGuardOn = false;
+let backLeaveAt = 0;
+function armBackGuard() {
+  if (backGuardOn) return;
+  backGuardOn = true;
+  try { history.pushState({ sfpBack: 1 }, '', location.href); } catch (e) { backGuardOn = false; }
+}
+window.addEventListener('popstate', (e) => {
+  if (e.state && (e.state       ).sfpBack) { backGuardOn = true; return; } // 前进键回到哨兵项：只复位旗标，不消费层
+  backGuardOn = false;
+  if (confirmResolve) { closeConfirm(false); armBackGuard(); return; }     // 确认卡＝最上层，返回即「再想想」
+  if (overlayEl) {
+    closeOverlay();   // 手关回调可连锁开新层（如大厅✕→题屏）——openOverlay 会自行再武装
+    if (overlayEl || inDoor || inPure || inSky || inBodhi || inDisc || inNether || sfpS.active) armBackGuard();
+    return;
+  }
+  if (Net.isPanelOpen()) { Net.closePanel(); armBackGuard(); return; }
+  if (inDoor) { exitDoor(true); armBackGuard(); return; }
+  if (inNether || inPure || inSky || inBodhi || inDisc) { returnSaha(); armBackGuard(); return; }
+  if (sfpS.active) {   // 局中裸退：先告知已存档，短窗内再按一次才真离开
+    const nowB = Date.now();
+    if (nowB - backLeaveAt > 2600) {
+      backLeaveAt = nowB;
+      showToast(zh('行处已存——再按一次返回即离开'), 2600);
+      armBackGuard();
+      return;
+    }
+    history.back();    // 第二次：越过本站入口项真正离开（根页无处可退则留守）
+    return;
+  }
+  // 娑婆自由观照且无局：哨兵已消费、不再武装——再按一次返回即离开
+});
 
 function openLibrary(tab = 'cites') {
   // 极简化：地图筛选已撤，只留参考经典（原「引用总表」）
@@ -3223,6 +3283,7 @@ updateSectionUI();
 // ---------------- 极乐世界 ----------------
 let savedCam                                                       = null;
 function enterPure() {
+  armBackGuard(); // 返回键＝退回娑婆
   if (inPure) return;
   inPure = true;
   cancelFly();
@@ -3258,6 +3319,7 @@ function gateTap(_dbl         ) { // v163 用户定案：单击即入极乐（�
 }
 // ---------------- 色界观照场（v140：与极乐同一套语法）----------------
 function enterSky() {
+  armBackGuard(); // 返回键＝退回娑婆
   if (inSky || inPure) return;
   inSky = true;
   skyEnterAt = performance.now();
@@ -3567,6 +3629,7 @@ function discTarget() { return discFrame().target; }
 function discView() { return discFrame().pos; }
 function enterDisc(dno        , focus         ) {
   if (inDisc) return;
+  armBackGuard(); // 返回键＝退回娑婆
   if (inPure || inSky || inBodhi) returnSaha(); // 他专场内点谱页门：先复原娑婆坐标语境再入（同幽冥成例）
   enterDiscCore(dno);
   const v = discView();
@@ -3719,6 +3782,7 @@ function netherRestore() { // 场景复原（雾/天色/灯/镜程）；门态�
 }
 function enterNether(pid         , nodeId         ) {
   if (inNether) return;
+  armBackGuard(); // 返回键＝退回娑婆
   if (inPure || inSky || inBodhi || inDisc) returnSaha();
   cancelFly();
   if (!netherBuilt) { netherBuilt = true; buildNetherBlock(); }
@@ -3953,6 +4017,7 @@ function bodhiGrpOpen(g        ) { // 定开（非切换、不动镜头）：落
   if (inBodhi) bodhiApplyBeads();
 }
 function enterBodhi() {
+  armBackGuard(); // 返回键＝退回娑婆
   if (inBodhi || inPure || inSky) return;
   bodhiEnterAt = performance.now();
   cancelFly();
@@ -4844,6 +4909,7 @@ function enterDoor(dno        , pid         , cam                          = 'ju
   if (dno === 3 && !inNether) { enterNetherTransit(pid); return; } // v171 恶趣门一律走幽冥剖块专场
   if (inNether && dno !== 3) netherRestore(); // 幽冥场内转入他门：先复原地表场景（门态由下文重建）
   if (inPure || inSky || inBodhi || inDisc) returnSaha();
+  armBackGuard(); // 返回键＝出门观回全图
   setConMin(false); // 俯冲入门＝回到局面，收起的控制台恢复
   if (inDoor !== dno) {
     buildDoorFocus(dno);
@@ -7127,6 +7193,7 @@ function startSfp(resume         ) {
   cometCancel();
   setModeInstant(0);
   sfpS.active = true; sfpS.rolling = false; sfpS.finished = false;
+  armBackGuard(); // 局中返回键＝缓退（先提示行处已存，再按一次才离开）
   beadTipOnce(); // v362 触屏首局一次性告知位珠可点（桌面走 hover 浮名，无需此告）
   sfpVictoryHandled = false;
   sfpBonusLeft = 0;
@@ -9233,7 +9300,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   else window.addEventListener('load', () => setTimeout(startLoop, 50), { once: true });
   (window       ).__gpReady = true;
   // ---------------- 联机接线 ----------------
-  Net.init({ toast: showToast, zh, confirm: confirmLeaveMatch });
+  Net.init({ toast: showToast, zh, confirm: confirmLeaveMatch, armBack: armBackGuard });
   let netHydrateMode = '';
   let netTurnWake = 0;
   const hydrateNetGame = (force = false) => {
@@ -9374,7 +9441,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   if (Net.invited) {
     const { code: iCode, key: iKey } = Net.invited;
     Net.invited = null;
-    history.replaceState(null, '', location.pathname); // 链接已用毕，清掉免刷新重入
+    history.replaceState(history.state, '', location.pathname); // 链接已用毕，清掉免刷新重入（state 原样保留，勿抹返回键哨兵标记）
     plazaSit(iCode, '', false, iKey);
   } else {
     openTitle();

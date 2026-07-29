@@ -22,6 +22,7 @@
     "test:v90": "node scripts/test-v90-port.mjs",
     "test:plaza": "node scripts/test-plaza.mjs",
     "test:plaza-client": "node scripts/test-plaza-client.mjs",
+    "test:backlang": "node scripts/test-back-and-lang.mjs",
     "check:dir": "node scripts/check-dir.mjs"
   },
   "dependencies": {
