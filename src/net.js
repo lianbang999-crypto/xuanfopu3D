@@ -104,6 +104,7 @@ export const Net = {
   onJoined: null,
   onState: null,
   onToss: null,
+  onNotice: null,   // 行棋公事播报（贈掷施与等）：宿主接去状态行＋消息回看，聊天室只留人语与人事
   onMatchStarted: null,
   onMatchFinished: null,
   onCommandError: null,
@@ -553,11 +554,9 @@ export const Net = {
       case 'toss_committed':
         if (message.requestId === this._pendingToss || message.playerId === this.myId) this._pendingToss = '';
         this._applyState(message);
+        // 行棋说明不进聊天室（2026-07-30 用户定案：聊天只留人语与人事）——
+        // 远端掷轮的播报由宿主 onToss 走状态行＋消息回看（game.js netPeerMsg），此处不再落系统行
         this.onToss?.(message);
-        if (message.playerId !== this.myId) {
-          const last = message.steps?.[message.steps.length - 1];
-          this._sysMsg(`${message.name}掷得「${message.combo}」${last?.text ? ` · ${last.text}` : ''}`);
-        }
         break;
       case 'turn_skipped':
         this._sysMsg(`${message.name || '同修'}本手超时${message.away ? '，已暂离行动序列' : '，轮次顺延'}`);
@@ -568,20 +567,20 @@ export const Net = {
       case 'grant_pending':
         this._applyState(message);
         if (!this.myGrantChoice()) {
-          this._sysMsg(`${this.playerName(message.room?.pendingGrant?.giverId)}正在择一位莲友受贈`);
+          this.onNotice?.(`${this.playerName(message.room?.pendingGrant?.giverId)}正在择一位莲友受贈`); // 行棋公事走状态行，不进聊天
         }
         break;
       case 'grant_given': {
         const mine = message.recipientId === this.myId;
         const byMe = message.giverId === this.myId;
         const how = message.reason === 'timeout' ? '（择人超时，按座次施与）' : '';
-        this._sysMsg(`${message.giverName}将「贈${'一二三四'[Math.max(1, message.count) - 1]}掷」施与${message.recipientName}${how}`);
+        this.onNotice?.(`${message.giverName}将「贈${'一二三四'[Math.max(1, message.count) - 1]}掷」施与${message.recipientName}${how}`);
         if (mine) this._toastCb?.(this.zh(`${message.giverName}把贈掷施与您——请在本位续掷`));
         else if (byMe) this._toastCb?.(this.zh(`已施与${message.recipientName}`));
         break;
       }
       case 'grant_void':
-        this._sysMsg(`${message.name || '同修'}掷得贈掷，然无人可施，此贈作废`);
+        this.onNotice?.(`${message.name || '同修'}掷得贈掷，然无人可施，此贈作废`);
         break;
       case 'player_back':
         this._sysMsg(`${message.name || '同修'}已归队`);
@@ -659,7 +658,7 @@ export const Net = {
 #netHead .code:hover,#netHead .code:focus-visible{color:var(--aq-green)}
 #netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(139,74,58,.45);background:rgba(139,74,58,.08);color:var(--aq-woe);border-radius:10px;cursor:pointer}
 #netMinBtn,#netFullBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:var(--aq-note);border-radius:10px;cursor:pointer;font-size:var(--fs-xl)}
-#netMinBtn:hover,#netFullBtn:hover{background:rgba(35,52,60,.06);color:var(--aq-tx)}
+#netMinBtn:hover,#netFullBtn:hover{background:rgba(57,50,42,.06);color:var(--aq-tx)}
 #netRoomState{flex:none;padding:8px 12px;color:var(--aq-tx);line-height:1.5}
 #netRoomState b{color:var(--aq-strong)}
 /* 面板是定高的：名单、指引、聊天三处可压缩（flex:0 1 auto + min-height:0），
@@ -677,7 +676,7 @@ export const Net = {
 .netP{display:flex;align-items:center;gap:5px;padding:6px 9px;min-height:30px;border-radius:15px;background:var(--aq-wash);border:1px solid transparent;max-width:100%}
 .netP.turn{border-color:rgba(150,112,32,.7);box-shadow:0 0 10px rgba(168,129,31,.25)}
 .netP.off{opacity:.48}.netP.away{opacity:.62}
-.netP .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(35,52,60,.3)} /* 珠色点加淡青墨描边，浅底不发虚（§七之十一） */
+.netP .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(57,50,42,.3)} /* 珠色点加淡青墨描边，浅底不发虚（§七之十一） */
 .netP .role{flex:none;font-size:var(--fs-xs);color:var(--aq-strong);letter-spacing:1px}
 .netP .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px}
 .netP .st{color:var(--aq-note);font-size:var(--fs-xs);white-space:nowrap}
@@ -691,7 +690,7 @@ export const Net = {
    翻历史时借同一位置报新消息（§5.0b 信息只出一次）。 */
 #netChatHead{display:flex;align-items:center;justify-content:flex-end;flex:none;padding:6px 12px 4px;
   border-top:1px solid var(--aq-line);color:var(--aq-note);font-size:var(--fs-xs)}
-#netMsgs{flex:1 1 0;min-height:0;overflow-y:auto;padding:5px 12px 8px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
+#netMsgs{flex:1 1 0;min-height:0;overflow-y:auto;padding:5px 12px 8px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 @media (min-height:640px){#netMsgs{min-height:70px}}
 #netPanel.is-waiting #netMsgs,#netPanel.is-finished #netMsgs{min-height:64px}
 .netM{display:flex;flex-direction:column;align-items:flex-start;line-height:1.45;word-break:break-word}
@@ -714,7 +713,7 @@ export const Net = {
 #netInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-goldline);background:var(--aq-goldwash);color:var(--aq-tx);border-radius:10px;cursor:pointer;font-weight:600}
 #netBtns{display:flex;flex:none;gap:8px;padding:0 12px 10px}#netBtns button{flex:1;font-size:var(--fs-sm)}
 #netGrab{display:none;height:22px;flex:none;cursor:grab;position:relative;touch-action:none}
-#netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(63,94,108,.4);transform:translateX(-50%)}
+#netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(112,96,64,.4);transform:translateX(-50%)}
 #netKey{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(8,10,15,.6);backdrop-filter:blur(4px)}
 #netKey.on{display:flex}
 #netKeyCard{width:min(320px,88vw);background:var(--aq-panel);border:1px solid var(--aq-goldline);border-radius:16px;padding:20px 18px;color:var(--aq-tx)}

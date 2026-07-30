@@ -478,7 +478,8 @@ export const PLAZA_CSS = `
   max(24px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
   max(24px,env(safe-area-inset-left));box-sizing:border-box;display:grid;
   grid-template-rows:auto minmax(0,1fr);gap:14px}
-.fsBody{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.fsBody{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px;touch-action:pan-y;-webkit-overflow-scrolling:touch}
+.pzMain,.pzRooms{touch-action:pan-y}
 .fsWrap{width:100%;margin:0 auto}
 .pzTop{display:flex;align-items:center;justify-content:space-between;padding-right:58px}
 .pzEyebrow{display:block;font-size:var(--fs-xs,11px);color:var(--aq-note);letter-spacing:4px;margin-bottom:3px}
@@ -538,8 +539,8 @@ export const PLAZA_CSS = `
 .pzT .who i{font-style:normal}
 .pzT .dots:empty,.pzT .st:empty,.pzT .who:empty{display:none}
 /* 空室退到背景里：一个淡序号即可，视线自然落在有人的那几间 */
-.pzT.s-empty{justify-content:center;align-items:center;border-color:rgba(63,94,108,.14);background:rgba(255,255,255,.3)}
-.pzT.s-empty .ord{color:#7c8b93;font-size:var(--fs-lg,16px)}
+.pzT.s-empty{justify-content:center;align-items:center;border-color:rgba(112,96,64,.14);background:rgba(255,255,255,.3)}
+.pzT.s-empty .ord{color:#8a8271;font-size:var(--fs-lg,16px)}
 .pzT.s-empty:hover:not(:disabled),.pzT.s-empty:focus-visible:not(:disabled){border-color:var(--aq-goldline);background:rgba(176,131,28,.05)}
 .pzT .ord em{font-style:normal;font-size:var(--fs-xs,11px);margin-left:3px} /* 字级五档：散点 9px 收编 */
 .pzT.locked{border-style:dashed}.pzT.locked .st{color:var(--aq-strong)} /* 锁定语义已有 🔒＋虚线边双重表达，状态字用泥金深 */
@@ -554,7 +555,7 @@ export const PLAZA_CSS = `
 /* 共修动态一行三段：名号 · 掷数 · 何时。没有名次列——不排名次就不给序号留位置。 */
 .pzRankList{margin-top:14px;border-top:1px solid var(--aq-line)}
 .pzRankRow{display:grid;grid-template-columns:minmax(72px,1fr) auto auto;align-items:center;gap:12px;min-height:48px;
-  border-bottom:1px solid rgba(63,94,108,.14);font-size:var(--fs-sm,12.5px)}
+  border-bottom:1px solid rgba(112,96,64,.14);font-size:var(--fs-sm,12.5px)}
 .pzRankRow b{color:var(--aq-tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pzRankRow span{color:var(--aq-strong);white-space:nowrap}
 .pzRankRow em{font-style:normal;color:var(--aq-note);font-size:var(--fs-xs,11px);white-space:nowrap;min-width:52px;text-align:right}
@@ -603,7 +604,7 @@ export const PLAZA_CSS = `
   padding:15px 12px;font-size:22px;letter-spacing:6px;text-indent:6px;text-align:center;outline:none;
   transition:border-color .2s,box-shadow .2s}
 .pzAsk .bigIn.num{font-size:28px;letter-spacing:16px;text-indent:16px}
-.pzAsk .bigIn::placeholder{color:#8fa0a8;letter-spacing:6px}
+.pzAsk .bigIn::placeholder{color:#9a917d;letter-spacing:6px}
 .pzAsk .bigIn:focus{border-color:rgba(150,112,32,.7);box-shadow:0 0 0 3px rgba(176,131,28,.12)}
 .pzAsk .hint{font-size:var(--fs-xs,11px);color:var(--aq-note);letter-spacing:1px;min-height:15px}
 .pzAsk .hint.err{color:var(--aq-woe)}
@@ -638,7 +639,13 @@ export const PLAZA_CSS = `
 .clNotice{margin:0 0 10px;padding:9px 12px;border:1px solid var(--aq-line);border-radius:10px;
   background:rgba(255,255,255,.5);color:var(--aq-note);font-size:var(--fs-sm,12.5px);line-height:1.6}
 .clNotice:empty{display:none}
-.clMsgs{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+/* 初到茶寮的一次性之约：说一次，记住即不再叨扰（常驻说明句已撤） */
+.clHello{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:9px 12px;border:1px solid var(--aq-goldline);
+  border-radius:10px;background:var(--aq-goldwash);color:var(--aq-tx);font-size:var(--fs-sm,12.5px);line-height:1.6}
+.clHello span{flex:1;min-width:0}
+.clHello button{flex:none;min-height:34px;padding:5px 12px;border:1px solid var(--aq-goldline);border-radius:9px;
+  background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit;font-size:var(--fs-xs,11px);letter-spacing:1px;cursor:pointer}
+.clMsgs{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;
   display:flex;flex-direction:column;gap:8px;padding:4px 2px 10px}
 .clTs{align-self:center;font-size:var(--fs-xs,11px);color:var(--aq-note);opacity:.85;padding:2px 0}
 .clM{display:flex;flex-direction:column;align-items:flex-start;max-width:88%}

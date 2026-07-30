@@ -230,9 +230,11 @@ try {
   ok((await page.locator('#netRoster').innerText()).includes('房主')
     && !/[东南西北]·主/.test(await page.locator('#netRoster').innerText()), '房间只显示房主，不再显示方位座次');
   ok((await page.locator('#netRoomState').innerText()).includes('准备室'), '入座后进入准备室而非直接开局');
-  ok((await page.locator('#netRoomState').innerText()).includes('2 人即可开局'), '房内明确两人即可开局，不要求四人到齐');
-  ok((await page.locator('#netGuide').innerText()).includes('先准备，再共同开局')
-    && (await page.locator('#netGuide').innerText()).includes('准备后仍可取消'), '准备室用两步说明准备与开局，不再让用户猜流程');
+  // W3（2026-07-30）：状态行只报人数，开局条件由指引句说一次
+  ok((await page.locator('#netRoomState').innerText()).includes('人在线')
+    && (await page.locator('#netGuide').innerText()).includes('两位准备即可开局'), '开局条件由指引句说一次：两位准备即可开局');
+  ok((await page.locator('#netGuide').innerText()).includes('邀请莲友入座')
+    && (await page.locator('#netGuide').innerText()).includes('两位准备即可开局'), '准备室指引一句说清下一步（独自＝邀请，两位准备即可开局）');
   await page.setViewportSize({ width: 375, height: 667 });
   ok(await page.locator('#netReadyBtn').isVisible()
     && await page.locator('#netStartBtn').isVisible()

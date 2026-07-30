@@ -41,7 +41,7 @@ const save = {
   seenBeadTip: false, // v362 触屏「位珠可点」一次性引导（桌面有 hover 浮名，触屏无等价物）
   askq: { d: '', n: 0 }, // 问义日额（每日 100 次）
   zh: 's'             ,
-  cardTheme: 'night'  , // 卡片主题：'night' 暗夜（默认）/ 'paper' 写经纸（浅底墨字，好读）
+  cardTheme: 'paper'  , // 卡片主题：'paper' 青纸（默认，2026-07-30「青纸墨书泥金题」全局统一）/ 'night' 暗夜（可切回）
   settings: { sfx: true, ambient: true, music: true, lowPerf: false, bigFont: false, moveFx: true }, // music：及第时唱赞一遍；moveFx：行棋乘光飞行特效；关＝直达落位
 };
 function applyCardTheme() { document.documentElement.classList.toggle('paperCards', save.cardTheme === 'paper'); }
@@ -1906,16 +1906,16 @@ css.textContent = `
      敦煌同窟颜料：石青作底、泥金作线与形（不作小字）、石绿作提示、土红作恶趣语义。 ── */
   --aq-bg:#e0e8ec;                 /* 页底 · 低饱和石青 */
   --aq-panel:#eff3f5;              /* 面板 · 浮于页底之上（层次靠明度差） */
-  --aq-tx:#23343c;                 /* 正文青墨 11.6:1 */
-  --aq-title:#2f4552;              /* 题字 · 沉青 */
+  --aq-tx:#39322a;                 /* 正文沉香暖墨 11.3:1（2026-07-30 用户定案「青纸墨书泥金题」：字与泥金同暖族，青底作衬） */
+  --aq-title:#4a3d28;              /* 题字 · 沉香深 */
   --aq-strong:#8a6414;             /* 泥金深 · 数字/强调（4.8:1，只用于加粗或大字） */
-  --aq-note:#47565d;               /* 次文/注脚 6.8:1 */
+  --aq-note:#5f574a;               /* 次文/注脚 · 暖灰墨 6.3:1 */
   --aq-gold:#a8811f;               /* 泥金 · 线/形/图标专用，不作小字（3.2:1） */
   --aq-goldline:rgba(150,112,32,.46);  /* 金描边 */
   --aq-goldwash:rgba(176,131,28,.13);  /* 金洗底 · 主钮/选中态 */
-  --aq-line:rgba(63,94,108,.24);   /* 青墨结构线 */
-  --aq-wash:rgba(35,52,60,.05);    /* 青墨洗底 · 卡/气泡 */
-  --aq-wash2:rgba(35,52,60,.08);   /* 青墨洗底 · 深一档 */
+  --aq-line:rgba(112,96,64,.26);   /* 暖墨结构线（随墨书同族） */
+  --aq-wash:rgba(57,50,42,.05);    /* 暖墨洗底 · 卡/气泡 */
+  --aq-wash2:rgba(57,50,42,.08);   /* 暖墨洗底 · 深一档 */
   --aq-green:#2f6a5e;              /* 石绿 · 联机/提示 */
   --aq-woe:#8b4a3a;                /* 土红 · 恶趣/警示语义 */
   /* 卡片双主题（2026-07-21 用户点单）：暗夜=默认，层次靠 token 重做分明；写经纸=可切换浅主题。
@@ -2003,31 +2003,33 @@ html.paperCards .panel .dd,html.paperCards .panel .vchip.g,
 html.paperCards .panel .vchip.g b,html.paperCards .panel .vchip.g i{color:var(--ck-bai)!important}
 /* 深底白字岛例外：坐在深色块上的签保持白字，勿压墨 */
 html.paperCards .panel .sfpChip.cur{color:#fff!important}
-/* 写经纸浅主题：暖浅底墨字，原文沉香墨、白话石绿——最好读 */
+/* 青纸浅主题（2026-07-30 用户定案「青纸墨书泥金题」，即日起为默认卡面）：
+   石青纸底＋沉香墨书＋泥金顶签——与大厅/我的（--aq-* 石青·晓）同一窟壁画语言；
+   原「写经纸」暖麻纸调整体转青纸，白话石绿不变、警示转土红族；暗夜仍可在设置切回。 */
 html.paperCards{
-  --ck-panel:linear-gradient(170deg,#f4ecd6 0%,#eee1c2 58%,#e6d8b2 100%); /* 温麻纸暖渐变，纸有厚度；不发黄 */
-  --ck-border:rgba(70,54,32,.30);     /* 墨褐发丝线（不再金线，纸上更清） */
+  --ck-panel:linear-gradient(170deg,#f2f6f7 0%,#e9eff1 58%,#e0e8ec 100%); /* 青纸渐变，纸有厚度 */
+  --ck-border:rgba(150,112,32,.42);   /* 泥金发丝线（题以金，线亦金） */
   --ck-scrim:rgba(18,14,28,.5);
-  --ck-title:#2a2417;                 /* 近黑墨题 */
-  --ck-meta:#8a4630;                  /* 顶签朱砂墨（替代金字，呼应世界朱砂，纸上可读） */
-  --ck-plain:#2b2a21;                 /* 白话主体 · 正墨 · 最高对比 */
-  --ck-read:#56503c;                  /* 解读 · 褐灰 */
-  --ck-note:#7b7057;                  /* 注脚 · 加深防失读 */
-  --ck-link:#9a4626;                  /* 点读链接 · 朱砂，纸上醒目 */
-  --ck-line:rgba(70,54,32,.2);
+  --ck-title:#4a3d28;                 /* 题字 · 沉香深 */
+  --ck-meta:#8a6414;                  /* 顶签泥金深（「泥金题」落在顶签与眉行） */
+  --ck-plain:#332d23;                 /* 白话主体 · 沉香正墨 · 最高对比 */
+  --ck-read:#574f3f;                  /* 解读 · 暖褐灰 */
+  --ck-note:#6c644f;                  /* 注脚 · 加深防失读 */
+  --ck-link:#8b4a3a;                  /* 点读链接 · 土红（恶趣/警示同族） */
+  --ck-line:rgba(112,96,64,.24);
   --ck-yuan:#3a3220;                  /* 原文字 · 沉香墨（深） */
-  --ck-yuan-bg:#e5d6b0;               /* 原文凹槽 · 更深纸调，靠底色分层不靠色 */
-  --ck-yuan-rule:#9c6a26;             /* 原文赭线（装饰，够深看得见） */
+  --ck-yuan-bg:#dde5e9;               /* 原文凹槽 · 青纸深一档，靠底色分层不靠色 */
+  --ck-yuan-rule:#9c7a26;             /* 原文泥金线 */
   --ck-bai:#2f6a52;                   /* 白话对照 · 深松绿 */
-  --ck-btn-bg:#ecdfbc;
-  --ck-btn-br:rgba(70,54,32,.30);
-  --ck-btn-tx:#4a4230;
-  --ck-cbU:#ecddb4;
-  --ck-cbU-br:rgba(70,54,32,.30);
-  --ck-cbU-tx:#2b2a21;
-  --ck-cbA:#faf3e0;
-  --ck-cbA-br:rgba(70,54,32,.16);
-  --ck-cbA-tx:#4a4230;
+  --ck-btn-bg:#e9eef0;
+  --ck-btn-br:rgba(150,112,32,.4);
+  --ck-btn-tx:#39322a;
+  --ck-cbU:#ece3cb;                   /* 我方气泡 · 金洗暖点（冷底暖点即生机） */
+  --ck-cbU-br:rgba(150,112,32,.4);
+  --ck-cbU-tx:#332d23;
+  --ck-cbA:#f4f7f8;
+  --ck-cbA-br:rgba(47,106,82,.2);
+  --ck-cbA-tx:#4a4437;
 }
 html.bigfont{--fs-xs:12.5px;--fs-sm:14px;--fs-md:16px;--fs-lg:18px;--fs-xl:21px;--fs-display:24px}
 /* 展示级题字（面板标题/落位大字/门介/途经字幕）：得意黑未就绪时回退宋体系，气质不塌 */
@@ -2268,7 +2270,7 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .overlay h2{margin:0 0 10px;font-size:var(--fs-xl);letter-spacing:3px;color:#f0dfa8;font-weight:600;
   padding-bottom:9px;border-bottom:1px solid transparent;
   border-image:linear-gradient(90deg,rgba(215,170,69,.45),rgba(215,170,69,.06)) 1} /* v242 题字渐变发丝线，分层第一刀 */
-.overlay .body{overflow-y:auto;min-height:0;flex:1 1 auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;font-size:var(--fs-md);line-height:1.85}
+.overlay .body{overflow-y:auto;min-height:0;flex:1 1 auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;font-size:var(--fs-md);line-height:1.85}
 /* v302 滚动条全局一制（用户点单：右侧竖滑杆色彩统一）：夜底淡金，取「一轴一谱」金 var(--gold)；窄轨无头尾钮；左侧导航杆隐滚动条制不受影响 */
 *{scrollbar-width:thin;scrollbar-color:rgba(215,170,69,.42) rgba(22,18,38,.30)}
 *::-webkit-scrollbar{width:7px;height:7px}
@@ -2364,9 +2366,9 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #labels{transition:opacity .45s}
 #sfpDice.on{display:flex}
 /* v386 掷轮念文（用户令）：一句「至心称念」引领＋六字静置不动——字不呼吸不闪，不给用户节拍压力 */
-#sfpChant{flex:0 0 100%;text-align:center;margin-top:22px;color:var(--paper)}
-#sfpChant em{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:4px;color:#c8b988;margin-bottom:10px;opacity:.9}
-#sfpChant b{font-size:29px;font-weight:600;margin:0 6px;display:inline-block;color:#f4e6b8;
+#sfpChant{flex:0 0 100%;text-align:center;margin-top:22px;color:var(--paper);white-space:nowrap} /* 六字成一行不折（2026-07-30 用户令），窄屏按视宽收字号 */
+#sfpChant em{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:4px;color:#c8b988;margin-bottom:10px;opacity:.9;white-space:normal}
+#sfpChant b{font-size:min(29px,7.4vw);font-weight:600;margin:0 min(6px,1.1vw);display:inline-block;color:#f4e6b8;
   text-shadow:0 0 18px rgba(232,199,102,.8),0 1px 6px #000}
 @keyframes chantBreath{0%,100%{opacity:.72}50%{opacity:1}}
 /* 静场敛景：顶栏·门梯·控制台上部（门阵/位名/上一掷/问/⋯）一并压暗，屏上只留轮 */
@@ -2415,10 +2417,7 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .vaskC{font-size:var(--fs-xs);border:1px solid rgba(215,170,69,.5);border-radius:7px;padding:2px 9px;margin-left:9px;color:var(--gold);cursor:pointer;vertical-align:2px;white-space:nowrap;position:relative}
 .vaskC::before{content:'';position:absolute;inset:-12px -14px}
 .vsrcT{cursor:pointer;color:var(--note);border-bottom:1px dotted rgba(157,145,112,.6);white-space:nowrap}
-/* 纠错（批E）：判词卡小字入口＋统一上报卡（局中卡族，随暗夜主题） */
-.vfix{cursor:pointer;color:var(--note);border-bottom:1px dotted rgba(157,145,112,.6);white-space:nowrap;margin-left:8px}
-.rpTarget{margin-top:4px;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.26);border-left:2px solid var(--gold);
-  color:var(--ck-note);font-size:var(--fs-xs);word-break:break-all;line-height:1.6}
+/* 纠错（批E，2026-07-30 收口）：入口只在 AI 解读页（解读卡底行＋问答角标）；上报卡＝四签一框一钮 */
 .rpKinds{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .rpKind{min-height:36px;padding:6px 12px;border-radius:10px;cursor:pointer;font:inherit;font-size:var(--fs-sm);
   border:1px solid var(--ck-btn-br);background:var(--ck-btn-bg);color:var(--ck-btn-tx)}
@@ -2479,7 +2478,7 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .myPanel .myGrid .sub{grid-column:1/-1;padding:9px 13px;text-align:center;color:var(--aq-note);
   font-size:var(--fs-sm);letter-spacing:1px;font-variant-numeric:tabular-nums}
 .myPanel .myLine2{margin:18px 0 7px;color:var(--aq-note);font-size:var(--fs-xs);letter-spacing:3px}
-.myPanel .myCal{margin-top:12px;border:1px solid var(--aq-line);border-radius:12px;padding:10px 10px 12px;background:rgba(255,255,255,.4)}
+.myPanel .myCal{margin-top:12px;border:1px solid var(--aq-line);border-radius:12px;padding:10px 10px 12px;background:rgba(255,255,255,.55)}
 .myPanel .myCal+.myRow{margin-top:12px}
 .myPanel .myCalHead{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .myPanel .myCalHead b{color:var(--aq-title);font-weight:500;font-size:var(--fs-md)}
@@ -2501,7 +2500,7 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .myPanel .myRow>span{min-width:0;flex:1 1 auto}
 .myPanel .myRow i{margin-left:auto;font-style:normal;color:var(--aq-strong);white-space:nowrap}
 .myPanel .myRun{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;
-  padding:8px 2px;border-bottom:1px solid rgba(63,94,108,.16);font-size:var(--fs-sm)}
+  padding:8px 2px;border-bottom:1px solid rgba(112,96,64,.16);font-size:var(--fs-sm)}
 .myPanel .myRun b{color:var(--aq-tx);font-weight:500;white-space:nowrap}
 .myPanel .myRun span{color:var(--aq-note);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .myPanel .myRun em{font-style:normal;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs);white-space:nowrap}
@@ -3263,7 +3262,7 @@ function openSettings(backTo        ) { // backTo：同路往返（如「我的�
     if (k === 'bigFont') document.documentElement.classList.toggle('bigfont', save.settings.bigFont);
   }));
   const themeBtn = p.querySelector('#themeSet')               ;
-  const themeSync = () => { themeBtn.textContent = zh(save.cardTheme === 'paper' ? '写经纸' : '暗夜'); themeBtn.classList.toggle('primary', save.cardTheme === 'paper'); };
+  const themeSync = () => { themeBtn.textContent = zh(save.cardTheme === 'paper' ? '青纸' : '暗夜'); themeBtn.classList.toggle('primary', save.cardTheme === 'paper'); };
   themeBtn.addEventListener('click', () => { save.cardTheme = save.cardTheme === 'paper' ? 'night' : 'paper'; persist(); applyCardTheme(); themeSync(); });
   const zhBtn = p.querySelector('#zhSet')               ;
   const zhSync = () => { zhBtn.textContent = save.zh === 't' ? '繁體' : '简体'; };
@@ -5875,18 +5874,12 @@ function showVerdict(body        , why                                      , go
   const orig = sfpEvidenceSourceHtml(whyEvidence);
   // v226 用户点单：去处白话句撤（位名可点弹签已覆盖）；谱曰原文收进「点开再读」
   const srcT = orig ? `<span class="vsrcT">原文 ▸</span>` : '';
-  const fixT = '<span class="vfix">纠错</span>'; // 批E 挂点①：判词卡释义行尾，一键指正本掷的原文/白话
-  wEl.innerHTML = zh(plain ? `${plain}${srcT ? ' ' + srcT : ''}${fixT}` : `${srcT}${fixT}`);
+  // 纠错不在判词弹窗（2026-07-30 用户令：这是很小的辅助功能）——入口只在 AI 解读页
+  wEl.innerHTML = zh(plain ? `${plain}${srcT ? ' ' + srcT : ''}` : srcT);
   wEl.style.display = (plain || orig) ? '' : 'none';
   wEl.classList.remove('full');
   const tEl = wEl.querySelector('.vsrcT')                      ;
   if (tEl) tEl.onclick = (e) => { e.stopPropagation(); verdictEl.classList.toggle('src'); wEl.classList.add('full'); };
-  const fEl = wEl.querySelector('.vfix')                      ;
-  if (fEl) fEl.onclick = (e) => {
-    e.stopPropagation();
-    const ev0 = (whyEvidence         )?.items?.[0];
-    openReportCard({ scene: 'verdict', pos: sfpS.pos || '', combo: combo || '', ev: ev0?.type || '', ref: ev0?.ref || '' });
-  };
   sEl.innerHTML = orig ? zh(orig) : '';
   // v226 位名可点弹白话小签（签内可入原文说明）；AI 解读小签缀在位名同行——工具行退役
   const bEl = verdictEl.querySelector('#vBody')               ;
@@ -6662,6 +6655,15 @@ function netPeerMsg(name        , combo        , lastText        ) {
   sfpNameEl.classList.add('msg');
   sfpMsgHold = window.setTimeout(() => { sfpMsgHold = 0; sfpStatus(); }, 5200);
 }
+// 行棋公事（贈掷施与等）同走状态行＋消息回看——聊天室只留人语与人事（2026-07-30 用户定案）
+function netPeerNotice(text        ) {
+  const h = esc(text);
+  sfpMsgLog.push(h); if (sfpMsgLog.length > 12) sfpMsgLog.shift();
+  if (verdictFn || sfpMsgHold || !sfpS.active) return;
+  sfpNameEl.innerHTML = zh(h);
+  sfpNameEl.classList.add('msg');
+  sfpMsgHold = window.setTimeout(() => { sfpMsgHold = 0; sfpStatus(); }, 5200);
+}
 // R1 之二：脉签该座色点闪一记（_pillSync 每拍重绘 innerHTML，闪记是瞬态类，重绘吞掉也无妨）
 function netDotFlash(playerId        ) {
   const idx = Net.players.findIndex(p => p.id === playerId);
@@ -6987,7 +6989,8 @@ function sfpPalmAbort() { // 掌心态中断（松手旁掷/endSfp/联机强制�
   sfpRollBtn.classList.remove('hold');
   window.clearInterval(ringIt);
   (sfpRollBtn.querySelector('#rollTxt')               ).textContent = zh('长按掷轮');
-  (sfpDice.querySelector('#sfpChant')               ).textContent = ''; // 松手后轮已离掌，不再挂提示，留白看轮相
+  // 称念不在此清（2026-07-30 用户令：第一次掷轮也要看得见「至心称念」六字）——
+  // 快速点按者掌心态一闪而过，称念随轮旋一路挂到定相，在 settle 回调处退场
 }
 function sfpPrepareTossRelease() {
   sfpPalmAbort();
@@ -7010,6 +7013,7 @@ function sfpAnimateCommittedToss(combo        , authoritativeN                ) 
   }
   startWheelToss(ia, ib, () => {
     sfpDice.classList.add('settle');
+    (sfpDice.querySelector('#sfpChant')               ).textContent = ''; // 轮停定相，称念退场留白看轮相
     playBell(294, 0.045);
     sfpTimer = window.setTimeout(() => {
       sfpDice.classList.remove('on');
@@ -7770,7 +7774,7 @@ function openMine() {
       <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文 · 逐字读谱</span><i>›</i></button>
       <button class="gbtn myRow" id="mySet">${ico('sliders')}<span>设置 · 声音 · 简繁 · 卡片</span><i>›</i></button>
       <div class="cNote">一掷一称念「南无阿弥陀佛」，只作随喜记录，不作修证高下。功课记在本机莲号下，换设备会另计。</div>
-      <button class="gbtn primary" id="myOk" style="margin-top:12px;width:100%">${sfpS.active ? '回到局中' : '关闭'}</button>`;
+      <button class="gbtn primary" id="myOk" style="margin-top:14px;margin-bottom:4px;width:100%">${sfpS.active ? '回到局中' : '关闭'}</button>`;
     zhDom(p);
     (body.querySelector('#myPrev')               ).addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1); paint(); });
     (body.querySelector('#myNext')               ).addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); paint(); });
@@ -7830,13 +7834,16 @@ function openChalou() {
   Net.closePanel();        // 全屏页与同修面板不并存（三页通例，茶寮为第四页）
   chalouStop();
   const back = () => { chalouStop(); overlayOnClose = null; openPlaza(); };
+  // 常驻说明句撤（2026-07-30 用户点单）：茶寮之约只在初来时说一次，记住即不再叨扰
+  let firstVisit = false;
+  try { firstVisit = !localStorage.getItem('sm10.cl.hello'); } catch (e) {}
   const p = el(`<div class="panel pzPanel"><div class="fsShell">
     <header class="pzTop"><div><span class="pzEyebrow">选佛谱</span><h2>莲友茶寮</h2></div></header>
     <div class="fsBody" style="overflow:hidden"><div class="fsWrap clWrap" style="height:100%">
-      <div class="cNote" style="margin:0 0 8px">与佛悦主站共修群相通 · 全站莲友可见 · 请惜言慈语</div>
+      ${firstVisit ? `<div class="clHello" id="clHello"><span>初到茶寮——此处莲友同座闲话，请轻声慢语。</span><button id="clHelloX" type="button">知道了</button></div>` : ''}
       <div class="clNotice" id="clNotice"></div>
       <div class="clMsgs" id="clMsgs"><div class="clEmpty">正在取莲友留言……</div></div>
-      <div class="clQuick"><button type="button">南無阿彌陀佛</button><button type="button">隨喜讚歎 🙏</button></div>
+      <div class="clQuick"><button type="button">南無阿彌陀佛</button><button type="button">隨喜讚歎 🙏</button><button type="button">请问这一局怎么玩？</button></div>
       <div class="clInput"><span class="clHint" id="clHint"></span>
         <input id="clIn" maxlength="150" aria-label="留言内容" placeholder="说一句…">
         <button id="clGo" type="button" aria-label="发送留言">发送</button></div>
@@ -7852,6 +7859,11 @@ function openChalou() {
   const goBtn = p.querySelector('#clGo')                                 ;
   const hintEl = p.querySelector('#clHint')               ;
   if (chalouDraft) { input.value = chalouDraft; chalouDraft = ''; }
+  const hello = p.querySelector('#clHelloX');
+  if (hello) hello.addEventListener('click', () => {
+    try { localStorage.setItem('sm10.cl.hello', '1'); } catch (e) {}
+    p.querySelector('#clHello')?.remove();
+  });
   let lastId = 0, lastTs = 0, first = true, hintTimer = 0;
   const hintSay = (t        ) => {
     hintEl.textContent = zh(t);
@@ -7930,13 +7942,11 @@ function openReportCard(ctx                                                     
     ctx.combo ? `combo:${ctx.combo}` : '', ctx.ev ? `ev:${ctx.ev}` : '',
     ctx.ref ? `ref:${ctx.ref}` : '', `at:${ctx.scene}`].filter(Boolean).join('|').slice(0, 280);
   const kinds = ['原文有误', '白话不确', '解读不当', '其它']; // 对应证据层四型的大白话（§5.0 命名原则）
+  // 极简（2026-07-30 用户令：很小的辅助功能）：四签一框一钮；定位串只随报文送出，不占卡面
   const p = el(`<div class="panel"><h2>纠错 · 随喜指正</h2><div class="body">
-    <div class="cMeta">所纠之处 · 程序自动附带</div>
-    <div class="rpTarget">${esc(target)}</div>
-    <div class="cMeta" style="margin-top:10px">哪里不对</div>
     <div class="rpKinds">${kinds.map((k, i) => `<button type="button" class="rpKind${i === 0 ? ' on' : ''}" data-k="${k}">${k}</button>`).join('')}</div>
     <textarea id="rpText" class="rpText" maxlength="300" rows="4" placeholder="${esc(ctx.hint || '请说说哪里不对（300 字内）')}"></textarea>
-    <div class="cNote">匿名发送至佛悦管理处，经查证后修正；谢谢您护持谱文。</div>
+    <div class="cNote">所纠之处程序已自动附带 · 匿名送达管理处，经查证后修正。</div>
     <button class="gbtn primary" id="rpGo" style="margin-top:10px;width:100%">发送</button></div></div>`);
   let kind = kinds[0];
   (p.querySelector('.rpKinds')               ).addEventListener('click', (e) => {
@@ -8258,7 +8268,7 @@ function openCanon(doorNo        , jumpName         , backTo        ) { // backT
     ${tocHtml}${frontHtml}${introHtml}${posHtml}${jiHtml}
     <div class="cNote" style="margin-top:10px">標「原文」者為譜文逐字（校正原本 B0136 逐字轉寫），白話係今譯助讀。</div>
     <div class="cardNav"><button class="gbtn${doorNo > 1 ? '' : ' dis'}" id="cnPrev">‹ 上一門</button><button class="gbtn${doorNo < 15 ? '' : ' dis'}" id="cnNext">下一門 ›</button></div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button class="gbtn" id="cnFix">本门纠错</button><button class="gbtn primary" id="cnOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div></div>`);
+    <button class="gbtn primary" style="margin-top:10px;width:100%" id="cnOk">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   inner.querySelectorAll('.cnCard').forEach(b => b.addEventListener('click', () => {
     playSfx('sfx-tap', 0.25);
     const cp = d.positions[Number((b               ).dataset.ci)];
@@ -8280,11 +8290,6 @@ function openCanon(doorNo        , jumpName         , backTo        ) { // backT
   (inner.querySelector('#cnOk')               ).addEventListener('click', () => {
     if (sfpS.active) overlayOnClose = null; // 题「回到局中」时要真回局中，解除 backTo；题「关闭」时仍同路往返回「我的」
     closeOverlay();
-  });
-  // 批E 挂点③：谱文页页脚「本门纠错」（整门级；逐位段不加钮，免与「位卡›」争行）
-  (inner.querySelector('#cnFix')               ).addEventListener('click', () => {
-    overlayOnClose = null;
-    openReportCard({ scene: 'canon', door: doorNo }, () => openCanon(doorNo, undefined, backTo));
   });
   // 参考经典并为原文顶签（单菜单原则：原☰「参考经典」条目迁此）
   (inner.querySelector('#cnLib')               ).addEventListener('click', () => { overlayOnClose = null; closeOverlay(); openLibrary(); });
@@ -8395,17 +8400,13 @@ function openSfpNote(pid         ) {
       ${SFP_DOOR_PRACTICE[p.door] ? `<div class="cRead">${glossify(esc(SFP_DOOR_PRACTICE[p.door]))}</div>${doorCiteHtml(p.door)}` : ''}
       ${door.intro ? `<div class="cRead" style="color:#cbbb8d;margin-top:6px"><i style="font-style:normal;color:#9d9170">${[1, 2, 15].includes(p.door) ? '本门导语（白话直陈，原谱无此门总说）：' : '本门总说（白话）：'}</i>${glossify(esc(door.intro))}</div>` : ''}</details>` : ''}</div>
     ${p ? `<div class="cardNav"><button class="gbtn${prev ? '' : ' dis'}" id="spPrev">‹ ${prev ? esc(prev.name) : '已是首位'}</button><button class="gbtn${next ? '' : ' dis'}" id="spNext">${next ? esc(next.name) : '已是末位'} ›</button></div>` : ''}
-    <div style="margin-top:10px;display:flex;gap:8px">${p ? '<button class="gbtn" id="sfpNoteLoc">定位此位</button><button class="gbtn" id="sfpNoteFix">纠错</button>' : '<button class="gbtn" id="spCanon2">譜文原文</button>'}<button class="gbtn primary" id="sfpNoteOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+    <div style="margin-top:10px;display:flex;gap:8px">${p ? '<button class="gbtn" id="sfpNoteLoc">定位此位</button>' : '<button class="gbtn" id="spCanon2">譜文原文</button>'}<button class="gbtn primary" id="sfpNoteOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   const pv = inner.querySelector('#spPrev')                      ;
   const nx = inner.querySelector('#spNext')                      ;
   if (pv && prev) pv.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpNote(prev.id); });
   if (nx && next) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpNote(next.id); });
   const loc = inner.querySelector('#sfpNoteLoc')                      ;
   if (loc && p) loc.addEventListener('click', () => { closeOverlay(); sfpLocate(p.id); });
-  const fix = inner.querySelector('#sfpNoteFix')                      ; // 批E 挂点②：位卡底行，纠此位的原文/白话
-  if (fix && p) fix.addEventListener('click', () => {
-    openReportCard({ scene: 'note', pos: p.id, door: p.door }, () => openSfpNote(p.id));
-  });
   const rdBtn = inner.querySelector('#spRead')                      ; // v356 对读栏只呈位注（行法按语已在升降行法栏），全文入谱文页
   if (rdBtn && p) rdBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(p.door, p.name); });
   const openCn = () => { playSfx('sfx-tap', 0.25); openCanon(p ? p.door : (sfpS.pos ? SFP_BY[sfpS.pos].door : 1), p ? p.name : undefined); };
@@ -9482,6 +9483,9 @@ let elapsed = 0;
 let lastDraw = 0, perfAcc = 0, perfN = 0;
 function frame(now        ) {
   requestAnimationFrame(frame);
+  // 全屏页遮景休帧（2026-07-30 发热治理追加）：大厅/动态/我的/茶寮把星图整页盖住时，
+  // 画布降到约 4fps 空转——盖着仍整帧渲染是发热一大来源；转场/飞行在途时放行，关页即恢复
+  if (overlayEl && overlayEl.querySelector('.pzPanel') && !sfpTransit && !flyAnim && now - lastDraw < 240) return;
   // v221 功耗治理（手机发热）：触屏机静观期 30fps；飞行/转场/掷轮/触控等动势期放行全帧率
   if (isCoarse) {
     const busy = flyAnim || sfpTransit || comet || hitStopT > 0 || sfpS.rolling || starView
@@ -9787,6 +9791,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     netClockSync();
     scheduleNetTurnUi();
   };
+  Net.onNotice = (text) => netPeerNotice(text);   // 行棋公事播报归状态行（聊天室只留人语与人事）
   Net.onToss = (message) => {
     netSyncBeads();
     if (message.playerId !== Net.myId) {

@@ -7,9 +7,12 @@
 <meta name="description" content="十法界须弥山世界 · 选佛谱——依蕅益大师《選佛譜》十五门二百二十位，掷占察轮行十法界棋盘，从初发心直到成佛；支持四人实时联机与在线讨论。">
 <title>选佛谱 · 十法界须弥山世界</title>
 <style>
-html,body,#app{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0d12;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+/* touch-action 只对画布设 none（自定手势）；html/body/#app 改 pan-x pan-y——
+   安卓 Chrome 会把祖先的 none 连累到浮层内滚动（我的/大厅在安卓滑不动的病根，iOS 不严格执行故无恙）；
+   pan-x pan-y 仍禁双击放大与捏合缩放，页面本身 overflow:hidden 无处可滚，不失原防护 */
+html,body,#app{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0d12;touch-action:pan-x pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
 #app{position:fixed;inset:0}
-canvas{display:block}
+canvas{display:block;touch-action:none}
 </style>
 </head>
 <body>

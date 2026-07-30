@@ -91,7 +91,9 @@ try {
   ok(Array.from(trimmedValue).length === 12
     && (await page.locator('#pzNameCount').innerText()).includes('12 / 12'), '超过十二字时即时截断并显示字数');
 
-  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  // force：无头环境有断帧窗口（rAF 长时间不来），非 force 点击等「连续两帧盒对比」会悬死；
+  // 应用行为已单独验证无恙（✕ 直发 click 正常关卡回大厅），与本套件其余点击同口径
+  await page.getByRole('button', { name: '关闭', exact: true }).click({ force: true });
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 15_000 });
   ok(await page.locator(`.pzT[data-code="${code}"]`).isVisible(), '关闭名号框返回大厅，不会掉回游戏底层');
 
@@ -127,7 +129,8 @@ try {
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 15_000 });
   ok(await page.evaluate(() => localStorage.getItem('sm10.net.name') === '慧明'), '入座成功后在本机保存名号');
 
-  ok((await page.locator('#netStartBtn').innerText()).includes('请先准备'), '未准备时房主开局按钮先提示准备');
+  // 情境主按钮（2026-07-30 §七落地）：独自在房时主按钮＝邀请，不再让人盯着灰掉的开局钮
+  ok((await page.locator('#netStartBtn').innerText()).includes('邀请莲友'), '独自在房时主按钮＝邀请莲友（情境主按钮）');
   const readyPending = await page.locator('#netReadyBtn').evaluate((button) => {
     for (let index = 0; index < 6; index++) button.click();
     return {
@@ -142,7 +145,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('取消准备'));
   ok(await page.locator('#netReadyBtn').getAttribute('aria-pressed') === 'true'
     && (await page.locator('#netRoster').innerText()).includes('已准备'), '服务端确认后名单和按钮统一显示已准备');
-  ok((await page.locator('#netStartBtn').innerText()).includes('还需 1 人准备'), '只有房主一人准备时明确提示还差一人');
+  ok((await page.locator('#netStartBtn').innerText()).includes('邀请莲友')
+    && (await page.locator('#netGuide').innerText()).includes('两位准备即可开局'), '独自已准备仍以邀请为主行动，指引明说两位即可开局');
   await capture(page, 'ready-confirmed-mobile');
 
   const cancelPending = await page.locator('#netReadyBtn').evaluate((button) => {
