@@ -647,18 +647,21 @@ export const Net = {
 #netPanel,#netKey{font-family:'SmileySans',-apple-system,"PingFang SC","Microsoft YaHei",sans-serif}
 #netPanel input,#netPanel button,#netKey input,#netKey button{font-family:inherit}
 #netPanel{position:fixed;left:12px;bottom:calc(140px + env(safe-area-inset-bottom));z-index:32;width:min(390px,calc(100vw - 24px));
-  height:min(600px,calc(100dvh - 164px));max-height:min(600px,calc(100dvh - 164px));display:none;flex-direction:column;background:rgba(16,19,28,.97);border:1px solid rgba(215,170,69,.42);
-  border-radius:16px;overflow:hidden;overscroll-behavior:contain;backdrop-filter:blur(12px);font-size:var(--fs-md);color:#e8e2d0;box-shadow:0 18px 50px rgba(0,0,0,.38)}
+  height:min(600px,calc(100dvh - 164px));max-height:min(600px,calc(100dvh - 164px));display:none;flex-direction:column;background:var(--aq-panel);border:1px solid var(--aq-goldline);
+  border-radius:16px;overflow:hidden;overscroll-behavior:contain;font-size:var(--fs-md);color:var(--aq-tx);box-shadow:0 18px 50px rgba(10,20,26,.35)}
 #netPanel.on{display:flex}
-#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid rgba(215,170,69,.18);min-height:40px;flex:none}
-#netHead b{letter-spacing:2px;color:var(--gold-hi)}
-#netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:var(--teal);letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
-#netHead .code:hover,#netHead .code:focus-visible{color:var(--teal)}
-#netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(176,90,66,.45);background:rgba(176,90,66,.12);color:var(--woe-tx);border-radius:10px;cursor:pointer}
-#netMinBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:var(--note);border-radius:10px;cursor:pointer;font-size:var(--fs-xl)}
-#netMinBtn:hover{background:rgba(255,255,255,.06);color:#e8e2d0}
-#netRoomState{flex:none;padding:8px 12px;color:#cfc7ad;line-height:1.5}
-#netRoomState b{color:var(--gold-hi)}
+/* ⤢ 全屏（批B W2 · 桌面亦可用）：基础规则的 max-height 钉子须同覆，否则被钉死 600px */
+#netPanel.full{bottom:calc(16px + env(safe-area-inset-bottom));width:min(560px,46vw);
+  height:calc(100dvh - 32px);max-height:calc(100dvh - 32px)}
+#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--aq-line);min-height:40px;flex:none}
+#netHead b{letter-spacing:2px;color:var(--aq-title)}
+#netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:var(--aq-green);letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
+#netHead .code:hover,#netHead .code:focus-visible{color:var(--aq-green)}
+#netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(139,74,58,.45);background:rgba(139,74,58,.08);color:var(--aq-woe);border-radius:10px;cursor:pointer}
+#netMinBtn,#netFullBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:var(--aq-note);border-radius:10px;cursor:pointer;font-size:var(--fs-xl)}
+#netMinBtn:hover,#netFullBtn:hover{background:rgba(35,52,60,.06);color:var(--aq-tx)}
+#netRoomState{flex:none;padding:8px 12px;color:var(--aq-tx);line-height:1.5}
+#netRoomState b{color:var(--aq-strong)}
 /* 面板是定高的：名单、指引、聊天三处可压缩（flex:0 1 auto + min-height:0），
    准备/开局、聊天输入、密码邀请大厅三排永远 flex:none——空间不够时宁可挤掉说明文字，
    也不能把操作按钮挤出面板（overflow:hidden 会让它们彻底点不到）。
@@ -666,61 +669,61 @@ export const Net = {
    同一件事说三遍徒占版面（§5.0b 信息只出一次）。 */
 #netGuide{flex:0 1 auto;min-height:0;overflow:hidden;padding:0 12px 9px}
 #netGuide[hidden]{display:none}
-#netGuide p{margin:0;color:var(--note);font-size:var(--fs-sm);line-height:1.5}
+#netGuide p{margin:0;color:var(--aq-note);font-size:var(--fs-sm);line-height:1.5}
 #netGuideAct{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:10px;cursor:pointer;
-  border:1px solid rgba(232,199,102,.58);background:rgba(232,199,102,.2);color:var(--gold-hi);font:inherit;font-size:var(--fs-sm);letter-spacing:2px}
+  border:1px solid var(--aq-goldline);background:var(--aq-goldwash);color:var(--aq-tx);font:inherit;font-size:var(--fs-sm);letter-spacing:2px;font-weight:600}
 #netGuideAct[hidden]{display:none}
-#netRoster{display:flex;flex:0 1 auto;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid rgba(215,170,69,.14);min-height:0;max-height:104px;overflow-y:auto;overscroll-behavior:contain}
-.netP{display:flex;align-items:center;gap:5px;padding:6px 9px;min-height:30px;border-radius:15px;background:rgba(255,255,255,.05);border:1px solid transparent;max-width:100%}
-.netP.turn{border-color:rgba(232,199,102,.8);box-shadow:0 0 10px rgba(232,199,102,.22)}
+#netRoster{display:flex;flex:0 1 auto;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid var(--aq-line);min-height:0;max-height:104px;overflow-y:auto;overscroll-behavior:contain}
+.netP{display:flex;align-items:center;gap:5px;padding:6px 9px;min-height:30px;border-radius:15px;background:var(--aq-wash);border:1px solid transparent;max-width:100%}
+.netP.turn{border-color:rgba(150,112,32,.7);box-shadow:0 0 10px rgba(168,129,31,.25)}
 .netP.off{opacity:.48}.netP.away{opacity:.62}
-.netP .dot{width:9px;height:9px;border-radius:50%;flex:none}
-.netP .role{flex:none;font-size:var(--fs-xs);color:var(--gold-hi);letter-spacing:1px}
+.netP .dot{width:9px;height:9px;border-radius:50%;flex:none;box-shadow:inset 0 0 0 1px rgba(35,52,60,.3)} /* 珠色点加淡青墨描边，浅底不发虚（§七之十一） */
+.netP .role{flex:none;font-size:var(--fs-xs);color:var(--aq-strong);letter-spacing:1px}
 .netP .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:76px}
-.netP .st{color:var(--note);font-size:var(--fs-xs);white-space:nowrap}
-#netRoundActions{display:flex;flex:none;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(215,170,69,.14)}
+.netP .st{color:var(--aq-note);font-size:var(--fs-xs);white-space:nowrap}
+#netRoundActions{display:flex;flex:none;gap:8px;padding:9px 12px;border-bottom:1px solid var(--aq-line)}
 #netPanel.is-playing #netRoundActions{display:none}
-#netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid rgba(215,170,69,.32);background:rgba(255,255,255,.05);color:#cfc7ad}
+#netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid var(--aq-line);background:rgba(255,255,255,.55);color:var(--aq-tx)}
 #netRoundActions button{flex:1}
-#netRoundActions button.pri,#netBtns button.pri{background:rgba(232,199,102,.2);color:var(--gold-hi);border-color:rgba(232,199,102,.58)}
+#netRoundActions button.pri,#netBtns button.pri{background:var(--aq-goldwash);color:var(--aq-tx);border-color:var(--aq-goldline);font-weight:600}
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
 /* 聊天区不再另立标题：下面就是聊天，「共修聊天」四字是废话。这一行只留隐私说明，
    翻历史时借同一位置报新消息（§5.0b 信息只出一次）。 */
 #netChatHead{display:flex;align-items:center;justify-content:flex-end;flex:none;padding:6px 12px 4px;
-  border-top:1px solid rgba(215,170,69,.14);color:var(--note);font-size:var(--fs-xs)}
+  border-top:1px solid var(--aq-line);color:var(--aq-note);font-size:var(--fs-xs)}
 #netMsgs{flex:1 1 0;min-height:0;overflow-y:auto;padding:5px 12px 8px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch}
 @media (min-height:640px){#netMsgs{min-height:70px}}
 #netPanel.is-waiting #netMsgs,#netPanel.is-finished #netMsgs{min-height:64px}
 .netM{display:flex;flex-direction:column;align-items:flex-start;line-height:1.45;word-break:break-word}
-.netM.mine{align-items:flex-end}.netM .who{margin:0 4px 3px;color:var(--note);font-size:var(--fs-xs)}
-.netM .bubble{display:block;max-width:86%;padding:8px 10px;border-radius:5px 13px 13px 13px;background:rgba(255,255,255,.07);color:#e8e2d0}
-.netM.mine .bubble{border-radius:13px 5px 13px 13px;background:rgba(232,199,102,.15);color:#f0e5c1}
-.netM.sys{display:block;align-self:center;color:#8c93a1;font-size:var(--fs-xs);text-align:center;padding:2px 8px}
-.netEmpty{margin:auto;text-align:center;color:#737986;font-size:var(--fs-sm);line-height:1.6}
+.netM.mine{align-items:flex-end}.netM .who{margin:0 4px 3px;color:var(--aq-note);font-size:var(--fs-xs)}
+.netM .bubble{display:block;max-width:86%;padding:8px 10px;border-radius:5px 13px 13px 13px;background:var(--aq-wash2);color:var(--aq-tx)}
+.netM.mine .bubble{border-radius:13px 5px 13px 13px;background:rgba(176,131,28,.16);color:#3f3312}
+.netM.sys{display:block;align-self:center;color:var(--aq-note);font-size:var(--fs-xs);text-align:center;padding:2px 8px}
+.netEmpty{margin:auto;text-align:center;color:var(--aq-note);font-size:var(--fs-sm);line-height:1.6}
 #netQuick{display:flex;flex:none;gap:8px;padding:6px 12px 0;overflow-x:auto}
 #netPanel.is-waiting #netQuick,#netPanel.is-finished #netQuick{display:none}
-#netQuick button{min-height:44px;white-space:nowrap;border:1px solid rgba(215,170,69,.28);background:rgba(255,255,255,.04);color:#cfc7ad;border-radius:12px;padding:7px 12px;cursor:pointer}
+#netQuick button{min-height:44px;white-space:nowrap;border:1px solid var(--aq-line);background:rgba(255,255,255,.5);color:var(--aq-tx);border-radius:12px;padding:7px 12px;cursor:pointer}
 /* 翻看历史时新消息不抢滚动：提示就借聊天标题行右端那句话的位置，不另起浮层 */
-#netNew{border:0;background:none;padding:0;color:var(--note);font:inherit;font-size:var(--fs-xs);cursor:default}
-#netNew.has{color:var(--gold-hi);cursor:pointer;letter-spacing:1px}
-#netInput{position:relative;display:flex;flex:none;gap:8px;padding:9px 10px;border-top:1px solid rgba(215,170,69,.18)}
-#netChatHint{position:absolute;left:12px;bottom:calc(100% + 2px);color:var(--woe-tx);font-size:var(--fs-xs);letter-spacing:.5px;pointer-events:none}
+#netNew{border:0;background:none;padding:0;color:var(--aq-note);font:inherit;font-size:var(--fs-xs);cursor:default}
+#netNew.has{color:var(--aq-strong);cursor:pointer;letter-spacing:1px}
+#netInput{position:relative;display:flex;flex:none;gap:8px;padding:9px 10px;border-top:1px solid var(--aq-line)}
+#netChatHint{position:absolute;left:12px;bottom:calc(100% + 2px);color:var(--aq-woe);font-size:var(--fs-xs);letter-spacing:.5px;pointer-events:none}
 #netChatHint:empty{display:none}
-#netInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(215,170,69,.28);border-radius:10px;color:#efe9d8;padding:9px 11px;font-size:var(--fs-lg);outline:none}
-#netInput input:focus{border-color:rgba(232,199,102,.65);box-shadow:0 0 0 2px rgba(232,199,102,.1)}
-#netInput button{min-width:64px;min-height:44px;border:1px solid rgba(215,170,69,.4);background:rgba(215,170,69,.16);color:var(--gold-hi);border-radius:10px;cursor:pointer}
+#netInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.7);border:1px solid var(--aq-line);border-radius:10px;color:var(--aq-tx);padding:9px 11px;font-size:var(--fs-lg);outline:none}
+#netInput input:focus{border-color:rgba(150,112,32,.6);box-shadow:0 0 0 2px rgba(176,131,28,.1)}
+#netInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-goldline);background:var(--aq-goldwash);color:var(--aq-tx);border-radius:10px;cursor:pointer;font-weight:600}
 #netBtns{display:flex;flex:none;gap:8px;padding:0 12px 10px}#netBtns button{flex:1;font-size:var(--fs-sm)}
 #netGrab{display:none;height:22px;flex:none;cursor:grab;position:relative;touch-action:none}
-#netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(215,170,69,.45);transform:translateX(-50%)}
-#netKey{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(8,10,15,.72);backdrop-filter:blur(4px)}
+#netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(63,94,108,.4);transform:translateX(-50%)}
+#netKey{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(8,10,15,.6);backdrop-filter:blur(4px)}
 #netKey.on{display:flex}
-#netKeyCard{width:min(320px,88vw);background:rgba(18,21,30,.98);border:1px solid rgba(215,170,69,.4);border-radius:16px;padding:20px 18px;color:#e8e2d0}
-#netKeyCard .x{float:right;min-width:44px;min-height:44px;background:none;border:none;color:var(--note);font-size:var(--fs-lg);cursor:pointer}
-#netKeyCard h3{margin:0 0 4px;letter-spacing:3px;color:var(--gold-hi)}#netKeyCard .sub{color:var(--note);font-size:var(--fs-sm);margin-bottom:14px;line-height:1.6}
-#netKeyCard input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.06);border:1px solid rgba(215,170,69,.3);border-radius:9px;padding:12px;color:#f0ead8;font-size:26px;letter-spacing:14px;text-indent:14px;text-align:center}
-#netKeyCard .err{color:var(--woe-tx);font-size:var(--fs-sm);min-height:18px;margin-top:8px}
-#netKeyCard .big{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:11px;font-size:var(--fs-md);cursor:pointer;border:1px solid rgba(215,170,69,.4);background:rgba(255,255,255,.05);color:#cfc7ad}
-#netKeyCard .big.pri{background:rgba(232,199,102,.2);color:var(--gold-hi);border-color:rgba(232,199,102,.6)}
+#netKeyCard{width:min(320px,88vw);background:var(--aq-panel);border:1px solid var(--aq-goldline);border-radius:16px;padding:20px 18px;color:var(--aq-tx)}
+#netKeyCard .x{float:right;min-width:44px;min-height:44px;background:none;border:none;color:var(--aq-note);font-size:var(--fs-lg);cursor:pointer}
+#netKeyCard h3{margin:0 0 4px;letter-spacing:3px;color:var(--aq-title)}#netKeyCard .sub{color:var(--aq-note);font-size:var(--fs-sm);margin-bottom:14px;line-height:1.6}
+#netKeyCard input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.7);border:1px solid var(--aq-goldline);border-radius:9px;padding:12px;color:var(--aq-tx);font-size:26px;letter-spacing:14px;text-indent:14px;text-align:center}
+#netKeyCard .err{color:var(--aq-woe);font-size:var(--fs-sm);min-height:18px;margin-top:8px}
+#netKeyCard .big{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:11px;font-size:var(--fs-md);cursor:pointer;border:1px solid var(--aq-line);background:rgba(255,255,255,.55);color:var(--aq-tx)}
+#netKeyCard .big.pri{background:var(--aq-goldwash);color:var(--aq-tx);border-color:var(--aq-goldline);font-weight:600}
 /* 择受赠者：贈掷不归自己，掷得者须择一位同席莲友受之（本项目定稿操作规则） */
 #netGrant{position:fixed;inset:0;z-index:62;display:none;align-items:center;justify-content:center;
   padding:16px;background:rgba(8,10,15,.78);backdrop-filter:blur(5px);
@@ -745,15 +748,18 @@ export const Net = {
 #netGrantCard .ngNote b{color:var(--gold-hi);font-weight:500;font-variant-numeric:tabular-nums}
 .netDots{display:flex;gap:7px;align-items:center}.netDots .pd{width:9px;height:9px;border-radius:50%;background:currentColor;flex:none}.netDots .pd.off{opacity:.3}
 .netDots .pd.turn{animation:pdPulse 1.6s ease-in-out infinite}@keyframes pdPulse{0%,100%{box-shadow:0 0 3px currentColor}50%{box-shadow:0 0 10px currentColor,0 0 16px currentColor}}
-@media (prefers-reduced-motion:reduce){.netDots .pd.turn{animation:none}}
+.netDots .pd.flash{animation:pdFlash .9s ease-out} /* R1：远端掷轮，该座色点闪一记 */
+@keyframes pdFlash{0%{box-shadow:0 0 2px currentColor}30%{box-shadow:0 0 12px currentColor,0 0 20px currentColor}100%{box-shadow:0 0 2px currentColor}}
+@media (prefers-reduced-motion:reduce){.netDots .pd.turn,.netDots .pd.flash{animation:none}}
 @media (max-width:520px){
   #netPanel{left:0;right:0;bottom:var(--kb,0px);width:100%;height:min(70dvh,560px);max-height:calc(100dvh - 18px);border-radius:16px 16px 0 0;border-left:none;border-right:none;border-bottom:none}
   #netPanel.is-waiting,#netPanel.is-finished{height:min(84dvh,600px)}
   #netPanel.is-waiting #netMsgs,#netPanel.is-finished #netMsgs{min-height:36px}
   body.sfpOn #netPanel{bottom:calc(var(--kb,0px) + 92px);height:min(70dvh,520px);max-height:calc(100dvh - 112px)}
   /* 上滑全屏必须压过 body.sfpOn 的定高，否则局中「全屏」只挪了位置、高度纹丝不动，
-     被挤掉的输入框和按钮也就永远回不来。两个选择器并列：局中那条特异性更高，稳赢。 */
-  body.sfpOn #netPanel.full,#netPanel.full{bottom:var(--kb,0px);height:calc(100dvh - 28px);max-height:calc(100dvh - 28px)}
+     被挤掉的输入框和按钮也就永远回不来。两个选择器并列：局中那条特异性更高，稳赢。
+     宽度须回 100%：基础 .full 的 min(560px,46vw) 是桌面尺寸，手机上会缩成一条。 */
+  body.sfpOn #netPanel.full,#netPanel.full{bottom:var(--kb,0px);width:100%;height:calc(100dvh - 28px);max-height:calc(100dvh - 28px)}
   #netGrab{display:block}#netInput{padding-bottom:9px}
   #netRoster{max-height:74px}
   #netBtns{padding-bottom:calc(10px + env(safe-area-inset-bottom))}
@@ -778,7 +784,7 @@ export const Net = {
 
     this.$panel = el(`<section id="netPanel" role="dialog" aria-modal="false" aria-label="真人共修室">
       <div id="netGrab" title="上滑全屏 · 下滑收起"></div>
-      <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netLeaveBtn" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
+      <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netLeaveBtn" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netFullBtn" aria-label="聊天全屏" title="全屏／还原">⤢</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
       <div id="netRoomState" aria-live="polite"></div>
       <div id="netRoster" aria-label="本室成员"></div>
       <div id="netRoundActions"><button id="netReadyBtn"></button><button id="netStartBtn" class="pri"></button></div>
@@ -803,6 +809,8 @@ export const Net = {
         .catch(() => this._toastCb?.(this.zh(`${this.roomLabel()} 房号：${this.code}`)));
     });
     this.$panel.querySelector('#netMinBtn').addEventListener('click', () => this.closePanel());
+    // ⤢ 全屏/还原（批B W2）：桌面无抓手，这枚钮是唯一放大手段；手机与上滑同义
+    this.$panel.querySelector('#netFullBtn').addEventListener('click', () => this.$panel.classList.toggle('full'));
 
     const grab = this.$panel.querySelector('#netGrab');
     let grabY = null;
@@ -877,7 +885,11 @@ export const Net = {
       if (this.wakeUp()) this._toastCb?.(this.zh('已归队——下一轮轮到您时即可掷轮'));
     });
     this.$panel.querySelector('#netReadyBtn').addEventListener('click', () => this.setReady(!this.me()?.ready));
-    this.$panel.querySelector('#netStartBtn').addEventListener('click', () => this.startMatch());
+    // 情境主按钮（批B W1，§七 明文落地）：独自在房时此钮＝邀请，人到齐才回归开局
+    this.$panel.querySelector('#netStartBtn').addEventListener('click', () => {
+      if (this._startAsInvite) this._invite();
+      else this.startMatch();
+    });
     this.$panel.querySelector('#netKeyBtn').addEventListener('click', () => this.openKey());
     this.$panel.querySelector('#netInvBtn').addEventListener('click', () => this._invite());
     this.$panel.querySelector('#netHallBtn').addEventListener('click', () => {
@@ -1012,6 +1024,9 @@ export const Net = {
   openPanel() {
     if (!this.$panel) return;
     this._lastFocused = document.activeElement;
+    // 等候/结算态手机默认全高抽屉（2026-07-30 修宪定案）：等候期面板即全部内容，留缝可收；
+    // 局中默认半屏（星图是主角），全屏靠上滑/⤢ 自取。closePanel 会摘掉 full，故每次打开重判。
+    if (this.room.status !== 'playing' && matchMedia('(max-width:520px)').matches) this.$panel.classList.add('full');
     this.$panel.classList.add('on');
     this.$dismiss.classList.add('on');
     document.querySelectorAll('.netEntry').forEach((button) => button.setAttribute('aria-expanded', 'true'));
@@ -1067,9 +1082,10 @@ export const Net = {
     if (this._connState === 'reconnecting') return '<b>连接中断</b> · 正在自动重连';
     if (this._connState === 'lost') return '<b>连接已断</b> · 请重新进入共修室';
     if (this.room.status === 'waiting') {
+      // W3：状态行只报事实（人数）；「两位即可开局」的规则归指引句说一次，不在此复述
       const ready = this.players.filter((p) => p.ready && p.online).length;
       const online = this.players.filter((p) => p.online).length;
-      return `<b>准备室</b> · ${online} 人在线 · ${ready} 人已准备 · 2 人即可开局`;
+      return `<b>准备室</b> · ${online} 人在线 · ${ready} 人已准备`;
     }
     if (this.room.status === 'finished') {
       const winners = this.players.filter((p) => p.done).map((p) => p.name);
@@ -1154,15 +1170,28 @@ export const Net = {
     readyButton.setAttribute('aria-label', this.zh(readyPending
       ? (readyTarget ? '正在确认准备状态' : '正在取消准备状态')
       : (me?.ready ? '取消准备' : (finishedRoom ? '准备下一局' : '我已准备'))));
-    // 房主自然可开局；房主久未动手时，开局钮向已准备的诸位放开（服务器同一把尺子）
+    // 情境主按钮（批B W1）：独自在房时真正的下一步是「邀请」，不是盯着一枚灰掉的开局钮；
+    // 人一到齐即回归「共同开局」。房主自然可开局；房主久未动手时向已准备的诸位放开（服务器同一把尺子）。
+    const aloneRoom = this.players.filter((p) => p.online).length <= 1;
+    this._startAsInvite = waiting && aloneRoom;
     const mayStart = this.isHost() || this.canStart();
-    startButton.style.display = waiting && mayStart ? '' : 'none';
-    startButton.textContent = this.zh(startPending
-      ? '正在共同开局…'
-      : (!me?.ready ? '请先准备' : (readyCount < 2 ? '还需 1 人准备' : `共同开局 · ${readyCount} 人`)));
-    startButton.disabled = startPending || !me?.ready || readyCount < 2
-      || this._connState !== 'ok' || !this.canStart();
-    startButton.setAttribute('aria-busy', startPending ? 'true' : 'false');
+    if (this._startAsInvite) {
+      startButton.style.display = '';
+      startButton.textContent = this.zh('邀请莲友 · 点开即入');
+      startButton.disabled = false;
+      startButton.setAttribute('aria-busy', 'false');
+    } else {
+      startButton.style.display = waiting && mayStart ? '' : 'none';
+      startButton.textContent = this.zh(startPending
+        ? '正在共同开局…'
+        : (!me?.ready ? '请先准备' : (readyCount < 2 ? '还需 1 人准备' : `共同开局 · ${readyCount} 人`)));
+      startButton.disabled = startPending || !me?.ready || readyCount < 2
+        || this._connState !== 'ok' || !this.canStart();
+      startButton.setAttribute('aria-busy', startPending ? 'true' : 'false');
+    }
+    // 底行「邀请」在主按钮已是邀请时收起（§5.0b 同屏不重复）
+    const invButton = this.$panel.querySelector('#netInvBtn');
+    if (invButton) invButton.style.display = this._startAsInvite ? 'none' : '';
 
     // 指引只剩一行：说「下一步做什么」，不复述状态行的人数、也不图解正上方那两个按钮。
     // 局中仍保留，专给两种「在室但不在局」的人：中途入室的旁观者、超时暂离者——
@@ -1182,7 +1211,8 @@ export const Net = {
     if (waiting) {
       const openIn = Math.ceil((Number(this.room.startOpenAt || 0) - Date.now()) / 1000);
       if (readyPending) hint.textContent = this.zh(readyTarget ? '正在确认您的准备状态…' : '正在取消准备，请稍候…');
-      else if (!me?.ready) hint.textContent = this.zh('先准备，再共同开局；准备后仍可取消。');
+      else if (aloneRoom) hint.textContent = this.zh('室内暂只有您——邀请莲友入座，两位准备即可开局。');
+      else if (!me?.ready) hint.textContent = this.zh('先准备；两位准备即可共同开局。');
       else if (readyCount < 2) hint.textContent = this.zh('已准备，再候一位莲友即可开局。');
       else if (mayStart) {
         hint.textContent = this.zh(this.isHost() ? '人员已齐，可以共同开局。' : '房主久未开局，您也可以开局。');

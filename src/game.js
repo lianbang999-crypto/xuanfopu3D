@@ -1901,6 +1901,23 @@ css.textContent = `
   --woe:#b05a42;         /* 恶趣语义深基（rgba 基座 176,90,66；#b0543f/#8b3f32 归此） */
   --woe-tx:#f0af9e;      /* 恶/警红字亮档 · 暗底可读的唯一红字色（#f08f7a/#e8b7a8/#d98873 等归此） */
   --ink-on-gold:#2a1e08; /* 金底上的墨字 · 主钮专用 */
+  /* ── 石青·晓（2026-07-30 定稿 §七之十一）：社交与个人面浅色 token 族——
+     大厅/共修动态/我的/茶寮/等候室面板（含聊天）走此族；星图世界与局中控制台仍暗夜。
+     敦煌同窟颜料：石青作底、泥金作线与形（不作小字）、石绿作提示、土红作恶趣语义。 ── */
+  --aq-bg:#e0e8ec;                 /* 页底 · 低饱和石青 */
+  --aq-panel:#eff3f5;              /* 面板 · 浮于页底之上（层次靠明度差） */
+  --aq-tx:#23343c;                 /* 正文青墨 11.6:1 */
+  --aq-title:#2f4552;              /* 题字 · 沉青 */
+  --aq-strong:#8a6414;             /* 泥金深 · 数字/强调（4.8:1，只用于加粗或大字） */
+  --aq-note:#47565d;               /* 次文/注脚 6.8:1 */
+  --aq-gold:#a8811f;               /* 泥金 · 线/形/图标专用，不作小字（3.2:1） */
+  --aq-goldline:rgba(150,112,32,.46);  /* 金描边 */
+  --aq-goldwash:rgba(176,131,28,.13);  /* 金洗底 · 主钮/选中态 */
+  --aq-line:rgba(63,94,108,.24);   /* 青墨结构线 */
+  --aq-wash:rgba(35,52,60,.05);    /* 青墨洗底 · 卡/气泡 */
+  --aq-wash2:rgba(35,52,60,.08);   /* 青墨洗底 · 深一档 */
+  --aq-green:#2f6a5e;              /* 石绿 · 联机/提示 */
+  --aq-woe:#8b4a3a;                /* 土红 · 恶趣/警示语义 */
   /* 卡片双主题（2026-07-21 用户点单）：暗夜=默认，层次靠 token 重做分明；写经纸=可切换浅主题。
      所有卡片文字与面板走这套 --ck-* token，切换只改 token、不改结构。 */
   --ck-panel:linear-gradient(168deg,#26243f 0%,#1a1830 52%,#111020 100%); /* 靛蓝漆底渐变，呼应唐卡夜空 */
@@ -2398,6 +2415,20 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .vaskC{font-size:var(--fs-xs);border:1px solid rgba(215,170,69,.5);border-radius:7px;padding:2px 9px;margin-left:9px;color:var(--gold);cursor:pointer;vertical-align:2px;white-space:nowrap;position:relative}
 .vaskC::before{content:'';position:absolute;inset:-12px -14px}
 .vsrcT{cursor:pointer;color:var(--note);border-bottom:1px dotted rgba(157,145,112,.6);white-space:nowrap}
+/* 纠错（批E）：判词卡小字入口＋统一上报卡（局中卡族，随暗夜主题） */
+.vfix{cursor:pointer;color:var(--note);border-bottom:1px dotted rgba(157,145,112,.6);white-space:nowrap;margin-left:8px}
+.rpTarget{margin-top:4px;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.26);border-left:2px solid var(--gold);
+  color:var(--ck-note);font-size:var(--fs-xs);word-break:break-all;line-height:1.6}
+.rpKinds{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.rpKind{min-height:36px;padding:6px 12px;border-radius:10px;cursor:pointer;font:inherit;font-size:var(--fs-sm);
+  border:1px solid var(--ck-btn-br);background:var(--ck-btn-bg);color:var(--ck-btn-tx)}
+.rpKind.on{background:rgba(215,170,69,.28);border-color:var(--gold);color:#fff}
+.rpText{width:100%;box-sizing:border-box;margin-top:8px;min-height:88px;resize:vertical;border-radius:10px;
+  border:1px solid var(--ck-btn-br);background:rgba(0,0,0,.2);color:var(--ck-plain);padding:10px 11px;
+  font-family:inherit;font-size:16px;line-height:1.6;outline:none}
+.rpText:focus{border-color:rgba(232,199,102,.6)}
+.cbFix{margin-top:6px;text-align:right;font-size:var(--fs-xs);color:var(--ck-note);cursor:pointer}
+.cbFix:hover{color:var(--ck-link)}
 /* v236 「问」聊天式界面：问右答左双气泡 + 快问签 */
 .cbRow{display:flex;margin:4px 0}
 .cbU{margin-left:auto;max-width:86%;background:var(--ck-cbU);border:1px solid var(--ck-cbU-br);border-radius:11px 11px 3px 11px;padding:7px 11px;font-size:var(--fs-sm);color:var(--ck-cbU-tx);line-height:1.65}
@@ -2431,45 +2462,49 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #sfpConfirm .cfBody{color:#b9b09a;font-size:var(--fs-sm);line-height:1.7}
 #sfpConfirm .cfBody b{color:var(--gold-hi);font-weight:500}
 #sfpConfirm .gbtn{display:block;width:100%;min-height:46px;margin-top:10px}
-/* 我的功课：全站与个人共用同一组列（累计／今日），上下一对照就懂 */
-.myPanel .myLoad{padding:36px 0;text-align:center;color:#77705f;letter-spacing:2px}
-.myPanel .myWho{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--note)}
-.myPanel .myWho b{color:var(--gold-hi);font-weight:500}
+/* 我的功课：全站与个人共用同一组列（累计／今日），上下一对照就懂。
+   2026-07-30 排版收口：数字只住一张卡（共修·连续·及第并入四格表底行，不再另起散行）。
+   同日石青·晓（§七之十一）：我的页随社交面走 --aq-* 浅色族，数字用泥金深、正文小字一律青墨。 */
+.myPanel .myLoad{padding:36px 0;text-align:center;color:var(--aq-note);letter-spacing:2px}
+.myPanel .myWho{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--aq-note)}
+.myPanel .myWho b{color:var(--aq-strong);font-weight:500}
 .myPanel .myWho .gbtn{margin-left:auto;min-height:32px;padding:5px 12px;font-size:var(--fs-xs)}
-.myPanel .myGrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:11px;
-  background:rgba(215,170,69,.16);border:1px solid rgba(215,170,69,.16);border-radius:12px;overflow:hidden}
-.myPanel .myGrid div{padding:12px 13px;background:#15121f}
-.myPanel .myGrid.me,.myPanel .myGrid div.me{background:rgba(232,199,102,.05)}
-.myPanel .myGrid i{display:block;font-style:normal;color:#8b8471;font-size:var(--fs-xs);letter-spacing:1px}
-.myPanel .myGrid b{display:block;margin-top:3px;color:var(--gold-hi);font-size:var(--fs-display);font-weight:500;font-variant-numeric:tabular-nums}
-.myPanel .myGrid .me b{color:#f4e6b8}
-.myPanel .myLine{margin-top:9px;text-align:center;color:#a99c79;font-size:var(--fs-sm);letter-spacing:1px}
-.myPanel .myLine2{margin:16px 0 7px;color:#a4936c;font-size:var(--fs-xs);letter-spacing:3px}
-.myPanel .myCal{margin-top:14px;border:1px solid rgba(215,170,69,.14);border-radius:12px;padding:10px 10px 12px}
+.myPanel .myGrid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-top:12px;
+  background:var(--aq-line);border:1px solid var(--aq-line);border-radius:12px;overflow:hidden}
+.myPanel .myGrid div{padding:12px 13px;background:rgba(255,255,255,.6)}
+.myPanel .myGrid.me,.myPanel .myGrid div.me{background:rgba(176,131,28,.1)}
+.myPanel .myGrid i{display:block;font-style:normal;color:var(--aq-note);font-size:var(--fs-xs);letter-spacing:1px}
+.myPanel .myGrid b{display:block;margin-top:3px;color:var(--aq-strong);font-size:var(--fs-display);font-weight:500;font-variant-numeric:tabular-nums}
+.myPanel .myGrid .me b{color:var(--aq-title)}
+.myPanel .myGrid .sub{grid-column:1/-1;padding:9px 13px;text-align:center;color:var(--aq-note);
+  font-size:var(--fs-sm);letter-spacing:1px;font-variant-numeric:tabular-nums}
+.myPanel .myLine2{margin:18px 0 7px;color:var(--aq-note);font-size:var(--fs-xs);letter-spacing:3px}
+.myPanel .myCal{margin-top:12px;border:1px solid var(--aq-line);border-radius:12px;padding:10px 10px 12px;background:rgba(255,255,255,.4)}
+.myPanel .myCal+.myRow{margin-top:12px}
 .myPanel .myCalHead{display:flex;align-items:center;gap:6px;margin-bottom:8px}
-.myPanel .myCalHead b{color:#e0d3a6;font-weight:500;font-size:var(--fs-md)}
-.myPanel .myCalHead span{margin-left:auto;color:#8b8471;font-size:var(--fs-xs)}
+.myPanel .myCalHead b{color:var(--aq-title);font-weight:500;font-size:var(--fs-md)}
+.myPanel .myCalHead span{margin-left:auto;color:var(--aq-note);font-size:var(--fs-xs)}
 .myPanel .myCalHead .gbtn{min-height:30px;padding:2px 11px;font-size:var(--fs-md)}
 .myPanel .myWk,.myPanel .myDays{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
-.myPanel .myWk span{text-align:center;color:#6e685a;font-size:var(--fs-xs);padding-bottom:3px}
+.myPanel .myWk span{text-align:center;color:var(--aq-note);opacity:.7;font-size:var(--fs-xs);padding-bottom:3px}
 .myPanel .myCell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
-  min-height:40px;border-radius:8px;background:rgba(255,255,255,.025)}
+  min-height:40px;border-radius:8px;background:var(--aq-wash)}
 .myPanel .myCell.pad{background:none}
-.myPanel .myCell i{font-style:normal;font-size:var(--fs-xs);color:#7e7562}
+.myPanel .myCell i{font-style:normal;font-size:var(--fs-xs);color:var(--aq-note)}
 .myPanel .myCell b{font-size:10px;font-weight:400;color:transparent;line-height:1}
-.myPanel .myCell.on{background:rgba(232,199,102,.16)}
-.myPanel .myCell.on i{color:#f0dfa8}
-.myPanel .myCell.on b{color:#c8a94e}
-.myPanel .myCell.now{outline:1px solid rgba(232,199,102,.55);outline-offset:-1px}
+.myPanel .myCell.on{background:rgba(176,131,28,.16)}
+.myPanel .myCell.on i{color:var(--aq-title)}
+.myPanel .myCell.on b{color:var(--aq-strong)}
+.myPanel .myCell.now{outline:1px solid rgba(150,112,32,.55);outline-offset:-1px}
 .myPanel .myRow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;font-size:var(--fs-sm);min-height:44px}
-.myPanel .myRow .ico{color:#c8a94e;opacity:.92}   /* 行首的形只作辨识，比字略退半步，不抢正文 */
+.myPanel .myRow .ico{color:var(--aq-gold);opacity:.92}   /* 行首的形只作辨识：泥金作形不作字 */
 .myPanel .myRow>span{min-width:0;flex:1 1 auto}
-.myPanel .myRow i{margin-left:auto;font-style:normal;color:var(--gold)}
+.myPanel .myRow i{margin-left:auto;font-style:normal;color:var(--aq-strong);white-space:nowrap}
 .myPanel .myRun{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;
-  padding:8px 2px;border-bottom:1px solid rgba(215,170,69,.1);font-size:var(--fs-sm)}
-.myPanel .myRun b{color:#e0d3a6;font-weight:500;white-space:nowrap}
-.myPanel .myRun span{color:var(--note);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.myPanel .myRun em{font-style:normal;color:#6e685a;font-size:var(--fs-xs);white-space:nowrap}
+  padding:8px 2px;border-bottom:1px solid rgba(63,94,108,.16);font-size:var(--fs-sm)}
+.myPanel .myRun b{color:var(--aq-tx);font-weight:500;white-space:nowrap}
+.myPanel .myRun span{color:var(--aq-note);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.myPanel .myRun em{font-style:normal;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs);white-space:nowrap}
 /* 共同结算卡：一句结果 + 一句本座 + 同座行处，三层看完即知本局如何 */
 .nsPanel .nsHead{margin-top:6px;color:#f0dfa8;font-size:var(--fs-lg);letter-spacing:2px}
 .nsPanel .nsMine{margin-top:3px;color:#cfc7ad;font-size:var(--fs-sm)}
@@ -5605,6 +5640,8 @@ function netSyncBeads() {
     if (p.id === Net.myId) continue;
     seen.add(p.id);
     const b = netBeadOf(p);
+    b.online = p.online !== false; // R3″：离线珠不脉动、只淡显
+    b.sprite.material.opacity = b.online ? 0.9 : 0.45;
     if (!p.pos || !SFP_BY[p.pos]) { b.sprite.visible = false; b.labelEl.style.display = 'none'; b.pos = p.pos || null; continue; }
     const to = sfpWorldPos(p.pos, new THREE.Vector3());
     if (b.pos && b.pos !== p.pos && b.sprite.visible) {
@@ -5627,7 +5664,14 @@ function netBusy() { // v221 节流的动势判定：远端莲友珠滑行期间
   for (const id of Object.keys(netBeads)) if (netBeads[id].glide) return true;
   return false;
 }
+// R3″ 位置点脉动（批C，2026-07-30 用户定案）：远端珠轻缓呼吸（~2.2s 周期、幅度小），
+// 星图上一眼可寻；看全房位置＝点既有「全图」观照。守 §四「禁常亮大光斑」（±6% 微幅）、
+// §七之二（不入 netBusy，静观 30fps 照常）；系统减弱动效则静止。
+const netPulseOff = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let netPulseT = 0;
 function netFrame(dt        ) {
+  netPulseT += dt;
+  const pulse = netPulseOff ? 1 : 1 + 0.06 * Math.sin(netPulseT * (Math.PI * 2) / 2.2);
   for (const id of Object.keys(netBeads)) {
     const b = netBeads[id];
     if (b.glide) {
@@ -5639,6 +5683,7 @@ function netFrame(dt        ) {
     } else if (b.sprite.visible && b.pos && SFP_BY[b.pos]) {
       sfpWorldPos(b.pos, b.sprite.position); // 随锚跟位（沙盘缩放/切场景不掉队）
     }
+    b.sprite.scale.setScalar(b.online === false ? 2.8 : 2.8 * pulse);
     // 名牌投影
     if (b.sprite.visible) {
       _nb.copy(b.sprite.position).project(camera);
@@ -5830,11 +5875,18 @@ function showVerdict(body        , why                                      , go
   const orig = sfpEvidenceSourceHtml(whyEvidence);
   // v226 用户点单：去处白话句撤（位名可点弹签已覆盖）；谱曰原文收进「点开再读」
   const srcT = orig ? `<span class="vsrcT">原文 ▸</span>` : '';
-  wEl.innerHTML = zh(plain ? `${plain}${srcT ? ' ' + srcT : ''}` : srcT);
+  const fixT = '<span class="vfix">纠错</span>'; // 批E 挂点①：判词卡释义行尾，一键指正本掷的原文/白话
+  wEl.innerHTML = zh(plain ? `${plain}${srcT ? ' ' + srcT : ''}${fixT}` : `${srcT}${fixT}`);
   wEl.style.display = (plain || orig) ? '' : 'none';
   wEl.classList.remove('full');
   const tEl = wEl.querySelector('.vsrcT')                      ;
   if (tEl) tEl.onclick = (e) => { e.stopPropagation(); verdictEl.classList.toggle('src'); wEl.classList.add('full'); };
+  const fEl = wEl.querySelector('.vfix')                      ;
+  if (fEl) fEl.onclick = (e) => {
+    e.stopPropagation();
+    const ev0 = (whyEvidence         )?.items?.[0];
+    openReportCard({ scene: 'verdict', pos: sfpS.pos || '', combo: combo || '', ev: ev0?.type || '', ref: ev0?.ref || '' });
+  };
   sEl.innerHTML = orig ? zh(orig) : '';
   // v226 位名可点弹白话小签（签内可入原文说明）；AI 解读小签缀在位名同行——工具行退役
   const bEl = verdictEl.querySelector('#vBody')               ;
@@ -6600,6 +6652,24 @@ function openSfpMsgLog() {
     <button class="gbtn primary" style="margin-top:10px;width:100%" id="mlOk">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   (p.querySelector('#mlOk')               ).addEventListener('click', closeOverlay);
   openOverlay(p);
+}
+// R1 远端播报（批C）：同修掷轮借状态行说 5.2 秒——单槽避让：本人判词/棋讯在场则只入消息回看，不抢槽
+function netPeerMsg(name        , combo        , lastText        ) {
+  const h = `<b style="color:var(--gold-hi)">${esc(name)}</b><span style="color:#9d9170"> 掷得 </span><b style="letter-spacing:2px">「${esc(combo)}」</b>${lastText ? `<span style="color:#9d9170"> · ${esc(lastText)}</span>` : ''}`;
+  sfpMsgLog.push(h); if (sfpMsgLog.length > 12) sfpMsgLog.shift();
+  if (verdictFn || sfpMsgHold || !sfpS.active) return;
+  sfpNameEl.innerHTML = zh(h);
+  sfpNameEl.classList.add('msg');
+  sfpMsgHold = window.setTimeout(() => { sfpMsgHold = 0; sfpStatus(); }, 5200);
+}
+// R1 之二：脉签该座色点闪一记（_pillSync 每拍重绘 innerHTML，闪记是瞬态类，重绘吞掉也无妨）
+function netDotFlash(playerId        ) {
+  const idx = Net.players.findIndex(p => p.id === playerId);
+  if (idx < 0) return;
+  document.querySelectorAll('.netDots').forEach(dots => {
+    const pd = dots.querySelectorAll('.pd')[idx];
+    if (pd) { pd.classList.add('flash'); window.setTimeout(() => pd.classList.remove('flash'), 950); }
+  });
 }
 let sfpFlashUntil = 0;
 let pureGrand = false, pureGrandUntil = 0; // 横超生西的接引式入场（仅首次跨入净土的那一手）
@@ -7681,8 +7751,8 @@ function openMine() {
         <div><i>全站今日</i><b>${myNum(mine.siteToday)}</b></div>
         <div class="me"><i>我的累计</i><b>${myNum(mine.tosses)}</b></div>
         <div class="me"><i>我的今日</i><b>${myNum(mine.today)}</b></div>
+        <div class="sub">共修 ${myNum(mine.days)} 天 · 连续 ${myNum(mine.streak)} 日 · 及第 ${myNum(mine.wins)}</div>
       </div>
-      <div class="myLine">共修 ${myNum(mine.days)} 天 · 连续 ${myNum(mine.streak)} 日 · 及第 ${myNum(mine.wins)}</div>
       <div class="myCal">
         <div class="myCalHead">
           <button class="gbtn" id="myPrev" aria-label="上一月">‹</button>
@@ -7693,9 +7763,8 @@ function openMine() {
         <div class="myWk">${MY_WEEK.map(w => `<span>${w}</span>`).join('')}</div>
         <div class="myDays">${html}</div>
       </div>
-      <div class="myLine2">行谱见闻 · 本机</div>
       <button class="gbtn myRow" id="myLg">${ico('eye')}
-        <span>开局 ${lg.games} · 升 ${lg.up} · 沉 ${lg.back} · 见 ${lg.seen.length}/${(SFP_POS         ).length} 位</span><i>›</i></button>
+        <span>行谱见闻 · 本机</span><i>见 ${lg.seen.length}/${(SFP_POS         ).length} 位 ›</i></button>
       ${runs ? `<div class="myLine2">我的行谱记录</div><div class="myRuns">${runs}</div>` : ''}
       <div class="myLine2">谱与设置</div>
       <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文 · 逐字读谱</span><i>›</i></button>
@@ -7736,6 +7805,166 @@ function openMine() {
   })();
 }
 const myNum = (n         ) => Number(n || 0).toLocaleString('en-US');
+
+// ───────── 莲友茶寮（批D §七之十一）：与佛悦主站共修群相通——同数据不同皮，石青展卷 ─────────
+// 本地调试可 localStorage.setItem('sm10.fy.base','http://127.0.0.1:8788') 指向本地 foyue worker
+const FY_BASE = (() => { try { return localStorage.getItem('sm10.fy.base') || 'https://foyue.org'; } catch (e) { return 'https://foyue.org'; } })();
+function fyDev()         { // 主站 dev 校验 ^[a-zA-Z0-9-]{8,40}$：practiceId 带下划线不合规，另存一枚合规 id
+  const K = 'sm10.fy.dev';
+  try {
+    const old = localStorage.getItem(K) || '';
+    if (/^[a-zA-Z0-9-]{8,40}$/.test(old)) return old;
+    const bytes = new Uint8Array(12);
+    if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    const id = `g-${[...bytes].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+    localStorage.setItem(K, id);
+    return id;
+  } catch (e) { return `g-${Date.now().toString(16)}abcd`; }
+}
+let chalouTimer = 0;
+let chalouDraft = '';      // 首次发言转去取名卡时暂存草稿，回来不丢字
+function chalouStop() { window.clearInterval(chalouTimer); chalouTimer = 0; }
+function openChalou() {
+  plazaNavAway();
+  Net.closePanel();        // 全屏页与同修面板不并存（三页通例，茶寮为第四页）
+  chalouStop();
+  const back = () => { chalouStop(); overlayOnClose = null; openPlaza(); };
+  const p = el(`<div class="panel pzPanel"><div class="fsShell">
+    <header class="pzTop"><div><span class="pzEyebrow">选佛谱</span><h2>莲友茶寮</h2></div></header>
+    <div class="fsBody" style="overflow:hidden"><div class="fsWrap clWrap" style="height:100%">
+      <div class="cNote" style="margin:0 0 8px">与佛悦主站共修群相通 · 全站莲友可见 · 请惜言慈语</div>
+      <div class="clNotice" id="clNotice"></div>
+      <div class="clMsgs" id="clMsgs"><div class="clEmpty">正在取莲友留言……</div></div>
+      <div class="clQuick"><button type="button">南無阿彌陀佛</button><button type="button">隨喜讚歎 🙏</button></div>
+      <div class="clInput"><span class="clHint" id="clHint"></span>
+        <input id="clIn" maxlength="150" aria-label="留言内容" placeholder="说一句…">
+        <button id="clGo" type="button" aria-label="发送留言">发送</button></div>
+      <button class="pzBack" id="clBack" type="button" style="margin-top:10px;flex:none">回大厅</button>
+    </div></div>
+  </div></div>`);
+  openOverlay(p);
+  overlayOnClose = back;
+  zhDom(p);
+  const msgs = p.querySelector('#clMsgs')               ;
+  const noticeEl = p.querySelector('#clNotice')               ;
+  const input = p.querySelector('#clIn')                                ;
+  const goBtn = p.querySelector('#clGo')                                 ;
+  const hintEl = p.querySelector('#clHint')               ;
+  if (chalouDraft) { input.value = chalouDraft; chalouDraft = ''; }
+  let lastId = 0, lastTs = 0, first = true, hintTimer = 0;
+  const hintSay = (t        ) => {
+    hintEl.textContent = zh(t);
+    window.clearTimeout(hintTimer);
+    hintTimer = window.setTimeout(() => { hintEl.textContent = ''; }, 2600);
+  };
+  const atBottom = () => msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight <= 48;
+  const stick = () => { msgs.scrollTop = msgs.scrollHeight; };
+  const clWhen = (ts        ) => { // 10 分钟一枚时间戳（与主站同刻度 600000ms），本机时区呈现
+    const d = new Date(Number(ts) || Date.now());
+    const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    return d.toDateString() === new Date().toDateString() ? hm : `${d.getMonth() + 1}月${d.getDate()}日 ${hm}`;
+  };
+  const rowHtml = (c     ) => {
+    let html = '';
+    if (Number(c.ts) - lastTs > 600000) html += `<div class="clTs">${clWhen(c.ts)}</div>`;
+    lastTs = Number(c.ts) || lastTs;
+    // 留言正文是莲友自由文本：只转义不简繁转换（内容区不转换，与房聊同则）
+    html += `<div class="clM${c.mine ? ' mine' : ''}"><span class="who">${c.mine ? zh('我') : esc(c.name || '莲友')}</span><span class="bb">${esc(c.text || '')}</span></div>`;
+    return html;
+  };
+  const append = (items       ) => {
+    if (!items?.length) return;
+    msgs.querySelector('.clEmpty')?.remove();
+    const keep = atBottom();
+    for (const c of items) { msgs.insertAdjacentHTML('beforeend', rowHtml(c)); lastId = Math.max(lastId, Number(c.id) || 0); }
+    while (msgs.children.length > 220) msgs.removeChild(msgs.firstChild);
+    if (keep || first) stick();
+  };
+  const pull = async () => {
+    try {
+      const r = await fetch(`${FY_BASE}/api/cmt${lastId ? `?after=${lastId}&` : '?'}dev=${encodeURIComponent(fyDev())}`);
+      if (!r.ok) throw new Error(String(r.status));
+      const data = await r.json();
+      if (!p.isConnected) { chalouStop(); return; }
+      if (typeof data.notice === 'string' && data.notice) noticeEl.textContent = data.notice; // textContent 天然防注入
+      append(data.items || []);
+      if (first && !msgs.querySelector('.clM')) msgs.innerHTML = `<div class="clEmpty">${zh('茶寮暂静——念一句佛号，或与莲友问讯')}</div>`;
+      first = false;
+    } catch (e) {
+      if (first && p.isConnected) msgs.innerHTML = `<div class="clEmpty">${zh('茶寮暂时连接不上，请稍后再来')}</div>`;
+    }
+  };
+  const send = async (raw        ) => {
+    const text = String(raw || '').replace(/\s+/g, ' ').trim();
+    if (!text) return;
+    const name = Plaza.savedName();
+    if (!name) { // 首次发言先取名（同路往返回茶寮，草稿不丢）
+      chalouDraft = input.value;
+      chalouStop(); closeOverlay(); openPlazaRename(openChalou);
+      return;
+    }
+    goBtn.disabled = true;
+    try {
+      const r = await fetch(`${FY_BASE}/api/cmt`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ dev: fyDev(), name: name.slice(0, 14), text }),
+      });
+      if (r.ok) { input.value = ''; await pull(); stick(); }
+      else { const t = await r.text(); hintSay(t && t.length < 40 ? t : '留言未送出，请稍后再试'); }
+    } catch (e) { hintSay('网络不通，留言未送出'); }
+    finally { if (p.isConnected) goBtn.disabled = false; }
+  };
+  goBtn.addEventListener('click', () => send(input.value));
+  input.addEventListener('keydown', (event) => { event.stopPropagation(); if (event.key === 'Enter') send(input.value); });
+  p.querySelectorAll('.clQuick button').forEach(b => b.addEventListener('click', () => send(b.textContent || '')));
+  (p.querySelector('#clBack')               ).addEventListener('click', back);
+  pull().then(() => { if (p.isConnected) chalouTimer = window.setInterval(pull, 6000); }); // 开着 6 秒增量轮询，离页即停
+}
+
+// ───────── 纠错上报（批E）：读到什么就能纠什么——定位串程序自动附带，用户只说一句哪里不对；
+// 上报至 foyue.org/admin 统一处理（POST /api/report，匿名，经查证后修正） ─────────
+function openReportCard(ctx                                                                                                       , backTo         ) {
+  const target = ['game',
+    ctx.pos ? `pos:${ctx.pos}` : '', ctx.door ? `door:${ctx.door}` : '',
+    ctx.combo ? `combo:${ctx.combo}` : '', ctx.ev ? `ev:${ctx.ev}` : '',
+    ctx.ref ? `ref:${ctx.ref}` : '', `at:${ctx.scene}`].filter(Boolean).join('|').slice(0, 280);
+  const kinds = ['原文有误', '白话不确', '解读不当', '其它']; // 对应证据层四型的大白话（§5.0 命名原则）
+  const p = el(`<div class="panel"><h2>纠错 · 随喜指正</h2><div class="body">
+    <div class="cMeta">所纠之处 · 程序自动附带</div>
+    <div class="rpTarget">${esc(target)}</div>
+    <div class="cMeta" style="margin-top:10px">哪里不对</div>
+    <div class="rpKinds">${kinds.map((k, i) => `<button type="button" class="rpKind${i === 0 ? ' on' : ''}" data-k="${k}">${k}</button>`).join('')}</div>
+    <textarea id="rpText" class="rpText" maxlength="300" rows="4" placeholder="${esc(ctx.hint || '请说说哪里不对（300 字内）')}"></textarea>
+    <div class="cNote">匿名发送至佛悦管理处，经查证后修正；谢谢您护持谱文。</div>
+    <button class="gbtn primary" id="rpGo" style="margin-top:10px;width:100%">发送</button></div></div>`);
+  let kind = kinds[0];
+  (p.querySelector('.rpKinds')               ).addEventListener('click', (e) => {
+    const b = (e.target               ).closest ? (e.target               ).closest('.rpKind')                : null;
+    if (!b) return;
+    kind = (b               ).dataset.k || kinds[0];
+    p.querySelectorAll('.rpKind').forEach(x => x.classList.toggle('on', x === b));
+  });
+  const go = p.querySelector('#rpGo')                                 ;
+  go.addEventListener('click', async () => {
+    const text = ((p.querySelector('#rpText')                       ).value || '').replace(/\s+/g, ' ').trim();
+    if (!text) { showToast(zh('请说一句哪里不对'), 2200); return; }
+    go.disabled = true; go.textContent = zh('正在送出…');
+    try {
+      const r = await fetch(`${FY_BASE}/api/report`, {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ dev: fyDev(), site: 'game', kind, target, text }),
+      });
+      if (r.ok) { closeOverlay(); showToast(zh('已收到，随喜指正 🙏'), 3200); return; }
+      const t = await r.text();
+      showToast(zh(t && t.length < 40 ? t : '未送出，请稍后再试'), 3000);
+    } catch (e) { showToast(zh('网络不通，未送出'), 2600); }
+    go.disabled = false; go.textContent = zh('发送');
+  });
+  openOverlay(p);
+  if (backTo) overlayOnClose = backTo;   // 同路往返：从哪张卡来，关卡回哪张
+  zhDom(p);
+}
 
 // 共修动态：独立全屏页（从大厅顶条进），关闭即回大厅——一层，一条退路
 async function openStream() {
@@ -7807,6 +8036,7 @@ function plazaRender(data) {
     },
     onSit: (code, _n, locked) => plazaSit(code, '', !!locked),
     onStream: () => openStream(),
+    onChalou: () => openChalou(),                   // 批D：三卡之三——莲友茶寮（与主站共修群相通）
     onQuick: (code) => {
       if (!code) { showToast(zh('本厅诸室皆满或已上锁——请稍候或一人行谱'), 3200); return; }
       plazaSit(code);
@@ -8028,7 +8258,7 @@ function openCanon(doorNo        , jumpName         , backTo        ) { // backT
     ${tocHtml}${frontHtml}${introHtml}${posHtml}${jiHtml}
     <div class="cNote" style="margin-top:10px">標「原文」者為譜文逐字（校正原本 B0136 逐字轉寫），白話係今譯助讀。</div>
     <div class="cardNav"><button class="gbtn${doorNo > 1 ? '' : ' dis'}" id="cnPrev">‹ 上一門</button><button class="gbtn${doorNo < 15 ? '' : ' dis'}" id="cnNext">下一門 ›</button></div>
-    <button class="gbtn primary" style="margin-top:10px;width:100%" id="cnOk">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="gbtn" id="cnFix">本门纠错</button><button class="gbtn primary" id="cnOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div></div>`);
   inner.querySelectorAll('.cnCard').forEach(b => b.addEventListener('click', () => {
     playSfx('sfx-tap', 0.25);
     const cp = d.positions[Number((b               ).dataset.ci)];
@@ -8050,6 +8280,11 @@ function openCanon(doorNo        , jumpName         , backTo        ) { // backT
   (inner.querySelector('#cnOk')               ).addEventListener('click', () => {
     if (sfpS.active) overlayOnClose = null; // 题「回到局中」时要真回局中，解除 backTo；题「关闭」时仍同路往返回「我的」
     closeOverlay();
+  });
+  // 批E 挂点③：谱文页页脚「本门纠错」（整门级；逐位段不加钮，免与「位卡›」争行）
+  (inner.querySelector('#cnFix')               ).addEventListener('click', () => {
+    overlayOnClose = null;
+    openReportCard({ scene: 'canon', door: doorNo }, () => openCanon(doorNo, undefined, backTo));
   });
   // 参考经典并为原文顶签（单菜单原则：原☰「参考经典」条目迁此）
   (inner.querySelector('#cnLib')               ).addEventListener('click', () => { overlayOnClose = null; closeOverlay(); openLibrary(); });
@@ -8160,13 +8395,17 @@ function openSfpNote(pid         ) {
       ${SFP_DOOR_PRACTICE[p.door] ? `<div class="cRead">${glossify(esc(SFP_DOOR_PRACTICE[p.door]))}</div>${doorCiteHtml(p.door)}` : ''}
       ${door.intro ? `<div class="cRead" style="color:#cbbb8d;margin-top:6px"><i style="font-style:normal;color:#9d9170">${[1, 2, 15].includes(p.door) ? '本门导语（白话直陈，原谱无此门总说）：' : '本门总说（白话）：'}</i>${glossify(esc(door.intro))}</div>` : ''}</details>` : ''}</div>
     ${p ? `<div class="cardNav"><button class="gbtn${prev ? '' : ' dis'}" id="spPrev">‹ ${prev ? esc(prev.name) : '已是首位'}</button><button class="gbtn${next ? '' : ' dis'}" id="spNext">${next ? esc(next.name) : '已是末位'} ›</button></div>` : ''}
-    <div style="margin-top:10px;display:flex;gap:8px">${p ? '<button class="gbtn" id="sfpNoteLoc">定位此位</button>' : '<button class="gbtn" id="spCanon2">譜文原文</button>'}<button class="gbtn primary" id="sfpNoteOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+    <div style="margin-top:10px;display:flex;gap:8px">${p ? '<button class="gbtn" id="sfpNoteLoc">定位此位</button><button class="gbtn" id="sfpNoteFix">纠错</button>' : '<button class="gbtn" id="spCanon2">譜文原文</button>'}<button class="gbtn primary" id="sfpNoteOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   const pv = inner.querySelector('#spPrev')                      ;
   const nx = inner.querySelector('#spNext')                      ;
   if (pv && prev) pv.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpNote(prev.id); });
   if (nx && next) nx.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpNote(next.id); });
   const loc = inner.querySelector('#sfpNoteLoc')                      ;
   if (loc && p) loc.addEventListener('click', () => { closeOverlay(); sfpLocate(p.id); });
+  const fix = inner.querySelector('#sfpNoteFix')                      ; // 批E 挂点②：位卡底行，纠此位的原文/白话
+  if (fix && p) fix.addEventListener('click', () => {
+    openReportCard({ scene: 'note', pos: p.id, door: p.door }, () => openSfpNote(p.id));
+  });
   const rdBtn = inner.querySelector('#spRead')                      ; // v356 对读栏只呈位注（行法按语已在升降行法栏），全文入谱文页
   if (rdBtn && p) rdBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.25); openCanon(p.door, p.name); });
   const openCn = () => { playSfx('sfx-tap', 0.25); openCanon(p ? p.door : (sfpS.pos ? SFP_BY[sfpS.pos].door : 1), p ? p.name : undefined); };
@@ -8656,7 +8895,7 @@ function openTossReading(ctx                                                    
   const inner = el(`<div class="panel"><h2>AI 解读 · 掷得「${esc(ctx.c)}」</h2><div class="body">
     <div class="cbA rdCard" style="margin-top:2px;background:none;border:0;padding:0;max-width:100%">${sfpTossAnswerHtml({ c: ctx.c, from: ctx.from, to: ctx.to, evidence: ctx.evidence })}</div>
     <div id="trChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${(() => { const P0 = (ctx.to ? SFP_BY[ctx.to] : null) || F; if (!P0) return ''; const pred = P0.pure ? '什么是横超' : (P0.door === 2 || P0.door === 3) ? '堕到这里还有救吗' : ''; const whyQ = F && ctx.c ? `在${F.name}掷得${ctx.c}为什么这样走` : ''; return [whyQ, `${P0.name}是什么`, pred].filter(Boolean).map(c2 => `<span class="chipQ">${esc(c2)}</span>`).join(''); })()}</div></div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button class="gbtn" id="trAsk">问</button><button class="gbtn primary" id="trOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="gbtn" id="trAsk">问</button><button class="gbtn" id="trFix">纠错</button><button class="gbtn primary" id="trOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   inner.addEventListener('click', (e) => { // 情境签带着问题进入「问」；AI 解读本身仍是固定内容卡
     const ch = (e.target               ).closest ? (e.target               ).closest('.chipQ')                : null;
     if (ch) { playSfx('sfx-tap', 0.25); openSfpReading({ ask: ch.textContent || '' }); return; }
@@ -8664,6 +8903,11 @@ function openTossReading(ctx                                                    
     if (m) { const x = (SFP_POS         )[Number(m.dataset.ci)]; if (x) { closeOverlay(); openSfpNote(x.id); } }
   });
   (inner.querySelector('#trAsk')               ).addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpReading(); });
+  // 批E 挂点④：解读卡底行——ctx 含 combo/起讫/证据，是五处里定位最全的一处
+  (inner.querySelector('#trFix')               ).addEventListener('click', () => {
+    const ev0 = (ctx.evidence         )?.items?.[0];
+    openReportCard({ scene: 'reading', pos: ctx.from || '', combo: ctx.c || '', ev: ev0?.type || '', ref: ev0?.ref || '' }, () => openTossReading(ctx));
+  });
   (inner.querySelector('#trOk')               ).addEventListener('click', closeOverlay);
   openOverlay(inner);
 }
@@ -8695,7 +8939,8 @@ function openSfpReading(ctx                                                     
     <div style="display:flex;gap:8px;margin-top:8px"><button class="gbtn" id="cbClr">清空对话</button><button class="gbtn" id="cbOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   const log = pnl.querySelector('#cbLog')               ;
   const render = () => {
-    log.innerHTML = zh(sfpChat.map(m => `${m.u ? `<div class="cbRow"><div class="cbU">${esc(m.u)}</div></div>` : ''}<div class="cbRow"><div class="cbA">${m.a}</div></div>`).join(''));
+    // 批E 挂点⑤：每条答复气泡尾缀「纠错」角标（data-qi 回取该轮问句）；问候语不带
+    log.innerHTML = zh(sfpChat.map((m, qi) => `${m.u ? `<div class="cbRow"><div class="cbU">${esc(m.u)}</div></div>` : ''}<div class="cbRow"><div class="cbA">${m.a}${m.u ? `<div class="cbFix" data-qi="${qi}">纠错</div>` : ''}</div></div>`).join(''));
     log.scrollTop = log.scrollHeight;
   };
   const send = (qGiven         ) => {
@@ -8713,6 +8958,13 @@ function openSfpReading(ctx                                                     
   (pnl.querySelector('#cbQ')                    ).addEventListener('keydown', (e) => { if ((e                 ).key === 'Enter') send(); });
   (pnl.querySelector('#cbClr')               ).addEventListener('click', () => { sfpChat.length = 0; sfpChat.push({ u: '', a: SFP_CHAT_HELLO }); render(); });
   pnl.addEventListener('click', (e) => {
+    const f = (e.target               ).closest ? (e.target               ).closest('.cbFix')                : null;
+    if (f) { // 批E：纠这一轮答复（问句入提示，免得管理处不知所纠何问）
+      const qi = Number((f               ).dataset.qi);
+      const q = sfpChat[qi]?.u || '';
+      openReportCard({ scene: 'chat', pos: sfpS.pos || '', hint: `关于问答「${q.slice(0, 24)}」：哪里答得不对？` }, () => openSfpReading());
+      return;
+    }
     const chip = (e.target               ).closest ? (e.target               ).closest('.chipQ')                : null;
     if (chip) { send(chip.textContent || ''); return; }
     const m = (e.target               ).closest ? (e.target               ).closest('.rdMore')                : null;
@@ -9538,6 +9790,10 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   Net.onToss = (message) => {
     netSyncBeads();
     if (message.playerId !== Net.myId) {
+      // 批C R1：远端掷轮上状态行播报＋脉签闪记（数据链路本就全量广播，缺的只是呈现）
+      const last = message.steps?.[message.steps.length - 1];
+      netPeerMsg(message.name || '同修', message.combo || '', last?.text || '');
+      netDotFlash(message.playerId);
       if (message.player?.done) sfpPeerWin(message.name, message.player.n);
       return;
     }

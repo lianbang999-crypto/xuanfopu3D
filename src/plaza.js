@@ -299,6 +299,9 @@ export function renderPlaza(data, ui) {
         <button class="pzMode multi primary" id="pzQuick" type="button">
           <span class="pzModeNo">${ico('group')}</span><span><b>与人共修</b><i>2–4 人 · 自动入座</i></span><em>随喜入座</em>
         </button>
+        <button class="pzMode chalou" id="pzChalou" type="button">
+          <span class="pzModeNo">${ico('tea')}</span><span><b>茶寮</b><i>莲友闲话 · 与主站群相通</i></span><em>进来坐</em>
+        </button>
       </section>
 
       <main class="pzMain">
@@ -330,6 +333,7 @@ export function renderPlaza(data, ui) {
     ui.onQuick(best.code);
   });
   p.querySelector('#pzRank').addEventListener('click', () => ui.onStream());
+  p.querySelector('#pzChalou').addEventListener('click', () => ui.onChalou?.());
   p.querySelector('#pzClose').addEventListener('click', () => ui.onClose());
   updatePlaza(p, data, ui);
   return p;
@@ -444,21 +448,26 @@ export function renderSitKey(code, ui, errText = '') {
 }
 
 export const PLAZA_CSS = `
-/* 共修大厅是模式选择中心，不再作为窄弹窗：全屏承载两种玩法、动态与选桌。 */
+/* 共修大厅是模式选择中心，不再作为窄弹窗：全屏承载三种去处、动态与选桌。
+   2026-07-30 石青·晓（§七之十一）：社交面换敦煌石青浅底，泥金只作线与形；色一律走 --aq-* token。 */
 .overlay:has(.pzPanel){align-items:stretch;justify-content:stretch;background:rgba(8,8,18,.78)}
 .overlay .pzPanel{width:100vw;max-width:none;height:100dvh;max-height:none;box-sizing:border-box;
-  padding:0;border:0;border-radius:0;overflow:hidden;background:
-  radial-gradient(circle at 78% 16%,rgba(87,70,128,.18),transparent 34%),
-  radial-gradient(circle at 14% 82%,rgba(119,77,45,.12),transparent 30%),
-  linear-gradient(145deg,rgba(17,17,31,.985),rgba(23,20,38,.985) 56%,rgba(13,16,28,.99));
+  padding:0;border:0;border-radius:0;overflow:hidden;color:var(--aq-tx);background:
+  radial-gradient(circle at 78% 14%,rgba(47,106,94,.06),transparent 36%),
+  radial-gradient(circle at 12% 84%,rgba(176,131,28,.06),transparent 30%),
+  linear-gradient(160deg,#e4ebee,var(--aq-bg) 58%,#d9e2e7);
   backdrop-filter:none;animation:pzIn .24s ease-out}
 @keyframes pzIn{from{opacity:.4;transform:scale(1.01)}}
 .pzPanel>.ovClose{top:calc(18px + env(safe-area-inset-top));right:calc(22px + env(safe-area-inset-right));
-  border-color:rgba(232,199,102,.22);background:rgba(255,255,255,.035);color:#b9b09a}
+  border-color:var(--aq-line);background:rgba(255,255,255,.5);color:var(--aq-note)}
+/* 浅面上的按钮与注脚：金洗底＋青墨字＋金深描边（.overlay .pzPanel 三类选择器压过全局 .overlay .gbtn） */
+.overlay .pzPanel .gbtn{background:rgba(255,255,255,.55);border:1px solid var(--aq-line);color:var(--aq-tx)}
+.overlay .pzPanel .gbtn.primary{background:var(--aq-goldwash);border:1px solid var(--aq-goldline);color:var(--aq-tx);font-weight:600}
+.overlay .pzPanel .cNote{color:var(--aq-note)}
 .pzLoading{display:grid!important;place-items:center}.pzLoadingInner{text-align:center;width:min(360px,84vw)}
-.pzLoadingInner>span{color:#817967;font-size:var(--fs-xs,11px);letter-spacing:4px}
-.pzLoadingInner h2{margin:6px 0 18px;color:#f0dfa8;font-size:28px;letter-spacing:7px;font-weight:500}
-.pzLoadingInner .body{color:var(--note)}.pzLoadingInner .gbtn{display:block;width:100%;margin-top:10px}
+.pzLoadingInner>span{color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:4px}
+.pzLoadingInner h2{margin:6px 0 18px;color:var(--aq-title);font-size:28px;letter-spacing:7px;font-weight:500}
+.pzLoadingInner .body{color:var(--aq-note)}.pzLoadingInner .gbtn{display:block;width:100%;margin-top:10px}
 .pzShell{width:min(1180px,100%);height:100%;margin:auto;padding:calc(24px + env(safe-area-inset-top))
   max(24px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom))
   max(24px,env(safe-area-inset-left));box-sizing:border-box;display:grid;
@@ -472,87 +481,88 @@ export const PLAZA_CSS = `
 .fsBody{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 .fsWrap{width:100%;margin:0 auto}
 .pzTop{display:flex;align-items:center;justify-content:space-between;padding-right:58px}
-.pzEyebrow{display:block;font-size:var(--fs-xs,11px);color:#8f856d;letter-spacing:4px;margin-bottom:3px}
-.pzTop h2{margin:0;color:#f1dfaa;font-size:clamp(24px,3vw,36px);letter-spacing:7px;font-weight:500}
-.pzPresence{display:flex;align-items:center;gap:12px;color:#aaa18c;font-size:var(--fs-sm,12.5px);letter-spacing:1px}
-.pzPresence b{font-size:var(--fs-xl);color:var(--gold-hi);font-weight:500}
-.pzPresence i{width:3px;height:3px;border-radius:50%;background:#776e5b}
+.pzEyebrow{display:block;font-size:var(--fs-xs,11px);color:var(--aq-note);letter-spacing:4px;margin-bottom:3px}
+.pzTop h2{margin:0;color:var(--aq-title);font-size:clamp(24px,3vw,36px);letter-spacing:7px;font-weight:500}
+.pzPresence{display:flex;align-items:center;gap:12px;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px}
+.pzPresence b{font-size:var(--fs-xl);color:var(--aq-strong);font-weight:500}
+.pzPresence i{width:3px;height:3px;border-radius:50%;background:var(--aq-line)}
 .pzTicker{width:100%;min-height:44px;display:flex;align-items:center;gap:16px;padding:0 16px;
-  overflow:hidden;border:1px solid rgba(215,170,69,.18);border-radius:12px;
-  background:rgba(255,255,255,.025);color:#cfc7ad;font:inherit;cursor:pointer;text-align:left}
-.pzTicker:hover,.pzTicker:focus-visible{border-color:rgba(232,199,102,.48);background:rgba(232,199,102,.07)}
+  overflow:hidden;border:1px solid var(--aq-line);border-radius:12px;
+  background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit;cursor:pointer;text-align:left}
+.pzTicker:hover,.pzTicker:focus-visible{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
 /* 顶条主句：本站共修第几天·多少人来过·一共掷了多少轮 */
-.pzTickerSay{flex:none;color:#a99c79;font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
-.pzTickerSay b{color:var(--gold-hi);font-weight:500}
+.pzTickerSay{flex:none;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
+.pzTickerSay b{color:var(--aq-strong);font-weight:500}
 .pzTickerViewport{min-width:0;flex:1;overflow:hidden;mask-image:linear-gradient(90deg,#000 92%,transparent)}
 .pzTickerTrack{display:flex;min-width:0;white-space:nowrap}
 .pzTickerSet{display:flex;align-items:center;min-width:0;gap:18px}
 .pzTickerSet span{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:var(--fs-sm,12.5px);letter-spacing:1px}
-.pzTickerSet i{font-style:normal;color:#746d5d;font-size:var(--fs-xs,11px);margin-left:9px}
-.pzTickerMore{flex:none;color:#a99c79;font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
+.pzTickerSet i{font-style:normal;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs,11px);margin-left:9px}
+.pzTickerMore{flex:none;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
 .pzTickerMore b{font-size:var(--fs-xl);font-weight:400;margin-left:4px}
-.pzModes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+/* 三卡并排（2026-07-30 用户定案）：一人行谱｜与人共修｜茶寮——三个去处同一族语言 */
+.pzModes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .pzMode{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;min-height:84px;
   padding:16px 18px;text-align:left;font:inherit;border-radius:14px;cursor:pointer;
-  border:1px solid rgba(215,170,69,.2);background:rgba(255,255,255,.035);color:#d5cdb8;
+  border:1px solid var(--aq-line);background:rgba(255,255,255,.6);color:var(--aq-tx);
   transition:transform .18s,border-color .18s,background .18s}
-.pzMode:hover,.pzMode:focus-visible{transform:translateY(-1px);border-color:rgba(232,199,102,.52);background:rgba(232,199,102,.08)}
-.pzMode.primary{border-color:rgba(232,199,102,.45);background:linear-gradient(110deg,rgba(197,150,51,.19),rgba(232,199,102,.07))}
-.pzModeNo{width:40px;height:40px;display:grid;place-items:center;border:1px solid rgba(232,199,102,.35);
-  border-radius:50%;color:var(--gold-hi);font-family:var(--f-display);font-size:var(--fs-xl)}
-.pzModeNo .ico{width:21px;height:21px;vertical-align:0}  /* 圆章内的形：一人与三人一眼分得开 */
-.pzMode.primary .pzModeNo{border-color:rgba(232,199,102,.5);background:rgba(232,199,102,.07)}
+.pzMode:hover,.pzMode:focus-visible{transform:translateY(-1px);border-color:var(--aq-goldline);background:rgba(176,131,28,.08)}
+.pzMode.primary{border-color:var(--aq-goldline);background:linear-gradient(110deg,rgba(176,131,28,.16),rgba(176,131,28,.06))}
+.pzModeNo{width:40px;height:40px;display:grid;place-items:center;border:1px solid rgba(150,112,32,.4);
+  border-radius:50%;color:var(--aq-gold);font-family:var(--f-display);font-size:var(--fs-xl)}
+.pzModeNo .ico{width:21px;height:21px;vertical-align:0}  /* 圆章内的形：一人／三人／茶盏一眼分得开 */
+.pzMode.primary .pzModeNo{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
 .pzMode span:nth-child(2){display:grid;gap:4px;min-width:0}
-.pzMode b{color:#f0dfa8;font-size:var(--fs-lg,16px);letter-spacing:3px;font-weight:600}
-.pzMode i{font-style:normal;color:#8f8774;font-size:var(--fs-sm,12.5px);letter-spacing:1px;text-wrap:balance}
-.pzMode em{font-style:normal;color:#c8b988;font-size:var(--fs-sm,12.5px);letter-spacing:2px}
+.pzMode b{color:var(--aq-title);font-size:var(--fs-lg,16px);letter-spacing:3px;font-weight:600}
+.pzMode i{font-style:normal;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px;text-wrap:balance}
+.pzMode em{font-style:normal;color:var(--aq-strong);font-size:var(--fs-sm,12.5px);letter-spacing:2px}
 .pzPanel.joining .pzMode,.pzPanel.joining .pzT{pointer-events:none;opacity:.56}
-.pzPanel.joining #pzQuick{border-color:rgba(232,199,102,.7);opacity:1}
+.pzPanel.joining #pzQuick{border-color:rgba(150,112,32,.7);opacity:1}
 /* 右侧原有「今日共修／入座后／邀请说明」三块已撤：数字在功课榜里已有一份，
    入座说明在房内指引里已有一份，同一句话不在大厅再说一遍（§5.0b）。房间格因此拿到整幅宽度。 */
 .pzMain{display:grid;grid-template-rows:minmax(0,1fr) auto auto;gap:12px;min-height:0}
-.pzRooms{min-height:0;display:flex;flex-direction:column;padding:18px;border:1px solid rgba(215,170,69,.13);
-  border-radius:16px;background:rgba(255,255,255,.018);overflow:auto}
+.pzRooms{min-height:0;display:flex;flex-direction:column;padding:18px;border:1px solid var(--aq-line);
+  border-radius:16px;background:rgba(255,255,255,.4);overflow:auto}
 .pzSectionHead{display:flex;align-items:baseline;justify-content:space-between;gap:20px;margin-bottom:14px}
-.pzSectionHead h3{margin:0;color:#d9ccaa;font-size:var(--fs-lg,16px);font-weight:500;letter-spacing:4px}
-.pzSectionHead p{margin:0;color:#77705f;font-size:var(--fs-xs,11px);letter-spacing:1px}
+.pzSectionHead h3{margin:0;color:var(--aq-title);font-size:var(--fs-lg,16px);font-weight:500;letter-spacing:4px}
+.pzSectionHead p{margin:0;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:1px}
 .pzGrid{display:grid;grid-template-columns:repeat(4,minmax(108px,1fr));gap:10px}
 .pzT{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:92px;padding:13px 14px;cursor:pointer;
-  border:1px solid rgba(215,170,69,.18);border-radius:12px;background:rgba(255,255,255,.025);color:#cfc7ad;font:inherit}
-.pzT:hover:not(:disabled),.pzT:focus-visible:not(:disabled){border-color:rgba(232,199,102,.55);background:rgba(232,199,102,.08)}
+  border:1px solid var(--aq-line);border-radius:12px;background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit}
+.pzT:hover:not(:disabled),.pzT:focus-visible:not(:disabled){border-color:var(--aq-goldline);background:rgba(176,131,28,.08)}
 .pzT:disabled{opacity:.42;cursor:not-allowed}
-.pzT .ord{font-size:var(--fs-md,14px);color:#dccf9f;letter-spacing:2px}
-.pzT .dots{font-size:var(--fs-xs);letter-spacing:3px;color:#8e8265}
-.pzT .st{font-size:var(--fs-xs,11px);color:#8f8774;letter-spacing:1px}
-.pzT .who{font-size:var(--fs-xs,11px);line-height:1.35;color:var(--note);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pzT .ord{font-size:var(--fs-md,14px);color:var(--aq-title);letter-spacing:2px}
+.pzT .dots{font-size:var(--fs-xs);letter-spacing:3px;color:var(--aq-note)}
+.pzT .st{font-size:var(--fs-xs,11px);color:var(--aq-note);letter-spacing:1px}
+.pzT .who{font-size:var(--fs-xs,11px);line-height:1.35;color:var(--aq-note);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pzT .who i{font-style:normal}
 .pzT .dots:empty,.pzT .st:empty,.pzT .who:empty{display:none}
 /* 空室退到背景里：一个淡序号即可，视线自然落在有人的那几间 */
-.pzT.s-empty{justify-content:center;align-items:center;border-color:rgba(215,170,69,.09);background:rgba(255,255,255,.012)}
-.pzT.s-empty .ord{color:#6d6754;font-size:var(--fs-lg,16px)}
-.pzT.s-empty:hover:not(:disabled),.pzT.s-empty:focus-visible:not(:disabled){border-color:rgba(232,199,102,.4);background:rgba(232,199,102,.05)}
+.pzT.s-empty{justify-content:center;align-items:center;border-color:rgba(63,94,108,.14);background:rgba(255,255,255,.3)}
+.pzT.s-empty .ord{color:#7c8b93;font-size:var(--fs-lg,16px)}
+.pzT.s-empty:hover:not(:disabled),.pzT.s-empty:focus-visible:not(:disabled){border-color:var(--aq-goldline);background:rgba(176,131,28,.05)}
 .pzT .ord em{font-style:normal;font-size:var(--fs-xs,11px);margin-left:3px} /* 字级五档：散点 9px 收编 */
-.pzT.locked{border-style:dashed}.pzT.locked .st{color:#c8b988} /* 守「色不过三」：锁定语义已有 🔒＋虚线边双重表达，状态字用现有金 */
-.pzT.mine{border-color:rgba(232,199,102,.86);background:rgba(232,199,102,.12)}.pzT.mine .st{color:var(--gold-hi)}
-.pzT.s-playing{border-color:rgba(150,225,214,.38)}.pzT.s-playing .st{color:var(--teal)}
-.pzT.s-waiting{border-color:rgba(232,199,102,.48)}.pzT.s-waiting .st{color:var(--gold-hi)}
-.pzSeatNote{color:#a99c79;font-size:var(--fs-sm,12.5px);text-align:center;letter-spacing:1px}
+.pzT.locked{border-style:dashed}.pzT.locked .st{color:var(--aq-strong)} /* 锁定语义已有 🔒＋虚线边双重表达，状态字用泥金深 */
+.pzT.mine{border-color:rgba(150,112,32,.8);background:rgba(176,131,28,.12)}.pzT.mine .st{color:var(--aq-strong)}
+.pzT.s-playing{border-color:rgba(47,106,94,.45)}.pzT.s-playing .st{color:var(--aq-green)}
+.pzT.s-waiting{border-color:var(--aq-goldline)}.pzT.s-waiting .st{color:var(--aq-strong)}
+.pzSeatNote{color:var(--aq-note);font-size:var(--fs-sm,12.5px);text-align:center;letter-spacing:1px}
 .pzSeatNote[hidden]{display:none}
-.pzBack{width:100%;min-height:44px;border:1px solid rgba(215,170,69,.16);border-radius:10px;background:none;
-  color:#c8b988;font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:1px;cursor:pointer;padding:0 14px}
-.pzBack:hover{color:#f0dfa8}
+.pzBack{width:100%;min-height:44px;border:1px solid var(--aq-line);border-radius:10px;background:none;
+  color:var(--aq-note);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:1px;cursor:pointer;padding:0 14px}
+.pzBack:hover{color:var(--aq-title)}
 /* 共修动态一行三段：名号 · 掷数 · 何时。没有名次列——不排名次就不给序号留位置。 */
-.pzRankList{margin-top:14px;border-top:1px solid rgba(215,170,69,.14)}
+.pzRankList{margin-top:14px;border-top:1px solid var(--aq-line)}
 .pzRankRow{display:grid;grid-template-columns:minmax(72px,1fr) auto auto;align-items:center;gap:12px;min-height:48px;
-  border-bottom:1px solid rgba(215,170,69,.09);font-size:var(--fs-sm,12.5px)}
-.pzRankRow b{color:#dcd0ad;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pzRankRow span{color:var(--gold-hi);white-space:nowrap}
-.pzRankRow em{font-style:normal;color:#6e685a;font-size:var(--fs-xs,11px);white-space:nowrap;min-width:52px;text-align:right}
-.pzRankRow.mine{background:rgba(232,199,102,.07)}
-.pzRankRow.mine b{color:#f0dfa8}
-.pzRankRow i{font-style:normal;font-size:var(--fs-xs,11px);color:var(--gold-hi);letter-spacing:1px;margin-left:6px}
-.pzRankEmpty{padding:38px 12px;text-align:center;color:#77705f;letter-spacing:2px}
-.pzRankNote{margin-top:12px;color:#6e685a;text-align:center;font-size:var(--fs-xs,11px)}
+  border-bottom:1px solid rgba(63,94,108,.14);font-size:var(--fs-sm,12.5px)}
+.pzRankRow b{color:var(--aq-tx);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pzRankRow span{color:var(--aq-strong);white-space:nowrap}
+.pzRankRow em{font-style:normal;color:var(--aq-note);font-size:var(--fs-xs,11px);white-space:nowrap;min-width:52px;text-align:right}
+.pzRankRow.mine{background:rgba(176,131,28,.1)}
+.pzRankRow.mine b{color:var(--aq-title)}
+.pzRankRow i{font-style:normal;font-size:var(--fs-xs,11px);color:var(--aq-strong);letter-spacing:1px;margin-left:6px}
+.pzRankEmpty{padding:38px 12px;text-align:center;color:var(--aq-note);letter-spacing:2px}
+.pzRankNote{margin-top:12px;color:var(--aq-note);text-align:center;font-size:var(--fs-xs,11px)}
 @media (prefers-reduced-motion:reduce){.pzMode{transition:none}}
 @media (max-width:820px){
   .pzShell{padding-left:16px;padding-right:16px;gap:12px}
@@ -567,13 +577,13 @@ export const PLAZA_CSS = `
   /* 窄屏只留主句与入口，最近几位收起——主句本身已把规模说清 */
   .pzTicker{min-height:40px;padding:0 11px;gap:9px}.pzTickerViewport{display:none}.pzTickerMore{font-size:var(--fs-xs)}
   .pzTickerSay{white-space:normal;line-height:1.45}
-  /* 窄屏留形去环：字最挤的地方反而最需要那个形，只把圆圈脱掉，不占额外的一行高度 */
-  .pzModes{gap:8px}.pzMode{grid-template-columns:auto minmax(0,1fr);gap:3px 9px;min-height:78px;padding:11px 12px}
-  .pzMode .pzModeNo,.pzMode.primary .pzModeNo{width:22px;height:22px;border:0;background:none;align-self:start;margin-top:2px}
+  /* 窄屏留形去字（§七之七）：三卡并排各约 113px，只留形＋题，副题与动作词收起 */
+  .pzModes{gap:8px}.pzMode{grid-template-columns:auto minmax(0,1fr);gap:3px 8px;min-height:56px;padding:11px 10px;align-items:center}
+  .pzMode .pzModeNo,.pzMode.primary .pzModeNo{width:22px;height:22px;border:0;background:none;align-self:center;margin-top:0}
   .pzModeNo .ico{width:19px;height:19px}
   .pzMode span:nth-child(2),.pzMode em{grid-column:2}
   .pzMode span:nth-child(2){gap:2px}.pzMode b{font-size:var(--fs-md);letter-spacing:2px}
-  .pzMode i{font-size:10.5px;line-height:1.35}.pzMode em{font-size:var(--fs-xs);margin-top:6px;justify-self:start;color:var(--gold-hi)}.pzMode em::after{content:" ›";font-size:var(--fs-md,14px)}
+  .pzMode i,.pzMode em{display:none}
   .pzMain{display:block;overflow:auto}.pzRooms{padding:12px;overflow:visible}.pzBack{margin-top:10px}
   .pzSectionHead{align-items:flex-start;margin-bottom:10px}.pzSectionHead p{max-width:160px;text-align:right;line-height:1.5}
   .pzGrid{grid-template-columns:repeat(3,1fr);gap:7px}.pzT{min-height:78px;padding:10px 9px}.pzT .who{font-size:var(--fs-xs,11px)}
@@ -581,44 +591,75 @@ export const PLAZA_CSS = `
   .pzRankRow{grid-template-columns:minmax(60px,1fr) auto auto;gap:8px}
 }
 @media (max-width:370px){.pzGrid{grid-template-columns:repeat(2,1fr)}.pzSectionHead p{display:none}}
-/* 问名／问密码卡 */
+/* 问名／问密码卡：随社交面走石青（.panel 底为暗夜 --ck-*，此处整卡覆写） */
+.pzAsk{background:var(--aq-panel);border-color:var(--aq-goldline);color:var(--aq-tx)}
+.pzAsk h2{color:var(--aq-title)}
+.pzAsk .gbtn{background:rgba(255,255,255,.55);border:1px solid var(--aq-line);color:var(--aq-tx)}
+.pzAsk .gbtn.primary{background:var(--aq-goldwash);border:1px solid var(--aq-goldline);color:var(--aq-tx);font-weight:600}
 .pzAsk .body{display:grid;gap:12px;text-align:center}
-.pzAsk .lead{color:#dccf9f;font-size:var(--fs-md,14px);letter-spacing:2px}
-.pzAsk .bigIn{width:100%;box-sizing:border-box;background:rgba(255,255,255,.05);
-  border:1px solid rgba(215,170,69,.3);border-radius:12px;color:#f4e6b8;font-family:inherit;
+.pzAsk .lead{color:var(--aq-tx);font-size:var(--fs-md,14px);letter-spacing:2px}
+.pzAsk .bigIn{width:100%;box-sizing:border-box;background:rgba(255,255,255,.7);
+  border:1px solid var(--aq-goldline);border-radius:12px;color:var(--aq-tx);font-family:inherit;
   padding:15px 12px;font-size:22px;letter-spacing:6px;text-indent:6px;text-align:center;outline:none;
   transition:border-color .2s,box-shadow .2s}
 .pzAsk .bigIn.num{font-size:28px;letter-spacing:16px;text-indent:16px}
-.pzAsk .bigIn::placeholder{color:#6f7787;letter-spacing:6px}
-.pzAsk .bigIn:focus{border-color:rgba(232,199,102,.75);box-shadow:0 0 0 3px rgba(215,170,69,.14)}
-.pzAsk .hint{font-size:var(--fs-xs,11px);color:var(--note);letter-spacing:1px;min-height:15px}
-.pzAsk .hint.err{color:var(--woe-tx)}
+.pzAsk .bigIn::placeholder{color:#8fa0a8;letter-spacing:6px}
+.pzAsk .bigIn:focus{border-color:rgba(150,112,32,.7);box-shadow:0 0 0 3px rgba(176,131,28,.12)}
+.pzAsk .hint{font-size:var(--fs-xs,11px);color:var(--aq-note);letter-spacing:1px;min-height:15px}
+.pzAsk .hint.err{color:var(--aq-woe)}
 .pzAsk .gbtn.big{width:100%;padding:13px 0;font-size:var(--fs-md,14px);letter-spacing:3px}
-.pzAsk .gbtn.ghost{width:100%;background:none;border-color:rgba(215,170,69,.22);color:var(--note)}
+.pzAsk .gbtn.ghost{width:100%;background:none;border-color:var(--aq-line);color:var(--aq-note)}
 .pzAskName{width:min(420px,92vw);padding:23px 22px 18px!important}
-.pzAskName .askEyebrow{margin:0 46px 8px 0;color:#a99560;font-size:var(--fs-xs,11px);letter-spacing:2px}
+.pzAskName .askEyebrow{margin:0 46px 8px 0;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:2px}
 .pzAskName h2{margin:0 46px 5px 0;font-size:clamp(22px,4.6vw,28px);letter-spacing:3px}
 .pzAskName .body{gap:14px;text-align:left}
-.pzAskName .lead{margin:0 0 2px;color:#c7bd9d;font-size:var(--fs-sm,12.5px);letter-spacing:1px}
+.pzAskName .lead{margin:0 0 2px;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px}
 .pzAskName .nameField{display:grid;gap:7px}
-.pzAskName label{display:flex;align-items:baseline;gap:8px;color:#f0dfaa;font-size:var(--fs-md,14px);letter-spacing:2px}
-.pzAskName label span{color:#8e856e;font-size:var(--fs-xs,11px);letter-spacing:1px}
+.pzAskName label{display:flex;align-items:baseline;gap:8px;color:var(--aq-title);font-size:var(--fs-md,14px);letter-spacing:2px}
+.pzAskName label span{color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:1px}
 .pzAskName .bigIn{min-height:52px;padding:13px 14px;font-size:var(--fs-xl);letter-spacing:1.5px;text-indent:0;text-align:left}
 .pzAskName .bigIn::placeholder{letter-spacing:1px}
-.pzAskName .fieldMeta{display:flex;justify-content:space-between;gap:12px;min-height:17px;color:#92886d;font-size:var(--fs-xs,11px);letter-spacing:.5px}
+.pzAskName .fieldMeta{display:flex;justify-content:space-between;gap:12px;min-height:17px;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:.5px}
 .pzAskName .fieldMeta span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
-.pzAskName .fieldMeta .err{color:var(--woe-tx)}
-.pzAskName .scope{margin:0;padding:11px 0;border-top:1px solid rgba(215,170,69,.13);border-bottom:1px solid rgba(215,170,69,.13);
-  color:#a69c7d;font-size:var(--fs-xs,11px);line-height:1.65;letter-spacing:.5px}
+.pzAskName .fieldMeta .err{color:var(--aq-woe)}
+.pzAskName .scope{margin:0;padding:11px 0;border-top:1px solid var(--aq-line);border-bottom:1px solid var(--aq-line);
+  color:var(--aq-note);font-size:var(--fs-xs,11px);line-height:1.65;letter-spacing:.5px}
 .pzAskName .gbtn.big{min-height:50px;margin-top:1px}
-.pzAskName .pzAskBack{min-height:44px;border:0;background:none;color:#a69c7d;font-family:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
-.pzAskName .pzAskBack:hover{color:#e6d8aa}
-.pzAskName .pzAskBack:focus-visible{outline:2px solid rgba(232,199,102,.72);outline-offset:2px;border-radius:9px}
+.pzAskName .pzAskBack{min-height:44px;border:0;background:none;color:var(--aq-note);font-family:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
+.pzAskName .pzAskBack:hover{color:var(--aq-title)}
+.pzAskName .pzAskBack:focus-visible{outline:2px solid rgba(150,112,32,.72);outline-offset:2px;border-radius:9px}
 .pzAskName button:disabled,.pzAskName input:disabled{cursor:wait;opacity:.62}
 @media(max-width:640px){
   .pzAskName{width:min(92vw,420px);padding:21px 18px 16px!important}
   .pzAskName h2{font-size:24px}
 }
+/* 莲友茶寮（2026-07-30 §七之十一）：与佛悦主站共修群相通——同数据不同皮，石青展卷 */
+.clWrap{display:flex;flex-direction:column;min-height:100%}
+.clNotice{margin:0 0 10px;padding:9px 12px;border:1px solid var(--aq-line);border-radius:10px;
+  background:rgba(255,255,255,.5);color:var(--aq-note);font-size:var(--fs-sm,12.5px);line-height:1.6}
+.clNotice:empty{display:none}
+.clMsgs{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  display:flex;flex-direction:column;gap:8px;padding:4px 2px 10px}
+.clTs{align-self:center;font-size:var(--fs-xs,11px);color:var(--aq-note);opacity:.85;padding:2px 0}
+.clM{display:flex;flex-direction:column;align-items:flex-start;max-width:88%}
+.clM .who{font-size:var(--fs-xs,11px);color:var(--aq-note);margin:0 4px 3px}
+.clM .bb{padding:8px 11px;border-radius:5px 13px 13px 13px;background:var(--aq-wash2);color:var(--aq-tx);
+  font-size:var(--fs-md,14px);line-height:1.55;word-break:break-word}
+.clM.mine{align-self:flex-end;align-items:flex-end}
+.clM.mine .bb{border-radius:13px 5px 13px 13px;background:rgba(176,131,28,.16);color:#3f3312}
+.clEmpty{margin:auto;text-align:center;color:var(--aq-note);font-size:var(--fs-sm,12.5px);line-height:1.7;padding:34px 0}
+.clQuick{display:flex;flex:none;gap:8px;padding:2px 0 8px;overflow-x:auto}
+.clQuick button{min-height:40px;white-space:nowrap;border:1px solid var(--aq-line);background:rgba(255,255,255,.5);
+  color:var(--aq-tx);border-radius:12px;padding:7px 12px;cursor:pointer;font:inherit;font-size:var(--fs-sm)}
+.clQuick button:hover{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
+.clInput{position:relative;display:flex;flex:none;gap:8px;padding:9px 0 0;border-top:1px solid var(--aq-line)}
+.clInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.7);
+  border:1px solid var(--aq-line);border-radius:10px;color:var(--aq-tx);padding:9px 11px;font-family:inherit;font-size:var(--fs-lg);outline:none}
+.clInput input:focus{border-color:rgba(150,112,32,.6);box-shadow:0 0 0 2px rgba(176,131,28,.1)}
+.clInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-goldline);background:var(--aq-goldwash);
+  color:var(--aq-tx);border-radius:10px;cursor:pointer;font:inherit;font-weight:600}
+.clHint{position:absolute;left:2px;bottom:calc(100% + 3px);color:var(--aq-woe);font-size:var(--fs-xs,11px);pointer-events:none}
+.clHint:empty{display:none}
 `;
 
 /* 同修及第横幅：不弹窗不打断 */
