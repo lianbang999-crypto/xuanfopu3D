@@ -2463,7 +2463,9 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #sfpConfirm .gbtn{display:block;width:100%;min-height:46px;margin-top:10px}
 /* 我的功课：全站与个人共用同一组列（累计／今日），上下一对照就懂。
    2026-07-30 排版收口：数字只住一张卡（共修·连续·及第并入四格表底行，不再另起散行）。
-   同日石青·晓（§七之十一）：我的页随社交面走 --aq-* 浅色族，数字用泥金深、正文小字一律青墨。 */
+   同日石青·晓（§七之十一）：我的页随社交面走 --aq-* 浅色族，数字用泥金深、正文小字一律青墨。
+   同日晚极简收束（用户点单）：撤「我的行谱记录」清单与两条分节小题；
+   见闻／原文／设置三行收进一张发丝线分组卡 .myList，与四格卡、月历同一卡语言，行题减字。 */
 .myPanel .myLoad{padding:36px 0;text-align:center;color:var(--aq-note);letter-spacing:2px}
 .myPanel .myWho{display:flex;align-items:center;gap:8px;font-size:var(--fs-sm);color:var(--aq-note)}
 .myPanel .myWho b{color:var(--aq-strong);font-weight:500}
@@ -2477,9 +2479,10 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .myPanel .myGrid .me b{color:var(--aq-title)}
 .myPanel .myGrid .sub{grid-column:1/-1;padding:9px 13px;text-align:center;color:var(--aq-note);
   font-size:var(--fs-sm);letter-spacing:1px;font-variant-numeric:tabular-nums}
-.myPanel .myLine2{margin:18px 0 7px;color:var(--aq-note);font-size:var(--fs-xs);letter-spacing:3px}
 .myPanel .myCal{margin-top:12px;border:1px solid var(--aq-line);border-radius:12px;padding:10px 10px 12px;background:rgba(255,255,255,.55)}
-.myPanel .myCal+.myRow{margin-top:12px}
+.myPanel .myList{margin-top:12px;border:1px solid var(--aq-line);border-radius:12px;background:rgba(255,255,255,.6);overflow:hidden}
+.myPanel .myList .gbtn{border:0;border-radius:0;background:transparent;padding:0 13px}
+.myPanel .myList .gbtn+.gbtn{border-top:1px solid var(--aq-line)}
 .myPanel .myCalHead{display:flex;align-items:center;gap:6px;margin-bottom:8px}
 .myPanel .myCalHead b{color:var(--aq-title);font-weight:500;font-size:var(--fs-md)}
 .myPanel .myCalHead span{margin-left:auto;color:var(--aq-note);font-size:var(--fs-xs)}
@@ -2499,11 +2502,6 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .myPanel .myRow .ico{color:var(--aq-gold);opacity:.92}   /* 行首的形只作辨识：泥金作形不作字 */
 .myPanel .myRow>span{min-width:0;flex:1 1 auto}
 .myPanel .myRow i{margin-left:auto;font-style:normal;color:var(--aq-strong);white-space:nowrap}
-.myPanel .myRun{display:grid;grid-template-columns:auto 1fr auto;align-items:baseline;gap:8px;
-  padding:8px 2px;border-bottom:1px solid rgba(112,96,64,.16);font-size:var(--fs-sm)}
-.myPanel .myRun b{color:var(--aq-tx);font-weight:500;white-space:nowrap}
-.myPanel .myRun span{color:var(--aq-note);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.myPanel .myRun em{font-style:normal;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs);white-space:nowrap}
 /* 共同结算卡：一句结果 + 一句本座 + 同座行处，三层看完即知本局如何 */
 .nsPanel .nsHead{margin-top:6px;color:#f0dfa8;font-size:var(--fs-lg);letter-spacing:2px}
 .nsPanel .nsMine{margin-top:3px;color:#cfc7ad;font-size:var(--fs-sm)}
@@ -2692,19 +2690,28 @@ app.appendChild(topbar);
 const titleEl = topbar.querySelector('#title')               ;
 titleEl.style.cursor = 'pointer';
 titleEl.addEventListener('click', () => browseMapMode()); // v258 用户点单：点题字直切观照全图（题屏仍留给开局引导）；v312 符号 ⌄→⊙（⌄暗示下拉而行为是观照，语义勘正）
-titleEl.title = '观照全图（存局退出）';
+titleEl.title = '观照全图（一人行谱存局退出；共修中只拉远，本局仍在）';
 
 // 罗盘已撤（极简屏，用户点单）：死代码清除——按遗留坐标重挂会紧贴顶栏两钮（52px vs 58px），复用须重算
 
 const freeDock = el('<div id="freeDock" class="ui"></div>');
 app.appendChild(freeDock);
+// 共修回局：本机不留联机棋况（sfpSave 遇 Net.active 即早退），故一律按服务器快照回位。
+// 挂实见「联机接线」段；未在座或本局不在进行时返回 false，由本机存局链路接手。
+let netRejoin = ()          => false;
 const quickSfp = el('<button class="gbtn primary" style="border-radius:24px;padding:13px 30px;font-size:var(--fs-lg);letter-spacing:3px">选佛</button>');
-quickSfp.addEventListener('click', () => { // 有存局直接续掷，无则入大厅（文案随之改，一钮一义）
+quickSfp.addEventListener('click', () => { // 共修在座＝回局中；否则有存局直接续掷，无则入大厅（一钮一义）
+  if (netRejoin()) return;
   if (save.sfp && SFP_BY[save.sfp.pos]) startSfp(true); else openPlaza();
 });
 freeDock.appendChild(quickSfp);
 // 底坞主钮一钮一义：有存局说「续掷」，没有才说「选佛」（大厅入口已移至右上角）
 function syncFreeDock() {
+  if (Net.active && Net.isPlaying()) { // 共修局中：钮即回局中（本机存局与本局无关，不得据以标名）
+    quickSfp.textContent = zh('回局中');
+    quickSfp.title = zh('回到共修局中（棋况以共修室为准）');
+    return;
+  }
   const resume = !!(save.sfp && SFP_BY[save.sfp.pos]);
   quickSfp.textContent = zh(resume ? '续掷' : '选佛');
   quickSfp.title = zh(resume ? `续上局：现居「${SFP_BY[save.sfp.pos].name}」` : '入共修大厅择一人行谱或与人共修');
@@ -3296,6 +3303,7 @@ function openTitle() {
   // 主钮三态：局中→回局；有存局→直接续掷；无局→全屏大厅选择一人或与人共修。
   (p.querySelector('#tiSfp')               ).addEventListener('click', () => {
     if (act) { closeOverlay(); return; }
+    if (netRejoin()) { closeOverlay(); return; } // 共修在座：回服务器棋况，不落到本机旧存局
     if (hasSfp) { closeOverlay(); startSfp(true); return; }
     openPlaza();
   });
@@ -3311,7 +3319,7 @@ function openTitle() {
   const tnet = p.querySelector('#tiNet');             // 已在房：直达同修面板
   if (tnet) tnet.addEventListener('click', () => {
     closeOverlay();
-    if (!sfpS.active) startSfp(hasSfp);
+    if (!sfpS.active && !netRejoin()) startSfp(hasSfp); // 在座且本局在进行＝按服务器快照回位
     Net.openPanel();
   });
   (p.querySelector('#tiShare')               ).addEventListener('click', () => quickShare({ code: Net.active ? Net.code : '', zh, toast: showToast })); // 荐游戏；已在房则荐的即邀请
@@ -3322,12 +3330,17 @@ function openTitle() {
 
 // 手势教学已撤（用户点单）：操作要领折进玩法卡
 
-// 观照全图＝存局退出入自由观照；v258 将入口移到顶栏题字。
+// 共修在座且本局仍在进行：棋况归服务器，本机不得作「存局退出」。
+// 退了则轮次照跑而人已不在局（白等到超时被跳手）；回局时本机又只剩上一局的单机存局可依，
+// 一点「续掷」就把人送回上局停的那一门重新掷——「点全图后跳到某门开始掷轮」即出于此。
+function netSeatedInPlay()          { return Net.active && Net.isPlaying(); }
+// 观照全图＝拉远自由观照（单机顺带存局退出）；v258 将入口移到顶栏题字。
 function browseMapMode() {
   setBrowseDoor(0);
   if (inDoor) exitDoor(false);
   const was = sfpS.active;
-  if (was) endSfp('行处已存，入自由观照——点「选佛」可续掷');
+  if (was && !netSeatedInPlay()) endSfp('行处已存，入自由观照——点「选佛」可续掷');
+  else if (was) showToast('已拉远观照全图——本局仍在，轮到您时照常掷轮', 3600); // 共修中只换镜头，不收局
   if (inPure || inSky || inBodhi || inDisc) returnSaha();
   flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0), 1.4);
   if (!was) showToast('十五门三段安位：下环世间流转、中阶三学转身、上轨四教入圣——点门展开，双击入场：极乐星径入净土、余门俯冲贴近', 4200);
@@ -4206,14 +4219,19 @@ function goHome() {
 }
 backBtn.addEventListener('click', () => {
   if (inDoor) { // 门观「全图」＝存局退出，入自由观照（用户定案）；未在局则照旧出门拉远
-    if (sfpS.active) {
+    if (sfpS.active && !netSeatedInPlay()) {
       endSfp('行处已存，入自由观照——点「选佛」可续掷');
       flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0), 1.4);
+    } else if (sfpS.active) { // 共修在座：只出门观拉远，本局照旧（收局会让轮次照跑而人不在局）
+      exitDoor(false);
+      flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0), 1.4);
+      showToast('已拉远观照全图——本局仍在，轮到您时照常掷轮', 3600);
     } else exitDoor(true);
   }
   else if (inPure || inSky || inBodhi || inDisc) returnSaha(); // v212 修复：道场内按钮显「全图」却无对应分支——局中误走「归位」需按两次、局外则全无动作
   else if (sfpS.active && sfpS.pos && SFP_BY[sfpS.pos].terminal) { // v212：毕局位无「归位」可言——钮即收局返全图
-    endSfp('一局功圓——已入自由观照，点「选佛」可再入选佛场');
+    if (!netSeatedInPlay()) endSfp('一局功圓——已入自由观照，点「选佛」可再入选佛场');
+    else showToast('已拉远观照全图——本局仍在，等候共同结算', 3600); // 共修及第者留座待结算，不自行收局
     flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0), 1.4);
   }
   else if (sfpS.active && sfpS.pos) goHome(); // 顶栏常驻「归位」：漫游远了一键回到现居位
@@ -6504,6 +6522,14 @@ renderer.domElement.addEventListener('pointerdown', () => {
   const f = skipFn; skipFn = null; f();
 }, true);
 void skipFn;
+// 转场收尾一处收口：彗星、直达钩子、转场页与 sfpTransit 一并归零。
+// 凡「局已收而动画还在途」的分叉都必须走这里——在途回调若只是 return 走人，
+// 转场页(#fadeWhite z-40)会永远停在满不透明，盖住及第面板(z-30)，人只见星河不见卡（联机成佛卡死即此）。
+function clearTransit() {
+  cometCancel();              // 内含 setTransit(false)
+  setSkip(null);
+  fadeEl.style.opacity = '0';
+}
 function sfpFlyAnchor(p     ) {
   // 掷定入位：就地观照——本门位珠就地全亮放大、标签浮出，镜头俯冲贴近珠位（无场景切换）
   if (!p.pure) {
@@ -6697,7 +6723,7 @@ function sfpGoto(id        , msg        , dir         , combo         ) {
     locGlow.visible = false;
     fadeEl.style.opacity = '1';
     window.setTimeout(() => {
-      if (!sfpS.active) return;
+      if (!sfpS.active) { clearTransit(); return; } // 局在直达途中被收（联机共同结算插进来）：转场页须自收，否则星河满屏不退
       setTransit(false);
       pawnLandPending = true; pawnLandDir = dir || '';
       if (save.sfpFocus) setSfpFocus(p.door);
@@ -6739,7 +6765,7 @@ function sfpGoto(id        , msg        , dir         , combo         ) {
     }
     pawnLandPending = false;
     fadeTransit(() => {
-      if (!sfpS.active) return;
+      if (!sfpS.active) { setTransit(false); return; } // 同上：局已收也要把 sfpTransit 放掉（fadeTransit 自会收转场页）
       enterDiscCore(p.door);
       const v = discView();
       camera.position.set(0, v.y + 26, v.z + 40); controls.target.copy(discTarget());
@@ -6805,7 +6831,8 @@ function sfpGoto(id        , msg        , dir         , combo         ) {
     delay = 820;
   }
   window.setTimeout(() => {
-    if (seq !== sfpMoveSeq || !sfpS.active) return;
+    if (seq !== sfpMoveSeq) return;                  // 新一手已接管转场，勿代收
+    if (!sfpS.active) { clearTransit(); return; }    // 局已收而彗星未起：转场自收，免掷钮永远停在「行棋中…」
     ghostRef = { nv: fromNv, lp: fromLp };
     ghostGlow.visible = true; ghostUntil = performance.now() + 800; // v151 行棋静场；v319 残光减半
     cometStart(fromNv, fromLp, toNv, toLp, dir || 'up', span, arrive);
@@ -7355,12 +7382,13 @@ function startSfp(resume         ) {
   };
   if (tourStep >= 0) { tourStep = -1; }
   stopChant();                       // 上一局的唱赞不带进新局
-  cometCancel();
+  clearTransit();                    // 上一局若有未收的转场页/彗星，开局即断
   setModeInstant(0);
   sfpS.active = true; sfpS.rolling = false; sfpS.finished = false;
   armBackGuard(); // 局中返回键＝缓退（先提示行处已存，再按一次才离开）
   beadTipOnce(); // v362 触屏首局一次性告知位珠可点（桌面走 hover 浮名，无需此告）
   sfpVictoryHandled = false;
+  sfpVictoryWait = 0;
   sfpBonusLeft = 0;
   sfpMsgLog = [];
   sfpFaceEls.forEach(f => { f.textContent = ''; });
@@ -7421,10 +7449,9 @@ function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续
   sfpQuiet(false);
   setSfpFocus(0);
   if (sfpTimer) clearInterval(sfpTimer);
-  cometCancel();
+  clearTransit(); // 含 cometCancel/setSkip(null)，并把转场页收回——中途散局不留满屏星河
   doorDiveSeq++;
   cancelVerdict();
-  setSkip(null);
   exitDoor(false);
   exitStarView(false);
   posRevealEl.classList.remove('show');
@@ -7439,6 +7466,7 @@ function endSfp(msg = '选佛谱已收起，行处已存；点「选佛」可续
   showToast(msg);
 }
 let sfpVictoryHandled = false;
+let sfpVictoryWait = 0; // 收局等落定的起表时刻（0＝未在等）
 function sfpVictory(settled = false) {
   if (!sfpS.active || sfpVictoryHandled) return;
   if (Net.active && !settled && !Net.isFinished()) {
@@ -7452,6 +7480,15 @@ function sfpVictory(settled = false) {
       : '本座已选佛及第——等待共同结算', 5200);
     return;
   }
+  // 收局须等本手乘光落定。联机的「共同结算」常在本座这一手飞行途中送达（末位及第时服务器当即收局），
+  // 半途把 sfpS.active 置 false，在途的直达/彗星回调便全数早退——转场页与 sfpTransit 再无人收，
+  // 人就一直卡在星河转场里。故先候落定，再收局；转场若久不结束（六秒）则强收兜底。
+  if (sfpTransit) {
+    if (!sfpVictoryWait) sfpVictoryWait = Date.now();
+    if (Date.now() - sfpVictoryWait < 6000) { window.setTimeout(() => sfpVictory(settled), 300); return; }
+    clearTransit();
+  }
+  sfpVictoryWait = 0;
   sfpVictoryHandled = true;
   vib([30, 60, 30, 60, 140]); // 及第庆祝振
   save.sfpWins = (save.sfpWins || 0) + 1;
@@ -7459,6 +7496,7 @@ function sfpVictory(settled = false) {
   const n = sfpS.n;
   const trailSnapshot = sfpS.trail.slice();
   sfpS.active = false; sfpS.finished = true; sfpS.pos = null;
+  clearTransit(); // 收局即断一切在途转场：及第面板不该被残留的星河页盖住
   document.body.classList.remove('sfpOn');
   sfpBar.classList.remove('show'); conPill.classList.remove('show');
   setSfpFocus(0);
@@ -7743,11 +7781,6 @@ function openMine() {
   const paint = () => {
     if (!mine) return;
     const { html, sum } = myMonthHtml(mine.daily || {}, cursor.getFullYear(), cursor.getMonth());
-    const runs = (mine.runs || []).slice(0, 8).map(r => `<div class="myRun">
-      <b>第 ${r.n} 掷及第</b>
-      <span>${r.path === 'pure' ? '横超净土' : '竖出'}${r.lowest ? ` · 最深 ${esc(r.lowest)}` : ''}${r.doors?.length ? ` · 历 ${r.doors.length} 门` : ''}</span>
-      <em>${r.seat === 'solo' ? '一人行谱' : '共修室'}</em>
-    </div>`).join('');
     body.innerHTML = `
       <div class="myWho"><span>功课记在</span><b>${esc(Plaza.practiceName())}</b><button class="gbtn" id="myRename">改名号</button></div>
       <div class="myGrid">
@@ -7767,12 +7800,11 @@ function openMine() {
         <div class="myWk">${MY_WEEK.map(w => `<span>${w}</span>`).join('')}</div>
         <div class="myDays">${html}</div>
       </div>
-      <button class="gbtn myRow" id="myLg">${ico('eye')}
-        <span>行谱见闻 · 本机</span><i>见 ${lg.seen.length}/${(SFP_POS         ).length} 位 ›</i></button>
-      ${runs ? `<div class="myLine2">我的行谱记录</div><div class="myRuns">${runs}</div>` : ''}
-      <div class="myLine2">谱与设置</div>
-      <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文 · 逐字读谱</span><i>›</i></button>
-      <button class="gbtn myRow" id="mySet">${ico('sliders')}<span>设置 · 声音 · 简繁 · 卡片</span><i>›</i></button>
+      <div class="myList">
+        <button class="gbtn myRow" id="myLg">${ico('eye')}<span>行谱见闻</span><i>见 ${lg.seen.length}/${(SFP_POS         ).length} 位 ›</i></button>
+        <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文</span><i>›</i></button>
+        <button class="gbtn myRow" id="mySet">${ico('sliders')}<span>设置</span><i>›</i></button>
+      </div>
       <div class="cNote">一掷一称念「南无阿弥陀佛」，只作随喜记录，不作修证高下。功课记在本机莲号下，换设备会另计。</div>
       <button class="gbtn primary" id="myOk" style="margin-top:14px;margin-bottom:4px;width:100%">${sfpS.active ? '回到局中' : '关闭'}</button>`;
     zhDom(p);
@@ -9703,10 +9735,10 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   let netTurnWake = 0;
   const hydrateNetGame = (force = false) => {
     const me = Net.me();
-    if (!me || (!Net.isPlaying() && !(Net.isFinished() && me.done))) return;
+    if (!me || (!Net.isPlaying() && !(Net.isFinished() && me.done))) return false;
     const serverPos = me.pos && SFP_BY[me.pos] ? me.pos : null;
     const serverN = Number(me.n) || 0;
-    if (!force && sfpS.active && sfpS.pos === serverPos && sfpS.n === serverN) return;
+    if (!force && sfpS.active && sfpS.pos === serverPos && sfpS.n === serverN) return true;
     if (!sfpS.active) startSfp(false);
     else {
       cancelVerdict();
@@ -9736,7 +9768,10 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
       sfpShowMsg('本局尚未起行');
     }
     sfpStatus();
+    return true;
   };
+  // 挂实「共修回局」：底坞主钮与题屏主钮据此回到服务器棋况，不落到本机旧存局
+  netRejoin = () => (Net.isPlaying() ? hydrateNetGame(true) : false); // 已结算的房只该走「准备下一局」，不再复活旧局
   const scheduleNetTurnUi = () => {
     clearTimeout(netTurnWake);
     const wait = Number(Net.room.availableAt || 0) - Date.now();
@@ -9802,7 +9837,19 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
       if (message.player?.done) sfpPeerWin(message.name, message.player.n);
       return;
     }
-    if (!sfpS.active) startSfp(false);
+    if (!sfpS.active) {
+      // 曾退到自由观照又轮到本座：新开的空局会把本掷当作首掷「發始因地」，人被打回门一重新起行。
+      // 故先按服务器给的本掷起手位（steps[0].from＝掷前所居）回局，再照常演这一掷。
+      startSfp(false);
+      const from = message.steps?.[0]?.from;
+      if (from && SFP_BY[from]) {
+        sfpS.pos = from;
+        sfpS.trail = [from];
+        sfpS.seenD = [SFP_BY[from].door];
+        rebuildFoot();
+        sfpFlyAnchor(SFP_BY[from]);
+      }
+    }
     sfpS.rolling = true;
     sfpDice.classList.add('on');
     sfpQuiet(true);
