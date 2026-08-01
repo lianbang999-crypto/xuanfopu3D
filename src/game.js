@@ -41,7 +41,7 @@ const save = {
   seenBeadTip: false, // v362 触屏「位珠可点」一次性引导（桌面有 hover 浮名，触屏无等价物）
   askq: { d: '', n: 0 }, // 问义日额（每日 100 次）
   zh: 's'             ,
-  cardTheme: 'paper'  , // 卡片主题：'paper' 青纸（默认，2026-07-30「青纸墨书泥金题」全局统一）/ 'night' 暗夜（可切回）
+  cardTheme: 'night'  , // 卡片主题：'night' 暗夜（默认，2026-07-31 用户定案改回）/ 'paper' 青纸（可切）
   settings: { sfx: true, ambient: true, music: true, lowPerf: false, bigFont: false, moveFx: true }, // music：及第时唱赞一遍；moveFx：行棋乘光飞行特效；关＝直达落位
 };
 function applyCardTheme() { document.documentElement.classList.toggle('paperCards', save.cardTheme === 'paper'); }
@@ -2417,17 +2417,9 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .vaskC{font-size:var(--fs-xs);border:1px solid rgba(215,170,69,.5);border-radius:7px;padding:2px 9px;margin-left:9px;color:var(--gold);cursor:pointer;vertical-align:2px;white-space:nowrap;position:relative}
 .vaskC::before{content:'';position:absolute;inset:-12px -14px}
 .vsrcT{cursor:pointer;color:var(--note);border-bottom:1px dotted rgba(157,145,112,.6);white-space:nowrap}
-/* 纠错（批E，2026-07-30 收口）：入口只在 AI 解读页（解读卡底行＋问答角标）；上报卡＝四签一框一钮 */
-.rpKinds{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.rpKind{min-height:36px;padding:6px 12px;border-radius:10px;cursor:pointer;font:inherit;font-size:var(--fs-sm);
-  border:1px solid var(--ck-btn-br);background:var(--ck-btn-bg);color:var(--ck-btn-tx)}
-.rpKind.on{background:rgba(215,170,69,.28);border-color:var(--gold);color:#fff}
-.rpText{width:100%;box-sizing:border-box;margin-top:8px;min-height:88px;resize:vertical;border-radius:10px;
-  border:1px solid var(--ck-btn-br);background:rgba(0,0,0,.2);color:var(--ck-plain);padding:10px 11px;
-  font-family:inherit;font-size:16px;line-height:1.6;outline:none}
-.rpText:focus{border-color:rgba(232,199,102,.6)}
-.cbFix{margin-top:6px;text-align:right;font-size:var(--fs-xs);color:var(--ck-note);cursor:pointer}
-.cbFix:hover{color:var(--ck-link)}
+/* 纠错（批E）2026-07-31 整体下线，用户定案：报文的「定位」只有机器串（问答那一路更几乎为空），
+   管理处收到即不知所纠何处；送出后又无交代只闪一句 toast。功能连同 .rpKinds/.rpKind/.rpText/.cbFix
+   一并撤除，待定位串改为人读得懂的形制（位名·门·轮相·原文摘录）后再议重启。 */
 /* v236 「问」聊天式界面：问右答左双气泡 + 快问签 */
 .cbRow{display:flex;margin:4px 0}
 .cbU{margin-left:auto;max-width:86%;background:var(--ck-cbU);border:1px solid var(--ck-cbU-br);border-radius:11px 11px 3px 11px;padding:7px 11px;font-size:var(--fs-sm);color:var(--ck-cbU-tx);line-height:1.65}
@@ -5892,7 +5884,7 @@ function showVerdict(body        , why                                      , go
   const orig = sfpEvidenceSourceHtml(whyEvidence);
   // v226 用户点单：去处白话句撤（位名可点弹签已覆盖）；谱曰原文收进「点开再读」
   const srcT = orig ? `<span class="vsrcT">原文 ▸</span>` : '';
-  // 纠错不在判词弹窗（2026-07-30 用户令：这是很小的辅助功能）——入口只在 AI 解读页
+  // 判词弹窗历来不挂纠错入口；2026-07-31 纠错功能整体下线，此处照旧不挂
   wEl.innerHTML = zh(plain ? `${plain}${srcT ? ' ' + srcT : ''}` : srcT);
   wEl.style.display = (plain || orig) ? '' : 'none';
   wEl.classList.remove('full');
@@ -7966,48 +7958,6 @@ function openChalou() {
   pull().then(() => { if (p.isConnected) chalouTimer = window.setInterval(pull, 6000); }); // 开着 6 秒增量轮询，离页即停
 }
 
-// ───────── 纠错上报（批E）：读到什么就能纠什么——定位串程序自动附带，用户只说一句哪里不对；
-// 上报至 foyue.org/admin 统一处理（POST /api/report，匿名，经查证后修正） ─────────
-function openReportCard(ctx                                                                                                       , backTo         ) {
-  const target = ['game',
-    ctx.pos ? `pos:${ctx.pos}` : '', ctx.door ? `door:${ctx.door}` : '',
-    ctx.combo ? `combo:${ctx.combo}` : '', ctx.ev ? `ev:${ctx.ev}` : '',
-    ctx.ref ? `ref:${ctx.ref}` : '', `at:${ctx.scene}`].filter(Boolean).join('|').slice(0, 280);
-  const kinds = ['原文有误', '白话不确', '解读不当', '其它']; // 对应证据层四型的大白话（§5.0 命名原则）
-  // 极简（2026-07-30 用户令：很小的辅助功能）：四签一框一钮；定位串只随报文送出，不占卡面
-  const p = el(`<div class="panel"><h2>纠错 · 随喜指正</h2><div class="body">
-    <div class="rpKinds">${kinds.map((k, i) => `<button type="button" class="rpKind${i === 0 ? ' on' : ''}" data-k="${k}">${k}</button>`).join('')}</div>
-    <textarea id="rpText" class="rpText" maxlength="300" rows="4" placeholder="${esc(ctx.hint || '请说说哪里不对（300 字内）')}"></textarea>
-    <div class="cNote">所纠之处程序已自动附带 · 匿名送达管理处，经查证后修正。</div>
-    <button class="gbtn primary" id="rpGo" style="margin-top:10px;width:100%">发送</button></div></div>`);
-  let kind = kinds[0];
-  (p.querySelector('.rpKinds')               ).addEventListener('click', (e) => {
-    const b = (e.target               ).closest ? (e.target               ).closest('.rpKind')                : null;
-    if (!b) return;
-    kind = (b               ).dataset.k || kinds[0];
-    p.querySelectorAll('.rpKind').forEach(x => x.classList.toggle('on', x === b));
-  });
-  const go = p.querySelector('#rpGo')                                 ;
-  go.addEventListener('click', async () => {
-    const text = ((p.querySelector('#rpText')                       ).value || '').replace(/\s+/g, ' ').trim();
-    if (!text) { showToast(zh('请说一句哪里不对'), 2200); return; }
-    go.disabled = true; go.textContent = zh('正在送出…');
-    try {
-      const r = await fetch(`${FY_BASE}/api/report`, {
-        method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ dev: fyDev(), site: 'game', kind, target, text }),
-      });
-      if (r.ok) { closeOverlay(); showToast(zh('已收到，随喜指正 🙏'), 3200); return; }
-      const t = await r.text();
-      showToast(zh(t && t.length < 40 ? t : '未送出，请稍后再试'), 3000);
-    } catch (e) { showToast(zh('网络不通，未送出'), 2600); }
-    go.disabled = false; go.textContent = zh('发送');
-  });
-  openOverlay(p);
-  if (backTo) overlayOnClose = backTo;   // 同路往返：从哪张卡来，关卡回哪张
-  zhDom(p);
-}
-
 // 共修动态：独立全屏页（从大厅顶条进），关闭即回大厅——一层，一条退路
 async function openStream() {
   plazaNavAway();
@@ -8928,7 +8878,7 @@ function openTossReading(ctx                                                    
   const inner = el(`<div class="panel"><h2>AI 解读 · 掷得「${esc(ctx.c)}」</h2><div class="body">
     <div class="cbA rdCard" style="margin-top:2px;background:none;border:0;padding:0;max-width:100%">${sfpTossAnswerHtml({ c: ctx.c, from: ctx.from, to: ctx.to, evidence: ctx.evidence })}</div>
     <div id="trChips" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">${(() => { const P0 = (ctx.to ? SFP_BY[ctx.to] : null) || F; if (!P0) return ''; const pred = P0.pure ? '什么是横超' : (P0.door === 2 || P0.door === 3) ? '堕到这里还有救吗' : ''; const whyQ = F && ctx.c ? `在${F.name}掷得${ctx.c}为什么这样走` : ''; return [whyQ, `${P0.name}是什么`, pred].filter(Boolean).map(c2 => `<span class="chipQ">${esc(c2)}</span>`).join(''); })()}</div></div>
-    <div style="display:flex;gap:8px;margin-top:10px"><button class="gbtn" id="trAsk">问</button><button class="gbtn" id="trFix">纠错</button><button class="gbtn primary" id="trOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+    <div style="display:flex;gap:8px;margin-top:10px"><button class="gbtn" id="trAsk">问</button><button class="gbtn primary" id="trOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   inner.addEventListener('click', (e) => { // 情境签带着问题进入「问」；AI 解读本身仍是固定内容卡
     const ch = (e.target               ).closest ? (e.target               ).closest('.chipQ')                : null;
     if (ch) { playSfx('sfx-tap', 0.25); openSfpReading({ ask: ch.textContent || '' }); return; }
@@ -8936,11 +8886,7 @@ function openTossReading(ctx                                                    
     if (m) { const x = (SFP_POS         )[Number(m.dataset.ci)]; if (x) { closeOverlay(); openSfpNote(x.id); } }
   });
   (inner.querySelector('#trAsk')               ).addEventListener('click', () => { playSfx('sfx-tap', 0.25); openSfpReading(); });
-  // 批E 挂点④：解读卡底行——ctx 含 combo/起讫/证据，是五处里定位最全的一处
-  (inner.querySelector('#trFix')               ).addEventListener('click', () => {
-    const ev0 = (ctx.evidence         )?.items?.[0];
-    openReportCard({ scene: 'reading', pos: ctx.from || '', combo: ctx.c || '', ev: ev0?.type || '', ref: ev0?.ref || '' }, () => openTossReading(ctx));
-  });
+  // 纠错挂点（原批E④）2026-07-31 随功能整体下线撤除
   (inner.querySelector('#trOk')               ).addEventListener('click', closeOverlay);
   openOverlay(inner);
 }
@@ -8972,8 +8918,9 @@ function openSfpReading(ctx                                                     
     <div style="display:flex;gap:8px;margin-top:8px"><button class="gbtn" id="cbClr">清空对话</button><button class="gbtn" id="cbOk" style="flex:1">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   const log = pnl.querySelector('#cbLog')               ;
   const render = () => {
-    // 批E 挂点⑤：每条答复气泡尾缀「纠错」角标（data-qi 回取该轮问句）；问候语不带
-    log.innerHTML = zh(sfpChat.map((m, qi) => `${m.u ? `<div class="cbRow"><div class="cbU">${esc(m.u)}</div></div>` : ''}<div class="cbRow"><div class="cbA">${m.a}${m.u ? `<div class="cbFix" data-qi="${qi}">纠错</div>` : ''}</div></div>`).join(''));
+    // 纠错角标（原批E⑤）2026-07-31 撤除：它是整行块级元素，「纠错」二字左侧一大片空白同属热区，
+    // 选答复里的字常误开纠错卡；且报文送到管理处只有 at:chat，纠的是哪一问哪一答无从得知。
+    log.innerHTML = zh(sfpChat.map((m) => `${m.u ? `<div class="cbRow"><div class="cbU">${esc(m.u)}</div></div>` : ''}<div class="cbRow"><div class="cbA">${m.a}</div></div>`).join(''));
     log.scrollTop = log.scrollHeight;
   };
   const send = (qGiven         ) => {
@@ -8991,13 +8938,6 @@ function openSfpReading(ctx                                                     
   (pnl.querySelector('#cbQ')                    ).addEventListener('keydown', (e) => { if ((e                 ).key === 'Enter') send(); });
   (pnl.querySelector('#cbClr')               ).addEventListener('click', () => { sfpChat.length = 0; sfpChat.push({ u: '', a: SFP_CHAT_HELLO }); render(); });
   pnl.addEventListener('click', (e) => {
-    const f = (e.target               ).closest ? (e.target               ).closest('.cbFix')                : null;
-    if (f) { // 批E：纠这一轮答复（问句入提示，免得管理处不知所纠何问）
-      const qi = Number((f               ).dataset.qi);
-      const q = sfpChat[qi]?.u || '';
-      openReportCard({ scene: 'chat', pos: sfpS.pos || '', hint: `关于问答「${q.slice(0, 24)}」：哪里答得不对？` }, () => openSfpReading());
-      return;
-    }
     const chip = (e.target               ).closest ? (e.target               ).closest('.chipQ')                : null;
     if (chip) { send(chip.textContent || ''); return; }
     const m = (e.target               ).closest ? (e.target               ).closest('.rdMore')                : null;
