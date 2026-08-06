@@ -14,9 +14,22 @@ import {
   sfpWhyPlainText,
 } from '../src/sfp-evidence.js';
 import { SFP_GLYPH_WHY } from '../src/sfp-glyph-why.js';
-import { SFP_REFER_WHY } from '../src/sfp-refer-why.js';
+import { SFP_REFER_WHY } from '../src/sfp-refer-why.js';   // v390 旧溯源表：已由承注库取代，保留作历史数据与自身护栏
+import { CZ, CZ_ANS, CZ_CITE, czOf } from '../src/sfp-chengzhu.js';
 
 const allowedTypes = new Set(Object.values(SFP_EVIDENCE_TYPE));
+const MIXED_COMBOS = new Set(['那阿', '謨阿', '那彌', '謨彌', '那陀', '謨陀']);
+// 摘引以「……」标省略（承注库体例）：逐段校验，各段皆须为逐字原文。
+// 括注符号两底本处理不同（G 版繁体版存「(至誠心…)」，本工程校正本去括号），属校勘层差异非讹误，比对时归一化。
+// 异体字：本工程校正层 V78 统一规范字「迴」，G 版繁体版存底本原字「囘」
+// 归一化三类底本层差异（皆非讹误）：校勘标记 [A1]、括注符号、异体字囘/迴
+const dropBrackets = (t) => String(t || '')
+  .replace(/\[[^\]]*\]/g, '').replace(/[()（）]/g, '').replaceAll('囘', '迴');
+const verbatimIn = (haystack, text) => {
+  if (!haystack) return false;
+  const hay = dropBrackets(haystack);
+  return String(text).split('……').every((seg) => !seg.trim() || hay.includes(dropBrackets(seg)));
+};
 const canonByPosition = {};
 for (const door of Object.values(SFP_CANON_DOORS)) {
   for (const position of door.positions) canonByPosition[position.name] = position.text.replace(/^譜曰。/, '');
@@ -51,13 +64,19 @@ for (const [position, combos] of Object.entries(SFP_WHY)) {
         sourceQuotes += 1;
         assert.equal(item.attribution, '蕅益智旭《選佛譜》');
         if (item.subtype === 'pu_explanation') {
-          assert.ok(canonByPosition[position]?.includes(item.text), `谱曰不是该位逐字原文：${position}/${combo}`);
+          assert.ok(verbatimIn(canonByPosition[position], item.text), `谱曰不是该位逐字原文：${position}/${combo}`);
         } else if (item.subtype === 'rule_fact') {
           assert.ok(original.includes(item.text), `行法引文不在校正原本：${position}/${combo}`);
         } else if (item.subtype === 'refer_note') {
-          // v390 总括句所指位按语：须为被指位逐字原文，且本格谱注确为总括句、与溯源表逐字一致
-          assert.ok(item.refName && canonByPosition[item.refName]?.includes(item.text), `所指位引文非其逐字原文：${position}/${combo} → ${item.refName}`);
-          assert.equal(item.text, SFP_REFER_WHY[`${position}|${combo}`]?.t, `所指位引文与溯源表不符：${position}/${combo}`);
+          // 总括句所指位按语：须为被指位逐字原文，且与承注库该格所系引文逐字一致
+          // 有所指位者，须为该位逐字原文；无所指位者（门总说等），须在校正原本中逐字寻得
+          if (item.refName) assert.ok(verbatimIn(canonByPosition[item.refName], item.text), `所指位引文非其逐字原文：${position}/${combo} → ${item.refName}`);
+          else assert.ok(verbatimIn(original, item.text), `引文不在校正原本：${position}/${combo}`);
+          // 所指引文须有据：出于承注库，或出于 v390 旧溯源表（「另见」并存条，相杂格除外）
+          const inCz = czOf(position, combo)?.cites.some((cite) => cite.t === item.text);
+          const inLegacy = SFP_REFER_WHY[`${position}|${combo}`]?.t === item.text;
+          assert.ok(inCz || inLegacy, `所指位引文无据（承注库与旧溯源表皆无）：${position}/${combo}`);
+          if (inLegacy && !inCz) assert.ok(!MIXED_COMBOS.has(combo), `相杂格不得取旧溯源表（旧表误溯三惡相按语）：${position}/${combo}`);
         } else {
           assert.fail(`未知原文子类型：${position}/${combo}/${item.subtype}`);
         }
@@ -94,7 +113,8 @@ assert.ok(!SFP_WHY['初發心住']['佛佛'].includes('從淨土來者'));
 assert.equal(SFP_WHY['彌勒內院']['陀陀'], '陀陀。則有功用行已極。故為第十迴向。');
 assert.equal(
   sfpWhyPlainText(SFP_WHY['彌勒內院']['陀陀']),
-  '陀陀则有功用之行已至其极，故进为第十回向。',
+  // 白話庫已統一底本形（繁）；用戶側繁簡由 game.js 之 zh() 一鍵切換，數據層不隨之變。
+  '陀陀則有功用之行已至其極，故進為第十迴向。',
 );
 
 // V78 校正原本的篇名与缺字标记须完整保留。
@@ -111,10 +131,22 @@ assert.ok(nodeById.asura.cause.v.startsWith('下品十善'));
 assert.ok(nodeById.caturmaharaja.cause.v.startsWith('上品十善'));
 assert.ok(nodeById.trayastrimsa.cause.v.startsWith('亦上品十善'));
 assert.ok(nodeById.yama.cause.v.startsWith('上品十善兼学坐禅'));
-assert.ok(SFP_POS_PLAIN['中品十善'].includes('是人道因'));
-assert.ok(SFP_POS_PLAIN['四無量心'].includes('四禅天王'));
-assert.ok(SFP_POS_PLAIN['有間地獄'].includes('九分情、一分想'));
-assert.ok(SFP_POS_PLAIN['無想天'].includes('五百大劫'));
+// 白話庫已統一底本形（繁），用戶側繁簡由 game.js 之 zh() 一鍵切換。
+// 斷言故作繁簡無關：兩側歸簡再比——如此數據層無論存繁存簡，斷言皆不失效。
+const { ZH_T2S: _T2S } = await import('../src/zh-conv.js');
+const _ML = Math.max(...Object.keys(_T2S).map((k) => k.length));
+const toS = (x) => { let r = '', i = 0; const t = String(x || '');
+  while (i < t.length) { let h = 0;
+    for (let L = Math.min(_ML, t.length - i); L >= 1; L--) { const g = t.substr(i, L);
+      if (_T2S[g] !== undefined) { r += _T2S[g]; i += L; h = 1; break; } }
+    if (!h) { r += t[i]; i++; } }
+  return r; };
+const hasZh = (hay, needle) => toS(hay).includes(toS(needle));
+
+assert.ok(hasZh(SFP_POS_PLAIN['中品十善'], '是人道因'));
+assert.ok(hasZh(SFP_POS_PLAIN['四無量心'], '四禅天王'));
+assert.ok(hasZh(SFP_POS_PLAIN['有間地獄'], '九分情、一分想'));
+assert.ok(hasZh(SFP_POS_PLAIN['無想天'], '五百大劫'));
 // V99 门导语随上游改写为更贴谱文的全文（v387-v391 批）：快照钉改关键判语守卫
 assert.ok(SFP_DOOR_PLAIN[3].includes('招感地狱、畜生、饿鬼'));
 assert.ok(SFP_DOOR_PLAIN[5].includes('同属天趣、同名定地'));
@@ -158,6 +190,50 @@ for (const [key, refer] of Object.entries(SFP_REFER_WHY)) {
   assert.ok(canonByPosition[target.name]?.includes(refer.t), `所指引文非被指位逐字原文：${key}`);
 }
 assert.equal(referCells, 387);
+
+// 承注库护栏（取代 v390 溯源表之数据护栏，覆盖 387 → 4620 格）：
+// ① 逐格键为「位|相」且位存在；② 引文皆为所署位之逐字原文（门总说别论）；
+// ③ 非推演格之答语须为原文（可在校正原本中逐字寻得）；④ 层级只此五值。
+const CZ_LEVELS = new Set(['直說', '承注', '攜帶', '通則', '推演']);
+let czCells = 0, czInferred = 0, czCites = 0;
+for (const [key, row] of Object.entries(CZ)) {
+  czCells += 1;
+  const at = key.lastIndexOf('|');
+  const pname = key.slice(0, at), combo = key.slice(at + 1);
+  assert.ok(positionByName[pname] || positionById[pname], `承注库位不存在：${key}`);
+  const [ansIdx, citeIdxs, level] = row;
+  assert.ok(CZ_LEVELS.has(level), `承注库层级未收录：${key}/${level}`);
+  const ans = CZ_ANS[ansIdx];
+  assert.ok(ans && typeof ans === 'string', `承注库空答语：${key}`);
+  if (level === '推演') {
+    czInferred += 1;
+    assert.ok(citeIdxs.length >= 1, `推演格无所据引文：${key}`);
+  } else {
+    // 非推演格之答语即谱曰逐字原文
+    assert.ok(verbatimIn(original, ans), `承注库答语非逐字原文：${key}`);
+  }
+  for (const ci of citeIdxs) {
+    czCites += 1;
+    const cite = CZ_CITE[ci];
+    assert.ok(cite && cite.t && cite.r, `承注库引文残缺：${key}`);
+    assert.ok(verbatimIn(original, cite.t), `承注库引文不在校正原本：${key}`);
+    if (cite.n && canonByPosition[cite.n]) {
+      assert.ok(verbatimIn(canonByPosition[cite.n], cite.t), `承注库引文非所署位逐字原文：${key} → ${cite.n}`);
+    }
+  }
+}
+assert.equal(czCells, 4620);
+assert.equal(CZ_ANS.length, 833);
+assert.equal(CZ_CITE.length, 841);
+// 承注库补足 SFP_WHY 未载之格，证据对象由 2210 增至 4620
+let evidenceTotal = 0;
+for (const combos of Object.values(SFP_WHY_EVIDENCE)) evidenceTotal += Object.keys(combos).length;
+assert.equal(evidenceTotal, 4620);
+// 抽查：相杂格依卷一〈見取〉通则，不再误溯三惡相按语
+assert.equal(czOf('中品畜生', '那阿').level, '通則');
+assert.ok(czOf('中品畜生', '那阿').cites[0].n === '見取');
+// 抽查：承注格答语取被承位实质按语，不停在总括句
+assert.equal(czOf('味禪', '阿佛').ans, '阿佛等三即世間定堪通出世間定。');
 let glyphCells = 0;
 for (const [key, text] of Object.entries(SFP_GLYPH_WHY)) {
   glyphCells += 1;
@@ -190,11 +266,11 @@ assert.ok(glyphEvidence.items[0].attribution.includes('輪相表法'));
 
 // V98 采纳版（2026-07-29）：位白话整库换为上游全量校对底本＋本地 87 处裁定修正；
 // 快照钉改为关键判语守卫——守谱明去向事实，不冻结文风。
-assert.ok(SFP_POS_PLAIN['中品十惡'].includes('是畜生因'));
-assert.ok(SFP_POS_PLAIN['下品十惡'].includes('是饿鬼因'));
-assert.ok(SFP_POS_PLAIN['下品十善'].includes('是阿修罗道因'));
-assert.ok(SFP_POS_PLAIN['出世福業'].includes('布施作福、求出生死'));
-assert.ok(SFP_POS_PLAIN['常寂光淨土'].includes('上上一品归入极果位'));
-assert.ok(SFP_POS_PLAIN['常寂光淨土'].includes('其余八品总摄于本位'));
+assert.ok(hasZh(SFP_POS_PLAIN['中品十惡'], '是畜生因'));
+assert.ok(hasZh(SFP_POS_PLAIN['下品十惡'], '是饿鬼因'));
+assert.ok(hasZh(SFP_POS_PLAIN['下品十善'], '是阿修罗道因'));
+assert.ok(hasZh(SFP_POS_PLAIN['出世福業'], '布施作福、求出生死'));
+assert.ok(hasZh(SFP_POS_PLAIN['常寂光淨土'], '上上一品归入极果位'));
+assert.ok(hasZh(SFP_POS_PLAIN['常寂光淨土'], '其余八品总摄于本位'));
 
 console.log(`证据类型校验通过：${evidenceCells} 格、${sourceQuotes} 条逐字原文、${interpretations} 条释义；操作规则独立为 ${SFP_EVIDENCE_TYPE.operation}`);

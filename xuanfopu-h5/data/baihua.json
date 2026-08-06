@@ -1,0 +1,7 @@
+{
+ "meta": {
+  "note": "白話輔讀（今譯，僅供參考）。皆經人工審校方入此庫；應用僅顯示此庫。",
+  "workflow": "baihua:draft（AI起草）→ baihua:export（導審校稿）→ 人工校改標「可用」→ baihua:import（入庫）"
+ },
+ "entries": {}
+}

@@ -16,8 +16,10 @@
       { "name": "ROOM", "class_name": "RoomDO" }
     ]
   },
+  // 智能体切至 v2（2026-08-03）：定本路由 4620 格 100% 可核、谱内全文 692 块、问文库旁路。
+  // 旧 xuanfopu-evidence-agent 未删，回退只需把 service 改回该名重新 deploy。
   "services": [
-    { "binding": "ASK_SERVICE", "service": "xuanfopu-evidence-agent" }
+    { "binding": "ASK_SERVICE", "service": "xuanfopu-agent-v2" }
   ],
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["RoomDO"] }

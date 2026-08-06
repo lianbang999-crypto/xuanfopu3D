@@ -94,7 +94,7 @@ export function flushOnExit() {
   } catch (e) {}
 }
 
-// 一人行谱的及第：带莲号上报，才记得到本人名下（共修室的由本室服务器出具）
+// 一人行谱的成佛：带莲号上报，才记得到本人名下（共修室的由本室服务器出具）
 export async function record(run) {
   try {
     const r = await fetch('/api/plaza/record', {
@@ -105,7 +105,7 @@ export async function record(run) {
   } catch (e) { return false; }
 }
 
-// 我的功课：累计·及第·共修天数·连续日·逐日（月历）·逐局记录
+// 我的功课：累计·成佛·共修天数·连续日·逐日（月历）·逐局记录
 export async function fetchMine() {
   const r = await fetch('/api/plaza/me', {
     method: 'POST', headers: { 'content-type': 'application/json' },
@@ -208,7 +208,7 @@ function streamRows(rows, esc) {
   if (!rows.length) return '<div class="pzRankEmpty">此刻还没有莲友在行谱</div>';
   return rows.map(row => `<div class="pzRankRow${isMine(row.name) ? ' mine' : ''}">
     <b>${esc(row.name)}</b>${isMine(row.name) ? '<i>您</i>' : ''}
-    <span>${num(row.tosses)} 掷${row.wins ? ` · 及第 ${num(row.wins)}` : ''}</span>
+    <span>${num(row.tosses)} 掷${row.wins ? ` · 成佛 ${num(row.wins)}` : ''}</span>
     <em>${when(row.at)}</em>
   </div>`).join('');
 }
@@ -350,7 +350,7 @@ export function renderSitName(code, ui) {
     <div class="askEyebrow">${rename ? '共修名号 · 记名' : `共修室${ord} · 入座前一步`}</div>
     <h2 id="pzNameTitle">${rename ? (savedName() ? '改名号' : '取个共修名号') : '留下共修名号'}</h2>
     <form class="body" id="pzNameForm" novalidate>
-      <p class="lead">${rename ? '功课与及第都记在这个名下' : '方便同座莲友认得您'}</p>
+      <p class="lead">${rename ? '功课与成佛都记在这个名下' : '方便同座莲友认得您'}</p>
       <div class="nameField">
         <label for="pzName">名号 <span>选填</span></label>
         <input id="pzName" class="bigIn" maxlength="24" autocomplete="nickname" enterkeyhint="go"
@@ -481,6 +481,11 @@ export const PLAZA_CSS = `
 .fsBody{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px;touch-action:pan-y;-webkit-overflow-scrolling:touch}
 .pzMain,.pzRooms{touch-action:pan-y}
 .fsWrap{width:100%;margin:0 auto}
+/* 整页壳里的 .body 只借字号行距，不许自成滚动容器——「我的」页滑不动的病根：
+   全局 .overlay .body 为旧抽屉写的 overflow-y:auto + overscroll-behavior:contain，
+   套进 .fsBody 后成了一个「自己滚不动、又不放行给外层」的死容器，一指下滑整个被它吃掉。
+   （大厅与共修动态的 .fsWrap 未挂 body 类，故独此一页中招。） */
+.fsBody>.body{overflow:visible;overscroll-behavior:auto}
 .pzTop{display:flex;align-items:center;justify-content:space-between;padding-right:58px}
 .pzEyebrow{display:block;font-size:var(--fs-xs,11px);color:var(--aq-note);letter-spacing:4px;margin-bottom:3px}
 .pzTop h2{margin:0;color:var(--aq-title);font-size:clamp(24px,3vw,36px);letter-spacing:7px;font-weight:500}
@@ -669,7 +674,7 @@ export const PLAZA_CSS = `
 .clHint:empty{display:none}
 `;
 
-/* 同修及第横幅：不弹窗不打断 */
+/* 同修成佛横幅：不弹窗不打断 */
 export const PEER_WIN_CSS = `
 #peerWin{position:fixed;left:50%;top:12%;transform:translate(-50%,-14px);z-index:52;pointer-events:none;
   opacity:0;transition:opacity .45s,transform .45s;white-space:nowrap;

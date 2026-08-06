@@ -1,11 +1,12 @@
-// 全谱核对：现行 sfp-data.js ↔ G版 xuanfopu-h5 已人工核对数据（positions.json + aliases.json）
+// 全谱核对：现行 sfp-data.js ↔ xuanfopu-h5 已人工核对数据（positions.json + aliases.json，正本随仓）
 // h5 每位带原文行号（繁体版/B0136_00X.txt），差异处自动摘出原文行供逐字裁定。
 // 用法：node scripts/crosscheck-pu.mjs [--ctx]   （--ctx 打印差异位的原文上下文）
 
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { SFP_POS, SFP_DOORS } from '../src/sfp-data.js';
 
-const G = '/Users/bincai/Downloads/选佛谱G版';
+const G = fileURLToPath(new URL('..', import.meta.url));
 const h5 = JSON.parse(readFileSync(`${G}/xuanfopu-h5/data/positions.json`, 'utf8'));
 const aliases = JSON.parse(readFileSync(`${G}/xuanfopu-h5/data/aliases.json`, 'utf8')).aliases;
 const showCtx = process.argv.includes('--ctx');

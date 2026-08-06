@@ -197,6 +197,7 @@ console.log('\n【暂离与归队】');
 }
 
 console.log('\n【共同结算】');
+// 终局规则（2026-08-04 用户定案）：先成佛者不终局，其余莲友继续行谱，末位成佛才共同结算
 {
   const room = makeRoom();
   Object.assign(room.meta, {
@@ -206,14 +207,22 @@ console.log('\n【共同结算】');
     turnIdx: 2,
     round: 3,
     finishing: true,
+    champions: [{ id: 'c', name: 'C', color: '#e8c766', n: 9, practiceId: '', at: 1, recorded: false }],
   });
   room.players.c.done = true;
   await room.advanceTurn();
-  ok(room.meta.status === 'playing' && room.meta.turnIdx === 3, '首位及第后仍补齐本轮未行动者');
+  ok(room.meta.status === 'playing' && room.meta.turnIdx === 3, '首位成佛后其余莲友继续行谱');
   await room.advanceTurn();
-  ok(room.meta.status === 'finished' && room.meta.finishReason === 'completed', '轮次回到首位前统一结算');
+  ok(room.meta.status === 'playing' && room.meta.turnIdx === 0, '轮次绕回首位仍不结算——须等末位成佛');
+  await room.advanceTurn();
+  ok(room.meta.status === 'playing' && room.meta.turnIdx === 1, '成佛者被跳过，其余照常轮掷');
+  room.players.a.done = true;
+  room.players.b.done = true;
+  room.players.d.done = true;
+  await room.advanceTurn();
+  ok(room.meta.status === 'finished' && room.meta.finishReason === 'completed', '全员成佛才共同结算');
   const result = room.events.find((event) => event.type === 'match_finished');
-  ok(result?.winners?.join(',') === 'c', '共同结果只列服务器确认的及第者');
+  ok(result?.winners?.slice().sort().join(',') === 'a,b,c,d', '共同结果列出全部成佛者');
 }
 
 {
@@ -230,9 +239,32 @@ console.log('\n【共同结算】');
   await room.advanceTurn();
   await room.advanceTurn();
   await room.advanceTurn();
-  ok(room.meta.status === 'playing' && room.meta.turnIdx === 3, '本轮首位及第时其余三位仍各有一手');
+  ok(room.meta.status === 'playing' && room.meta.turnIdx === 3, '首位成佛后其余三位仍各自行谱');
   await room.advanceTurn();
-  ok(room.meta.status === 'finished', '完整补齐本轮后结束，不多开下一轮');
+  ok(room.meta.status === 'playing' && room.meta.turnIdx === 1, '绕回后跳过成佛者、不结算，续派未成佛者');
+}
+
+console.log('\n【成佛者离席不中止残局】');
+{
+  const room = makeRoom(['a', 'b']);
+  Object.assign(room.meta, {
+    status: 'playing',
+    phase: 'waiting_toss',
+    order: ['a', 'b'],
+    turnIdx: 1,
+    round: 4,
+    finishing: true,
+    champions: [{ id: 'a', name: 'A', color: '#e8c766', n: 21, practiceId: '', at: 1, recorded: false }],
+  });
+  room.players.a.done = true;
+  await room.dropPlayer('a', null);
+  ok(room.meta.status === 'playing' && room.meta.order.join(',') === 'b', '成佛者离席后余者独行续局，不判中止');
+  room.players.b.done = true;
+  await room.advanceTurn();
+  ok(room.meta.status === 'finished' && room.meta.finishReason === 'completed', '末位成佛即圆满收局');
+  const result = room.events.find((event) => event.type === 'match_finished');
+  ok(result?.winners?.slice().sort().join(',') === 'a,b', '已离席的成佛者仍列名共同结果（名录快照）');
+  ok((result?.champions || []).some((c) => c.id === 'a' && c.n === 21), '名录带其名号与掷数');
 }
 
 console.log('\n【断线轮次】');

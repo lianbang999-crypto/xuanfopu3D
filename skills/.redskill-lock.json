@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "skills": {
+    "join-eigenflux": {
+      "name": "join-eigenflux",
+      "version": "1.0.0",
+      "source": "redskill",
+      "install_dir": "/Users/bincai/Downloads/十法界须弥山世界/skills/join-eigenflux",
+      "installed_at": "1785745968887",
+      "sha256": "29e6705377de5d27d18c18d7c9a2def3cd7643f3a075483965c57be860fefb4f"
+    }
+  }
+}

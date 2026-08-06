@@ -20,9 +20,9 @@ const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
 const PLAZA_OBJECT = '__xuanfopu_plaza__';
 const TABLE_COUNT = 12;
 const TABLE_ORD = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
-// plaza_feed 为旧「及第公报流」，已由共修动态（一人一行，见 plaza_practice）取代；
+// plaza_feed 为旧「成佛公报流」，已由共修动态（一人一行，见 plaza_practice）取代；
 // 建表与旧数据保留，只在推算「本站共修起始日」时读一次，不再写入。
-const RUN_KEEP = 500;   // 及第录留存条数（超出按时间裁旧）
+const RUN_KEEP = 500;   // 成佛录留存条数（超出按时间裁旧）
 const PRACTICE_DAILY_CAP = 10000; // 功课榜是随喜记录；单身份日上限仅防异常灌数
 // 桌位快照保鲜期：桌 DO 若因驱逐/发版等原因没能报「已离席」，快照会挂着假在座者。
 // 超期即视为失效并清掉；在座者只要还在掷轮就会续报，不会被误清。
@@ -57,7 +57,7 @@ const GIFT_CHOICE_MS = 30 * 1000;      // 三至四人局选择受赠者；超�
 // 房主挂机不该锁死全房：人已齐备并等够这段时间，任一已准备者都可以开局
 const HOST_IDLE_MS = 45 * 1000;
 // 公开端点日上限（按 IP+UA 哈希计）：广场数字是给人看的随喜记录，不该谁都能随手灌
-const PUBLIC_RUN_CAP = 60;        // 单一来源每日至多登记的及第局数
+const PUBLIC_RUN_CAP = 60;        // 单一来源每日至多登记的成佛局数
 const PUBLIC_TICK_CAP = 20000;    // 单一来源每日至多计入的掷数
 const CHAT_GAP_MS = 750;              // 单连接聊天限速
 
@@ -86,7 +86,9 @@ async function proxyAsk(request, env) {
   const question = typeof body?.question === 'string' ? body.question.trim() : '';
   if (!question || question.length > 2000) return json({ error: 'question must be 1-2000 characters' }, 400);
 
-  // 不向问义服务传原始 IP；以哈希后的浏览器网络指纹执行服务端日限额。
+  // 不向问义服务传原始 IP——哈希指纹只作配额键随请求带过去，
+  // 日限额由智能体端执行（agent/worker/src/guard.js：生成四路按此键限，定本查表路不限；
+  // 信任判据是 service binding 独有的 ask.internal 主机名，公网直访无生成，配额不可绕）。
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const ua = (request.headers.get('User-Agent') || 'unknown').slice(0, 240);
   const clientKey = await sha256(`${ip}\n${ua}`);
@@ -154,7 +156,7 @@ export default {
 
     // ---- 共修广场 ----
     if (path === '/api/plaza') {
-      // 一次取齐（单次 DO 请求）：掷轮数／及第录／公报流／各厅桌位快照
+      // 一次取齐（单次 DO 请求）：掷轮数／成佛录／公报流／各厅桌位快照
       if (request.method !== 'GET') return json({ error: 'method not allowed' }, 405);
       const statRes = await plazaForward(request, env, '/plaza/stat', url.search);
       const stat = await statRes.json();
@@ -172,11 +174,11 @@ export default {
       if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
       return plazaForward(request, env, '/plaza/tick');
     }
-    if (path === '/api/plaza/record') { // 及第局录
+    if (path === '/api/plaza/record') { // 成佛局录
       if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
       return plazaForward(request, env, '/plaza/record');
     }
-    if (path === '/api/plaza/me') {     // 个人功课：累计·及第·共修天数·连续日·逐日（供月历）
+    if (path === '/api/plaza/me') {     // 个人功课：累计·成佛·共修天数·连续日·逐日（供月历）
       if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
       return plazaForward(request, env, '/plaza/me');
     }
@@ -233,7 +235,7 @@ export class RoomDO {
     return /^[A-Za-z0-9:_-]{12,96}$/.test(token) ? token : '';
   }
 
-  // ---- 共修广场（固定对象）：掷轮计数 · 及第局录 · 公报流 ----
+  // ---- 共修广场（固定对象）：掷轮计数 · 成佛局录 · 公报流 ----
   plazaInit() {
     if (this.plazaReady) return;
     this.state.storage.sql.exec(`
@@ -267,7 +269,7 @@ export class RoomDO {
         actor TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         tosses INTEGER NOT NULL DEFAULT 0,   -- 累计掷轮（一掷一称念）
-        wins INTEGER NOT NULL DEFAULT 0,     -- 累计及第
+        wins INTEGER NOT NULL DEFAULT 0,     -- 累计成佛
         days INTEGER NOT NULL DEFAULT 0,     -- 共修天数（有掷轮的天数）
         firstAt INTEGER NOT NULL,
         lastAt INTEGER NOT NULL
@@ -290,7 +292,7 @@ export class RoomDO {
     // 旧库补列（新建库已含）：locked 列缺失时补上，免得升级后读不到锁态
     try { this.state.storage.sql.exec('ALTER TABLE plaza_tables ADD COLUMN locked INTEGER NOT NULL DEFAULT 0'); }
     catch (e) { /* 已有该列 */ }
-    // 及第录补 actor 列：旧记录只有名号，认不回是谁；新记录起可归到本人名下
+    // 成佛录补 actor 列：旧记录只有名号，认不回是谁；新记录起可归到本人名下
     try { this.state.storage.sql.exec('ALTER TABLE plaza_runs ADD COLUMN actor TEXT'); }
     catch (e) { /* 已有该列 */ }
     this.plazaReady = true;
@@ -396,7 +398,7 @@ export class RoomDO {
     });
   }
 
-  // 个人功课：累计、及第、共修天数、连续日与逐日掷数（供月历）。
+  // 个人功课：累计、成佛、共修天数、连续日与逐日掷数（供月历）。
   // 莲号是本机随机 24 位十六进制，不可枚举；此处只按莲号取自己的数。
   async plazaMine(request) {
     this.plazaInit();
@@ -560,8 +562,8 @@ export class RoomDO {
     return take;
   }
 
-  // 共修室的及第由本室 DO 直接登记（服务器权威），不经浏览器自报；
-  // 及第累加到本人莲号：共修室的由房间带莲号上来，一人行谱的由客户端自带
+  // 共修室的成佛由本室 DO 直接登记（服务器权威），不经浏览器自报；
+  // 成佛累加到本人莲号：共修室的由房间带莲号上来，一人行谱的由客户端自带
   bumpWin(actor, name, ts) {
     this.plazaBump('wins', 1);
     this.plazaBump(`wins:${dayKey(ts)}`, 1);
@@ -599,7 +601,7 @@ export class RoomDO {
     let body;
     try { body = await request.json(); }
     catch { return json({ error: 'invalid json' }, 400); }
-    // 共修室的及第只认本室 DO 出具的那一份；浏览器自报不得声称自己坐在某间共修室
+    // 共修室的成佛只认本室 DO 出具的那一份；浏览器自报不得声称自己坐在某间共修室
     if (String(body?.seat || 'solo') !== 'solo') {
       return json({ error: 'table runs are recorded by the room itself' }, 403);
     }
@@ -713,6 +715,19 @@ export class RoomDO {
         : null,
       readySince: Number(base.readySince) || 0,
       finishing: !!base.finishing,
+      // 成佛名录：成佛一刻即记快照（含掷数与莲号）。人可离席、座可回收，成佛不可被抹——
+      // 终局 winners 与广场登记皆从此取，不再依赖结算一刻本人是否仍在 order 里。
+      champions: Array.isArray(base.champions)
+        ? base.champions.slice(0, ROOM_MAX).map((c) => ({
+          id: String(c?.id || ''),
+          name: String(c?.name || '同修'),
+          color: String(c?.color || ''),
+          n: Math.max(0, Number(c?.n) || 0),
+          practiceId: String(c?.practiceId || ''),
+          at: Number(c?.at) || 0,
+          recorded: !!c?.recorded,
+        }))
+        : [],
       finishedAt: Number(base.finishedAt) || 0,
       starterSeat: Math.max(0, Number(base.starterSeat) || 0) % ROOM_MAX,
       finishReason: base.finishReason || '',
@@ -965,6 +980,7 @@ export class RoomDO {
       giftQueue: [],
       pendingGrant: null,
       finishing: false,
+      champions: [],
       finishedAt: 0,
       finishReason: '',
       starterSeat,
@@ -997,10 +1013,22 @@ export class RoomDO {
     this.syncReadyGate();
     this.bumpRevision();
     await this.save();
+    // 成佛者以名录快照为准（含已离席者）；order 扫描仅作旧档兜底
+    const roll = Array.isArray(this.meta.champions) ? this.meta.champions : [];
+    const winnerIds = [...new Set([
+      ...roll.map((c) => c.id),
+      ...this.meta.order.filter((id) => this.players[id]?.done),
+    ])];
     const event = {
       type: 'match_finished',
       reason,
-      winners: this.meta.order.filter((id) => this.players[id]?.done),
+      winners: winnerIds,
+      // 名录带名号与掷数：结算卡对已离席的成佛者也能报出其名，不至于凭空消失
+      champions: winnerIds.map((id) => {
+        const c = roll.find((x) => x.id === id);
+        const p = this.players[id];
+        return { id, name: c?.name || p?.name || '同修', n: c?.n || p?.n || 0 };
+      }),
       room: this.roomState(),
       players: this.roster(),
     };
@@ -1010,25 +1038,34 @@ export class RoomDO {
     this.state.waitUntil(this.plazaRecordWinners());
   }
 
-  // 共修室的及第由本室出具：掷数与名号都取服务器权威棋况，不采信浏览器自报
+  // 共修室的成佛由本室出具：掷数与名号都取服务器权威棋况，不采信浏览器自报。
+  // 名录快照登记：成佛者哪怕在结算前离席，广场也记得到本人名下。
   async plazaRecordWinners() {
     const at = tableSeatOf(this.meta.code);
-    const winners = this.meta.order
+    const roll = Array.isArray(this.meta.champions) ? this.meta.champions : [];
+    const fresh = roll.filter((c) => !c.recorded);
+    // 旧档兜底：名录为空的存量对局仍按 order 扫描（p.recorded 防重）
+    const legacy = roll.length ? [] : this.meta.order
       .map((id) => this.players[id])
       .filter((p) => p && p.done && !p.recorded);
-    if (!winners.length) return;
-    for (const p of winners) p.recorded = true;
+    if (!fresh.length && !legacy.length) return;
+    for (const c of fresh) { c.recorded = true; if (this.players[c.id]) this.players[c.id].recorded = true; }
+    for (const p of legacy) p.recorded = true;
     await this.save();
-    for (const p of winners) {
+    const entries = [
+      ...fresh.map((c) => ({ name: c.name, n: c.n, actor: c.practiceId || '' })),
+      ...legacy.map((p) => ({ name: p.name, n: p.n, actor: p.practiceId || '' })),
+    ];
+    for (const w of entries) {
       try {
         await this.env.ROOM.get(this.env.ROOM.idFromName(PLAZA_OBJECT)).fetch(
           'https://plaza.internal/plaza/record-verified',
           {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            // 带上莲号，共修室的及第才记得到本人名下（入座时随 join 带来）
+            // 带上莲号，共修室的成佛才记得到本人名下（入座时随 join 带来）
             body: JSON.stringify({
-              name: p.name, n: p.n, actor: p.practiceId || '',
+              name: w.name, n: w.n, actor: w.actor,
               seat: at ? `table:${at.no}` : 'private',
             }),
           },
@@ -1039,31 +1076,33 @@ export class RoomDO {
 
   async advanceTurn() {
     if (this.meta.status !== 'playing') return;
-    if (this.meta.order.length < 2) {
+    // 终局规则（2026-08-04 用户定案）：先成佛者不终局，留座随喜；其余莲友继续行谱，
+    // 直到最后一位也成佛，才共同结算。已有人成佛后哪怕只剩一位未成佛，也让他独行至佛位。
+    const allDone = this.meta.order.length > 0
+      && this.meta.order.every((id) => this.players[id]?.done);
+    if (allDone) {
+      await this.finishMatch('completed');
+      return;
+    }
+    if (this.meta.order.length < 2 && !this.meta.finishing) {
       await this.finishMatch('not_enough_players');
       return;
     }
 
     const previousIdx = this.meta.turnIdx;
     let nextIdx = (previousIdx + 1) % this.meta.order.length;
-    if (this.meta.finishing && nextIdx === 0) {
-      await this.finishMatch('completed');
-      return;
-    }
     if (nextIdx === 0) this.meta.round++;
 
     let guard = 0;
-    while (guard++ < this.meta.order.length) {
+    let found = false;
+    while (guard++ <= this.meta.order.length) {
       const next = this.players[this.meta.order[nextIdx]];
-      if (next && !next.done && !next.away) break;
+      if (next && !next.done && !next.away) { found = true; break; }
       nextIdx = (nextIdx + 1) % this.meta.order.length;
-      if (this.meta.finishing && nextIdx === 0) {
-        await this.finishMatch('completed');
-        return;
-      }
       if (nextIdx === 0) this.meta.round++;
     }
-    if (guard > this.meta.order.length) {
+    if (!found) {
+      // 未成佛者全在暂离/失联：无人可派轮——已有成佛者即以圆满结（名录在 champions），否则中止
       await this.finishMatch(this.meta.finishing ? 'completed' : 'not_enough_players');
       return;
     }
@@ -1360,7 +1399,7 @@ export class RoomDO {
         }
         p.name = name;
         if (clientToken) p.clientToken = clientToken;
-        // 莲号（功课身份）：只用来把本室的及第记到本人名下，不作身份凭据
+        // 莲号（功课身份）：只用来把本室的成佛记到本人名下，不作身份凭据
         const practiceId = /^p_[a-f0-9]{24}$/.test(String(msg.practiceId || '')) ? String(msg.practiceId) : '';
         if (practiceId) p.practiceId = practiceId;
         p.away = false;
@@ -1515,7 +1554,17 @@ export class RoomDO {
         // 本掷新得的「贈N掷」记在掷者身上，待判词行毕再请他择一位受赠莲友
         p.pendingGrantCount = p.done ? 0 : Math.max(0, Math.min(4, Number(resolved.grant) || 0));
         this.normalizeGiftQueue();
-        if (p.done) this.meta.finishing = true;
+        if (p.done) {
+          this.meta.finishing = true;   // 已有人成佛（终局须等末位成佛，见 advanceTurn）
+          // 成佛名录快照：此后本人离席、座位被清，成佛与广场登记都不受影响
+          if (!Array.isArray(this.meta.champions)) this.meta.champions = [];
+          if (!this.meta.champions.some((c) => c.id === p.id)) {
+            this.meta.champions.push({
+              id: p.id, name: p.name, color: p.color, n: p.n,
+              practiceId: p.practiceId || '', at: Date.now(), recorded: false,
+            });
+          }
+        }
         this.meta.phase = 'resolving';
         this.meta.actorId = p.id;  // 相位锁在掷者：施受队列变动不会把「正在行棋的人」挪走
         this.meta.availableAt = 0;
@@ -1543,6 +1592,9 @@ export class RoomDO {
         this.broadcast(this.syncMsg());
         const stale = Date.now() - Number(this.meta.reportedAt || 0) > REPORT_REFRESH;
         if (p.n === 1 || p.done || stale) this.state.waitUntil(this.plazaReport());
+        // 成佛的一手当即代为交轮：本手已无贈掷可择、无后续可确认，客户端只顾演成佛过场；
+        // 从前要么等本人点掉判词卡、要么等 60 秒兜底闹钟，其余莲友白白干等一分钟。
+        if (p.done) await this.completeCurrentTurn(p.id);
         break;
       }
 
@@ -1674,8 +1726,17 @@ export class RoomDO {
         if (this.meta.actorId === playerId) this.meta.actorId = '';
         const grantGone = this.prunePendingGrant();
         this.normalizeGiftQueue();
-        if (this.meta.order.length < 2) {
+        // 全员成佛（在座者皆 done）即圆满收局；成佛者离席不中止残局——
+        // 已有人成佛时剩下一位未成佛者仍可独行至佛位（advanceTurn 同则），
+        // 其成佛记录在 meta.champions 名录里，谁离席都抹不掉。
+        const survivorsAllDone = this.meta.order.length > 0
+          && this.meta.order.every((id) => this.players[id]?.done);
+        if (survivorsAllDone) {
+          await this.finishMatch('completed');
+        } else if (this.meta.order.length < 2 && !this.meta.finishing) {
           await this.finishMatch('not_enough_players');
+        } else if (!this.meta.order.length) {
+          await this.finishMatch(this.meta.finishing ? 'completed' : 'not_enough_players');
         } else if (this.meta.phase === 'choosing_grant' && grantGone) {
           // 施者已离席，待施之贈随之作废——不能把全房卡在择人相位上
           this.meta.phase = 'waiting_toss';
@@ -1744,7 +1805,13 @@ export class RoomDO {
       return;
     }
 
-    if (this.meta.status === 'playing' && this.meta.order.length < 2) {
+    const survivorsAllDone = this.meta.status === 'playing' && this.meta.order.length > 0
+      && this.meta.order.every((p) => this.players[p]?.done);
+    if (survivorsAllDone) {
+      await this.finishMatch('completed');   // 全员成佛：圆满收局（离线清座后残局同则）
+    } else if (this.meta.status === 'playing' && !this.meta.order.length) {
+      await this.finishMatch(this.meta.finishing ? 'completed' : 'not_enough_players');
+    } else if (this.meta.status === 'playing' && this.meta.order.length < 2 && !this.meta.finishing) {
       await this.finishMatch('not_enough_players');
     } else if (this.meta.status === 'playing' && now >= Number(this.meta.turnDeadline || Infinity)) {
       const current = this.players[this.currentPlayerId()];

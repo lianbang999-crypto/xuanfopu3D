@@ -588,7 +588,7 @@ export const Net = {
       case 'match_finished':
         this._pendingToss = '';
         this._applyState(message);
-        // 结算画面由宿主给（及第面板／共同结算卡，各带下一步操作），此处不再自动掀开面板抢版面
+        // 结算画面由宿主给（成佛面板／共同结算卡，各带下一步操作），此处不再自动掀开面板抢版面
         this.onMatchFinished?.(message);
         break;
       case 'command_error':
@@ -1089,7 +1089,7 @@ export const Net = {
     if (this.room.status === 'finished') {
       const winners = this.players.filter((p) => p.done).map((p) => p.name);
       if (this.room.finishReason === 'not_enough_players') return '<b>本局中止</b> · 有效同修不足两位';
-      return `<b>共同结算</b>${winners.length ? ` · ${esc(winners.join('、'))}本局及第` : ''}`;
+      return `<b>共同结算</b>${winners.length ? ` · ${esc(winners.join('、'))}本局成佛` : ''}`;
     }
     if (Date.now() < Number(this.room.availableAt || 0)) return '<b>共同开局</b> · 倒计时中';
     if (this.room.phase === 'choosing_grant') {
@@ -1100,7 +1100,8 @@ export const Net = {
       return `<b>受贈之掷</b> · ${esc(this.playerName(gift.recipientId))}续掷，余 ${gift.remaining} 掷`;
     }
     const turn = this.turnPlayer();
-    if (this.room.finishing) return `<b>补齐本轮</b> · 现在轮到${esc(turn?.name || '同修')}`;
+    // 终局规则：先成佛者留座随喜，其余继续行谱，末位成佛才共同结算
+    if (this.room.finishing) return `<b>已有莲友成佛</b> · 现在轮到${esc(turn?.name || '同修')}`;
     return `<b>第 ${this.room.round || 1} 轮</b> · 现在轮到${esc(turn?.name || '同修')}`;
   },
 
@@ -1134,7 +1135,7 @@ export const Net = {
       else if (player.spectator) status = '候下局';
       else if (player.away) status = '暂离';
       else if (this.room.status === 'finished' && player.ready) status = '下局已准备';
-      else if (player.done) status = '已及第';
+      else if (player.done) status = '已成佛';
       else if (this.room.phase === 'choosing_grant' && this.room.pendingGrant?.giverId === player.id) status = '择人受贈';
       else if (player.bonus > 0) status = `受贈${'一二三四'[Math.min(4, player.bonus) - 1]}掷`;
       else if (this.room.status === 'playing') status = player.n ? `第${player.n}掷` : '待起行';
