@@ -8,3 +8,5 @@ dist/
 release/
 .vscode/
 .~*
+scripts/.cbeta-cache/
+outputs/

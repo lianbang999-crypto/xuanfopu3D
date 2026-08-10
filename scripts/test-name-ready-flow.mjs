@@ -69,7 +69,7 @@ try {
   await entry.evaluate((button) => button.click());
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 });
 
-  const tables = page.locator('.pzT.s-empty:not(:disabled)');
+  const tables = page.locator('.pzE:not(:disabled)');
   const tableCount = await tables.count();
   ok(tableCount > 0, '大厅有空共修室可验收');
   const table = tables.nth(tableCount - 1);
@@ -95,10 +95,10 @@ try {
   // 应用行为已单独验证无恙（✕ 直发 click 正常关卡回大厅），与本套件其余点击同口径
   await page.getByRole('button', { name: '关闭', exact: true }).click({ force: true });
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 15_000 });
-  ok(await page.locator(`.pzT[data-code="${code}"]`).isVisible(), '关闭名号框返回大厅，不会掉回游戏底层');
+  ok(await page.locator(`.pzR[data-code="${code}"],.pzE[data-code="${code}"]`).isVisible(), '关闭名号框返回大厅，不会掉回游戏底层');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator(`.pzT[data-code="${code}"]`).evaluate((button) => button.click());
+  await page.locator(`.pzR[data-code="${code}"],.pzE[data-code="${code}"]`).evaluate((button) => button.click());
   await dialog.waitFor({ state: 'visible' });
   const mobileDialog = await dialog.boundingBox();
   const mobileInput = await input.boundingBox();

@@ -22,7 +22,7 @@ import { SFP_DOOR11_WHY } from '../src/sfp-door11-why.js';
 import { SFP_DOOR12_WHY } from '../src/sfp-door12-why.js';
 import { SFP_DOOR13_WHY } from '../src/sfp-door13-why.js';
 import { SFP_DOOR14_WHY } from '../src/sfp-door14-why.js';
-import { KNOWN_LEADS, canonLeadOf, CANON_GLYPH, POS_GLYPH } from '../src/sfp-lead-canon.js';
+import { KNOWN_LEADS, canonLeadOf, applyCanonLead, CANON_GLYPH, POS_GLYPH } from '../src/sfp-lead-canon.js';
 import { sfpManualWhyText } from '../src/sfp-evidence.js';
 
 const MANUAL = {
@@ -39,7 +39,10 @@ function upstream(position, combo) {
   return raw ? (normWhy(raw, combo) || raw) : '';
 }
 
-const STAY_OLD = /^[^，。]*，一轮[^，。]*、一轮[^，。]*之善，正好相抵。/;
+// 通例整句依谱重写者（判语不逐字比对）：旧式＝「正好相抵…」；
+// V105 v409 改写后的「善惑对治」式亦然（见 src/sfp-lead-canon.js 之 STAY_V105_DUIZHI）。
+// 其余三式（伏惑／净土／未遇佛字）判语一字不动，仍走逐字比对。
+const STAY_OLD = /^(?:[^，。]*，一轮[^，。]*、一轮[^，。]*之善，正好相抵。|一轮[^，。、]{1,8}[、，]一轮[^，。、]{1,10}，善与惑彼此对治，)/;
 const split = (t) => { const at = t.search(/[，。]/); return at < 0 ? [t, ''] : [t.slice(0, at), t.slice(at)]; };
 
 let cells = 0; let rewritten = 0; let stayFixed = 0;
@@ -107,4 +110,29 @@ assert.ok(stay.includes('有漏'), `通例句缺「有漏」：${stay}`);
 assert.ok(stay.includes('二俱无力'), `通例句缺「二俱无力」：${stay}`);
 assert.ok(!stay.includes('相抵'), `通例句仍作等量对消：${stay}`);
 
+// 七、盲区补正（2026-08-08）：本闸先前只校验「已改写的格」——话头落进 KNOWN_LEADS 的那些；
+//   凡话头不在白名单者，applyCanonLead 原样返回，闸门便当它不存在，于是「该改而没改的」
+//   一格也报不出来。「布施兼一分禅定」二十三格就是这样漏到屏上的（发起人 2026-08-08 指出）。
+//   今反过来查结果：校勘之后凡仍带「一分」者即是漏网。谱中「一分」三见，与轮相无涉，逐一豁免：
+//     · 智少一分（通教八人地，谱主原语）
+//     · 各增一分三德（天台三德渐增）
+//     · 别有一分下劣脩罗 / 一分想（《楞严》情想说原文）
+const FEN_OK = /智少一分|各增一分三德|下劣脩羅|下劣修羅|一分想/;
+const leaks = [];
+// 要害在遍历范围：上面各条都只走 CZ（承注库）登记的键，而上游 door*-why／combo-why 里
+//   尚有 CZ 之外的格，从来没进过任何一条检查——「布施兼一分禅定」二十三格正藏身于此。
+//   故此处改遍上游全部键，逐格取校勘后的成文来查。
+const ALL_UPSTREAM = { ...MANUAL, ...SFP_COMBO_WHY };
+for (const key of Object.keys(ALL_UPSTREAM)) {
+  const at3 = key.lastIndexOf('|');
+  if (at3 < 0) continue;
+  const pos = key.slice(0, at3), combo = key.slice(at3 + 1);
+  if (combo.length !== 2) continue;
+  const out = String(sfpManualWhyText(pos, combo) || applyCanonLead(String(ALL_UPSTREAM[key] || ''), pos, combo));
+  if (/一分/.test(out) && !FEN_OK.test(out)) leaks.push(`${key} → ${out.slice(0, 42)}`);
+}
+assert.equal(leaks.length, 0,
+  `校勘后仍有 ${leaks.length} 格带「一分」（轮相话头不当用此语，谱主表法是一轮一字）：\n  ${leaks.slice(0, 6).join('\n  ')}`);
+
 console.log(`话头正名校验通过：${cells} 格；改写话头 ${rewritten} 格、依谱重写通例 ${stayFixed} 格；判语零改动`);
+console.log(`「一分」漏网校验通过：0 格（豁免谱语三处：智少一分／各增一分三德／下劣脩羅・一分想）`);

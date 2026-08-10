@@ -1,7 +1,17 @@
-// 导出「二百二十位 × 廿一轮相」全表为 xlsx（4620 格逐格一行）。
+// 导出「二百二十位 × 廿一轮相」全表为 CSV（4620 格逐格一行）。
 // 取值口与游戏完全同源：白话走 sfpManualWhyText（含本地话头校勘），引文走承注库，
 // 升降走 sfp-rules.js —— 表里看到的就是卡面上看到的，不另起一套。
 // 用法：npm run export:rules  [输出路径]
+//
+// 【2026-08-10 起只产 CSV，不再产 xlsx】用户令「excel 表删除，留一份 csv 就行」。
+//   xlsx 由本仓自写的写入器生成，两份等价数据分处两种格式，改一处忘一处即成两个真源。
+//   〈六字定诠〉原是 xlsx 的第二张表，今随之另出一个 CSV（同名加「·六字定诠」）。
+//
+// 【注意：本脚本产出的不是仓库根那张总表】
+//   仓库根 选佛谱·轮相说明总表.csv 是 26 列——除本脚本的 22 列外，另有母本补齐工序
+//   逐格实核的「当令层」「层次依据」，与 scripts/sync-canon-to-csv.mjs 追加的
+//   「白话说明（正本）」「引文（正本）」。那张表勿用本脚本覆盖，
+//   要更新正本判词请跑 node scripts/sync-canon-to-csv.mjs。
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -27,7 +37,7 @@ import { SFP_DOOR11_WHY } from '../src/sfp-door11-why.js';
 import { SFP_DOOR12_WHY } from '../src/sfp-door12-why.js';
 import { SFP_DOOR13_WHY } from '../src/sfp-door13-why.js';
 import { SFP_DOOR14_WHY } from '../src/sfp-door14-why.js';
-import { writeXlsx } from './lib/xlsx-min.mjs';
+// （2026-08-10 起不再产 xlsx，故不引 ./lib/xlsx-min.mjs；该写入器仍留供他处用）
 
 const MANUAL = {
   ...SFP_DOOR1_WHY, ...SFP_DOOR2_WHY, ...SFP_DOOR3_WHY, ...SFP_DOOR4_WHY, ...SFP_DOOR5_WHY,
@@ -43,7 +53,11 @@ for (let i = 0; i < 6; i += 1) for (let j = i; j < 6; j += 1) COMBOS.push(FACES[
 const BY_ID = Object.fromEntries(SFP_POS.map((p) => [p.id, p]));
 const DOOR = Object.fromEntries(SFP_DOORS.map((d) => [d.no, d]));
 const JUAN = {};
-for (const d of Object.values(SFP_CANON_DOORS)) for (const p of d.positions) JUAN[p.name] = d.juan;
+const CANON_TEXT = {};
+for (const d of Object.values(SFP_CANON_DOORS)) for (const p of d.positions) {
+  JUAN[p.name] = d.juan;
+  CANON_TEXT[p.name] = p.text;
+}
 
 const DIR_LABEL = { up: '升', down: '降', pure: '横超', side: '转', stay: '安住' };
 const ORDER = SFP_POS.map((p) => p.id); // 同门内依谱序定升降，与 scripts/check-dir.mjs 同源
@@ -72,7 +86,9 @@ for (const p of SFP_POS) {
     const dest = mv && mv.to ? BY_ID[mv.to] : null;
 
     let verdict; let dir = '';
-    if (!mv) { verdict = '不行·安住本位'; dir = '安住'; }
+    const terminal = p.door === 15 && !(p.moves || []).length;
+    if (terminal) { verdict = '终局·不再掷轮'; dir = '终局'; }
+    else if (!mv) { verdict = '不行·安住本位'; dir = '安住'; }
     else if (!mv.to && mv.bonus) { verdict = '贈掷·不移位'; dir = '贈掷'; }
     else if (dest && dest.id === p.id) { verdict = '不行·安住本位'; dir = '安住'; }
     else { verdict = '行'; dir = DIR_LABEL[sfpDirOf(p, dest, combo, ORDER)] || ''; }
@@ -94,7 +110,9 @@ for (const p of SFP_POS) {
       sfpManualWhyText(p.id, combo) || (cz && cz.plain) || '',
       layerOf(p.id, combo),
       cz ? cz.level : '',
-      (SFP_WHY[p.id] && SFP_WHY[p.id][combo]) || '',
+      (SFP_WHY[p.id] && SFP_WHY[p.id][combo])
+        || (p.id === '三等一切佛迴向' ? '三世佛法。一切時行。故名等一切佛也。' : '')
+        || (terminal ? (CANON_TEXT[p.name] || '') : ''),
       cites.map((x) => x.t).join('\n'),
       cites.map((x) => x.r).join('\n'),
       [...new Set(cites.map((x) => x.n).filter(Boolean))].join('、'),
@@ -122,27 +140,23 @@ ref.push(['诸门改判·鈍根阿那含（全位）', '那／謨', '界外见�
 ref.push(['诸门改判·八背捨觀（限那佛謨佛）', '那／謨', '法执', '那佛謨佛皆四果者。無漏定力。但遇佛字。必出生死。那謨以表法執。故為定性聲聞也。（同段又云「謨謨鈍根那含者。思惑未盡。生四空天故」，可见三惡相在本位仍是思惑，故此改判不通全位。）']);
 ref.push(['本表用词', '——', Object.entries(CANON_GLYPH).map(([k, v]) => `${k}＝${v}`).join('，'), `话头依卷首体例「X表Y」立文；门位改判者：${Object.keys(POS_GLYPH).join('、')}`]);
 
-const out = process.argv[2] || join(homedir(), 'Downloads', '选佛谱·轮相说明总表.xlsx');
-const buf = writeXlsx([
-  {
-    name: '轮相说明总表',
-    rows,
-    widths: [6, 7, 14, 6, 16, 7, 5, 12, 5, 12, 13, 16, 9, 6, 8, 60, 20, 8, 40, 40, 30, 14],
-  },
-  { name: '六字定诠', rows: ref, widths: [26, 9, 20, 80] },
-]);
-writeFileSync(out, buf);
-
-// 同名 CSV 兜底：xlsx 由本仓自写的写入器生成，万一某版 Excel 挑剔，CSV 一定打得开。
 // 加 BOM，Excel 才认 UTF-8（否则中文成乱码）；换行用 CRLF。
 const csvCell = (v) => {
   const t = v === undefined || v === null ? '' : String(v);
   return /[",\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
 };
-const csv = `﻿${rows.map((r) => r.map(csvCell).join(',')).join('\r\n')}\r\n`;
-const outCsv = out.replace(/\.xlsx$/i, '.csv');
-writeFileSync(outCsv, csv, 'utf8');
+const toCSV = (rs) => `﻿${rs.map((r) => r.map(csvCell).join(',')).join('\r\n')}\r\n`;
+
+const out = (process.argv[2] || join(homedir(), 'Downloads', '选佛谱·轮相说明总表.csv'))
+  .replace(/\.xlsx$/i, '.csv');
+const csv = toCSV(rows);
+writeFileSync(out, csv, 'utf8');
+
+// 〈六字定诠〉原为 xlsx 第二张表，今另出一个 CSV
+const outRef = out.replace(/\.csv$/i, '·六字定诠.csv');
+const refCsv = toCSV(ref);
+writeFileSync(outRef, refCsv, 'utf8');
 
 console.log(`已导出 ${rows.length - 1} 行（220 位 × 21 相）`);
-console.log(`  xlsx  ${out}  （${(buf.length / 1024 / 1024).toFixed(2)} MB，两张表：轮相说明总表 / 六字定诠）`);
-console.log(`  csv   ${outCsv}  （${(Buffer.byteLength(csv) / 1024 / 1024).toFixed(2)} MB，仅总表，兜底用）`);
+console.log(`  总表    ${out}  （${(Buffer.byteLength(csv) / 1024 / 1024).toFixed(2)} MB）`);
+console.log(`  六字定诠 ${outRef}  （${ref.length - 1} 行）`);

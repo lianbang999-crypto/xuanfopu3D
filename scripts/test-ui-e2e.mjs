@@ -167,7 +167,7 @@ try {
   const hallBox = await page.locator('.pzPanel').boundingBox();
   ok(hallBox.width >= 1400 && hallBox.height >= 880, '共修大厅完整占据桌面视口');
   ok(await page.locator('#pzSolo').isVisible() && await page.locator('#pzQuick').isVisible(), '大厅顶部同时提供单人与多人入口');
-  ok((await page.locator('.pzSectionHead p').innerText()).includes('两位准备即可开局'), '大厅准确说明准备后共同开局');
+  ok((await page.locator('.pzRoomsNote').innerText()).includes('两位准备即可开局'), '大厅准确说明准备后共同开局');
   ok(await page.locator('#pzQuick').evaluate((element) => element.classList.contains('primary')), '多人随喜入座保持主操作层级');
   ok(await page.locator('.pzTickerTrack').isVisible(), '共修动态在大厅顶部滚动区域呈现');
   // 共修动态已由大厅内层弹层改为独立全屏页：进去一层，回来一条路
@@ -176,18 +176,18 @@ try {
   ok((await page.locator('.pzTop h2').innerText()).includes('共修动态'), '点顶条进入共修动态全屏页');
   ok(await page.locator('.pzRankRow .no').count() === 0, '共修动态不列名次');
   await page.locator('#pzStreamBack').evaluate((button) => button.click());
-  await page.locator('.pzPanel:not(.pzLoading) .pzGrid').waitFor({ state: 'visible', timeout: 30_000 });
+  await page.locator('.pzPanel:not(.pzLoading) .pzRooms').waitFor({ state: 'visible', timeout: 30_000 });
   ok(true, '从共修动态可回到大厅');
   // 桌况刷新必须就地补写：整段重绘会把焦点掀回 body，键盘与读屏用户选不中房间，点击也会落空
   const focusKept = await page.evaluate(async () => {
-    const cell = document.querySelector('.pzT');
+    const cell = document.querySelector('.pzR,.pzE');
     cell.focus();
     const before = document.activeElement?.getAttribute('aria-label') || '';
     await new Promise((resolve) => setTimeout(resolve, 9000));
     return {
       before,
       after: document.activeElement?.getAttribute('aria-label') || '',
-      sameNode: document.querySelector('.pzT') === cell,
+      sameNode: document.querySelector('.pzR,.pzE') === cell,
     };
   });
   ok(!!focusKept.before && focusKept.before === focusKept.after && focusKept.sameNode,
@@ -200,7 +200,7 @@ try {
   ok(await page.locator('#pzSolo').isVisible() && await page.locator('#pzQuick').isVisible(), '手机首屏保留单人与多人入口');
   await capture(page, '00b-plaza-mobile');
   await page.setViewportSize({ width: 1440, height: 900 });
-  const openTables = page.locator('.pzT.s-empty:not(:disabled)');
+  const openTables = page.locator('.pzE:not(:disabled)');
   const openCount = await openTables.count();
   ok(openCount >= 3, '大厅至少有三张空共修桌可供独立验收');
   // 从末尾取桌，避开本地反复调试时仍处于九十秒保座期的前几桌。
@@ -209,7 +209,7 @@ try {
   const tableC = await openTables.nth(openCount - 1).getAttribute('data-code');
 
   console.log('\n【准备室与共同开局】');
-  await page.locator(`.pzT[data-code="${tableA}"]`).evaluate((button) => {
+  await page.locator(`.pzR[data-code="${tableA}"],.pzE[data-code="${tableA}"]`).evaluate((button) => {
     for (let index = 0; index < 6; index++) button.click();
   });
   try {
@@ -352,7 +352,7 @@ try {
 
   console.log('\n【刷新重连、房主递补与人数不足】');
   const host = await openPeer(tableB, '原房主'); peers.push(host);
-  await page.locator(`.pzT[data-code="${tableB}"]`).evaluate((button) => button.click());
+  await page.locator(`.pzR[data-code="${tableB}"],.pzE[data-code="${tableB}"]`).evaluate((button) => button.click());
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
   const tail = await openPeer(tableB, '后位同修'); peers.push(tail);
   await page.waitForFunction(() => document.querySelectorAll('#netRoster .netP').length === 3);
@@ -396,7 +396,7 @@ try {
 
   console.log('\n【两人局主动离席】');
   const twoPlayerHost = await openPeer(tableC, '两人局房主'); peers.push(twoPlayerHost);
-  await page.locator(`.pzT[data-code="${tableC}"]`).evaluate((button) => button.click());
+  await page.locator(`.pzR[data-code="${tableC}"],.pzE[data-code="${tableC}"]`).evaluate((button) => button.click());
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
   await page.locator('#netReadyBtn').evaluate((button) => button.click());
   twoPlayerHost.send({ type: 'ready_set', ready: true, requestId: 'ui:two-host-ready' });

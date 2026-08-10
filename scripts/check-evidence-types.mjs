@@ -35,9 +35,16 @@ for (const door of Object.values(SFP_CANON_DOORS)) {
   for (const position of door.positions) canonByPosition[position.name] = position.text.replace(/^譜曰。/, '');
 }
 
-const original = Array.from({ length: 6 }, (_, index) =>
+const originalVolumes = Array.from({ length: 6 }, (_, index) =>
   fs.readFileSync(`校正原本/原文/B0136_${String(index + 1).padStart(3, '0')}.txt`, 'utf8'),
-).join('\n');
+);
+const original = originalVolumes.join('\n');
+const citeAtDeclaredLine = (cite) => {
+  const lineNo = Number(String(cite.r || '').match(/・L(\d+)/)?.[1]);
+  const volume = originalVolumes[Number(cite.j) - 1];
+  if (!volume || !lineNo) return false;
+  return verbatimIn(volume.split(/\r?\n/u)[lineNo - 1], cite.t);
+};
 const ontology = JSON.parse(fs.readFileSync('data/grant-ontology-v1.json', 'utf8'));
 const gameSource = fs.readFileSync('src/game.js', 'utf8');
 
@@ -113,8 +120,10 @@ assert.ok(!SFP_WHY['初發心住']['佛佛'].includes('從淨土來者'));
 assert.equal(SFP_WHY['彌勒內院']['陀陀'], '陀陀。則有功用行已極。故為第十迴向。');
 assert.equal(
   sfpWhyPlainText(SFP_WHY['彌勒內院']['陀陀']),
-  // 白話庫已統一底本形（繁）；用戶側繁簡由 game.js 之 zh() 一鍵切換，數據層不隨之變。
-  '陀陀則有功用之行已至其極，故進為第十迴向。',
+  // 2026-08-07 移植线上 V105 后，白话库底本形由繁改简（谱曰引文仍逐字保繁，不在此列）。
+  // 用户侧繁简仍由 game.js 之 zh() 一键切换，且简体作底本更稳：zh() 是双向的，
+  // 繁体底本在繁体模式下会被「简→繁」再套一遍，简体底本无此虞。
+  '陀陀则有功用之行已至其极，故进为第十回向。',
 );
 
 // V78 校正原本的篇名与缺字标记须完整保留。
@@ -145,6 +154,9 @@ const hasZh = (hay, needle) => toS(hay).includes(toS(needle));
 
 assert.ok(hasZh(SFP_POS_PLAIN['中品十善'], '是人道因'));
 assert.ok(hasZh(SFP_POS_PLAIN['四無量心'], '四禅天王'));
+// 2026-08-07 移植 V105 时复核：位白话仍用本地全文本（V105 于 45 位删去两成以上，
+// 其中常寂光淨土整段九品分判被删，而那正是门14「上上一品入极果、其余八品得贈掷」的义理依据）。
+// 判词卡的「极简」改由 posGistLine 逐位择一句达成，不靠削薄底本。
 assert.ok(hasZh(SFP_POS_PLAIN['有間地獄'], '九分情、一分想'));
 assert.ok(hasZh(SFP_POS_PLAIN['無想天'], '五百大劫'));
 // V99 门导语随上游改写为更贴谱文的全文（v387-v391 批）：快照钉改关键判语守卫
@@ -218,13 +230,20 @@ for (const [key, row] of Object.entries(CZ)) {
     assert.ok(cite && cite.t && cite.r, `承注库引文残缺：${key}`);
     assert.ok(verbatimIn(original, cite.t), `承注库引文不在校正原本：${key}`);
     if (cite.n && canonByPosition[cite.n]) {
-      assert.ok(verbatimIn(canonByPosition[cite.n], cite.t), `承注库引文非所署位逐字原文：${key} → ${cite.n}`);
+      // 所署位的原文包括本位「譜曰」義解與其上方行法輪相表。
+      // 後者不在 SFP_CANON_DOORS 的譜曰段內，故改以「卷次＋L行號」反查原本，
+      // 仍須在所署行逐字命中，不放寬為全書任意出處。
+      assert.ok(
+        verbatimIn(canonByPosition[cite.n], cite.t) || citeAtDeclaredLine(cite),
+        `承注库引文非所署位逐字原文：${key} → ${cite.n}`,
+      );
     }
   }
 }
 assert.equal(czCells, 4620);
-assert.equal(CZ_ANS.length, 833);
-assert.equal(CZ_CITE.length, 841);
+assert.equal(czInferred, 343);
+assert.equal(CZ_ANS.length, 842);
+assert.equal(CZ_CITE.length, 858);
 // 承注库补足 SFP_WHY 未载之格，证据对象由 2210 增至 4620
 let evidenceTotal = 0;
 for (const combos of Object.values(SFP_WHY_EVIDENCE)) evidenceTotal += Object.keys(combos).length;

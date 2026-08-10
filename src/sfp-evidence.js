@@ -1,7 +1,8 @@
 import { SFP_WHY } from './sfp-data.js';
 import { SFP_CANON_DOORS } from './sfp-canon.js';
 import { SFP_WHY_PLAIN } from './sfp-why-plain.js';
-import { SFP_GLYPH_WHY } from './sfp-glyph-why.js'; // v389 字义解：依卷首〈輪相表法第一〉逐位生成的理解层
+import { SFP_GLYPH_WHY } from './sfp-glyph-why.js'; // v389 字义解：旧生成层，逐门手写完毕后退役
+import { sfpGlyphCanonText } from './sfp-glyph-canon.js'; // 2026-08-08 字义解手写正本：逐门核定，优先于旧生成层
 import { CZ, czOf } from './sfp-chengzhu.js'; // 承注库：4620 格逐格缘由（主源，取代 v390 之 SFP_REFER_WHY 为溯源主据）
 import { SFP_REFER_WHY } from './sfp-refer-why.js'; // v390 旧溯源表：非相杂格处其所指仍有价值，与承注库并存（相杂格旧表误溯，不取）
 // ── 手工逐组轮相说明（复刻线上 V104 正本，v417/v419 手写层 ＋ v418 话头改写层）──
@@ -30,7 +31,8 @@ import { SFP_COMBO_WHY } from './sfp-combo-why.js';
 //   各位不另释；承注库照录那句通则，句首却带「其餘諸位中」这样的跨位话头——正是玩家读不懂的那种话。
 //   本层依谱主原语逐相改写（判据仍是〈見取〉「二俱無力」、忍位「不起惡故」、淨土疑城「永離退緣」），
 //   只补手工层未及之格；库值体例为「白话主句 ‖ 谱曰：引文」，取用处只取主句。
-import { SFP_STAY_WHY } from './sfp-stay-why.js';
+import { SFP_STAY_WHY } from './sfp-stay-why.js'; // v409「不行」之由：旧生成层，逐门手写完毕后退役
+import { sfpStayCanonText } from './sfp-stay-canon.js'; // 2026-08-08「不行」之由手写正本：逐门核定，优先于旧生成层
 import { normWhy } from './sfp-norm.js'; // 话头归一：本组自称→「这一掷」，别组名字与枚举片段剔除，判语一字不动
 import { applyCanonLead } from './sfp-lead-canon.js'; // 话头正名：上游用词归到卷首〈輪相表法第一〉定诠（本地校勘层）
 
@@ -77,8 +79,67 @@ export function sfpManualWhyText(position, combo) {
   return applyCanonLead(normWhy(raw, combo) || raw, position, combo);
 }
 
+// ── 判词卡分层取值口（移植线上 V105 之 whyLayered，2026-08-07）──
+// 与 sfpManualWhyText 的分工：后者只答「白话是什么」，供证据链取用，取值序不变（免扰既有守闸）；
+//   本函数另报「这一句出自哪一层」，卡面据此逐层署名——缘由（谱主本位之注）／所指（承注溯源）／
+//   字义（本项目理解层）／通例（不行之由），读者一眼即知所读是谱主原话还是我们的理解。
+//   v409 的要害正在此：理解层若不另署，读者会当成谱曰。
+// 线上另有 lineage（依前推导）与 move（逐位具体说明）两层，实测 386／1079 条被手工逐组层
+//   100% 遮蔽、一格不上屏（2026-08-07 移植实测），故本地不设，省 496 KB 包体。
+// ── v470 已核实后**不予移植**（2026-08-07）──
+// 线上 v470 令「相杂六组的引文改取本位明文」，实测是把对的换成了错的：
+//   相杂六组（那阿·謨阿·那彌·謨彌·那陀·謨陀）是一惑一善，卷一〈見取〉那句通例
+//   「以阿彌陀善。與那謨惡相為對治。二俱無力。所以並不行也」正正是在说一惑一善，切题。
+//   而本位明文说的是别的组：邪定「故阿阿等三種不行」指阿阿·阿彌·彌彌三个纯善组；
+//   上品十惡「阿彌至謨佛皆不行者」按轮相次序是另九组——该位谱曰按语覆盖 19 组独缺那彌、謨彌，
+//   足证谱主于此二组本就未另释、径以通例统摄。拿别组之语解本组之事，犯「引文不得互相冒充」之戒。
+export function sfpWhyLayered(position, combo) {
+  const key = `${position}|${combo}`;
+  const dress = (t) => {
+    const s = String(t || '').trim();
+    if (!s) return '';
+    return applyCanonLead(normWhy(s, combo) || s, position, combo);
+  };
+  const main = (t) => String(t || '').split('‖')[0].trim();
+  const quote = (t) => { const q = String(t || '').split('‖')[1]; return q ? q.trim() : ''; };
+
+  // 本位本组的谱曰逐字（手工层与话头改写层的白话都是它的白话，故一并作「原文 ▸」层给出）。
+  // 含糊句（「餘如前說」类）不作引文：读者点开只会读到「餘如前說」，等于没给依据。
+  const rawT0 = String((SFP_WHY[position] || {})[combo] || '').trim();
+  const q0 = rawT0 && !SFP_VAGUE_FORMS.has(rawT0) ? rawT0 : '';
+  // 【正本最先】2026-08-08：手写正本是逐门核定、给用户看的大白话，一切旧层皆其前身。
+  // 旧手工层（MANUAL_WHY）文简而味文言，只给结论不给所以然；正本既已核定，即以正本为准。
+  // 正本未覆盖之格，仍依原次序层层回退，不留空白。
+  const canonG = sfpGlyphCanonText(position, combo);
+  if (canonG) return { text: dress(main(canonG)), kind: 'canon', quote: quote(canonG) || q0 };
+  const canonS = sfpStayCanonText(position, combo);
+  if (canonS) return { text: dress(main(canonS)), kind: 'canon', quote: quote(canonS) || q0 };
+  if (MANUAL_WHY[key]) return { text: dress(MANUAL_WHY[key]), kind: 'canon', quote: q0 };
+  if (SFP_COMBO_WHY[key]) return { text: dress(SFP_COMBO_WHY[key]), kind: 'canon', quote: q0 };
+  const r = SFP_REFER_WHY[key];
+  if (r) return { text: dress(r.p || r.t), kind: 'refer', src: r.s, quote: r.t || '' };
+  // 谱主于本位本组自有按语者，取其白话；含糊句不上屏——那等于没说原因。
+  const rawT = rawT0;
+  if (rawT && !SFP_VAGUE_FORMS.has(rawT)) {
+    const pl = sfpWhyPlainText(rawT);
+    if (pl) return { text: dress(pl), kind: 'canon', quote: rawT };
+  }
+  // 手写正本优先于旧生成层（此处曾直查旧表，绕过正本取值口，2026-08-08 修正）。
+  const gw = sfpGlyphWhyText(position, combo);
+  if (gw) return { text: dress(main(gw)), kind: 'glyph', quote: quote(gw) };
+  const sw = sfpStayCanonText(position, combo) || SFP_STAY_WHY[key];
+  if (sw) return { text: dress(main(sw)), kind: 'stay', quote: quote(sw) };
+  return { text: '', kind: '' };
+}
+
+// 卡面行题：逐层各自署名，不相冒充（与 SFP_EVIDENCE_TYPE 同则）
+export const SFP_WHY_LAYER_LABEL = {
+  canon: '缘由', refer: '所指', glyph: '字义', stay: '通例',
+};
+
+// 手写正本优先，旧生成条回退：逐门手写完毕后 sfp-glyph-why.js 退役，此处只留正本一路。
 export function sfpGlyphWhyText(position, combo) {
-  return SFP_GLYPH_WHY[`${position}|${combo}`] || '';
+  return sfpGlyphCanonText(position, combo) || SFP_GLYPH_WHY[`${position}|${combo}`] || '';
 }
 
 // v389 字义解兜底证据：谱主于本位本组未另作按语时，依卷首表法与行法表去向补一层理解（另署，不冒谱曰）。
@@ -101,7 +162,13 @@ function czEvidenceItems(position, combo, rawText) {
   const refItem = (x) => {
     // 门总说等非位引文（如「四洲以见佛闻法为次第」出于门总说）不安位名——它不是可跳转的位
     const isPos = !!(x.n && CANON_BY_POSITION[x.n]);
-    const base = sourceQuote(x.t, isPos && x.n === position ? 'pu_explanation' : 'refer_note',
+    // 本位证据有两种：「谱曰」义解段与本位行法轮相表。后者虽也是
+    // 《选佛谱》原文，却不得冒充「谱曰」段；按是否逐字见于本位谱曰分类。
+    const samePos = isPos && x.n === position;
+    const subtype = samePos
+      ? (CANON_BY_POSITION[position].text.includes(x.t) ? 'pu_explanation' : 'rule_fact')
+      : 'refer_note';
+    const base = sourceQuote(x.t, subtype,
       isPos && x.n !== position && short ? `${x.r}（本位「${short}」所指）` : x.r);
     return isPos && x.n !== position
       ? { ...base, refName: x.n, refId: x.n === '佛' ? '圓教究竟妙覺位' : x.n, refJuan: x.j }

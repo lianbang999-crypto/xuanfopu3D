@@ -249,9 +249,12 @@ function expandGate(gate) {
 
 function report(res) {
   const { gate, R, total, ok, gap, gaps, conflicts, byLevel, pendingCells, rulingCells, unknown } = res;
+  const reviews = R.pending || [];
+  const openReviews = reviews.filter((item) => !item.ruling);
+  const ruledReviews = reviews.filter((item) => item.ruling);
   if (unknown?.length) console.log(`\n⚠️  規則表有未知欄位（將靜默失效，須改）：${[...new Set(unknown)].join('、')}`);
   console.log(`\n════ 門${gate} ${R.meta.gateName}　${R.meta.positions} 位 × 21 相 ＝ ${total} 格 ════`);
-  console.log(`規則 ${R.rules.length} 條（待議 ${(R.pending || []).length} 項）\n`);
+  console.log(`規則 ${R.rules.length} 條（待議 ${openReviews.length} 項，已裁定複核 ${ruledReviews.length} 項）\n`);
   console.log('覆蓋：');
   for (const [k, v] of Object.entries(byLevel).sort((a, b) => b[1] - a[1])) {
     console.log(`　${k.padEnd(4, '　')} ${String(v).padStart(5)}　${(100 * v / total).toFixed(1)}%`);
@@ -272,8 +275,9 @@ function report(res) {
     gaps.slice(0, 40).forEach((x) => console.log('　' + x));
     if (gaps.length > 40) console.log(`　…另 ${gaps.length - 40} 格`);
   }
-  for (const d of R.pending || []) {
-    console.log(`\n【${d.id}】${d.title}　${d.cells}`);
+  for (const d of reviews) {
+    console.log(`\n【${d.id}${d.ruling ? '·已裁定' : '·待議'}】${d.title}　${d.cells}`);
+    if (d.ruling?.判) console.log(`　判：${d.ruling.判}`);
     if (d.結) console.log(`　結：${d.結}`);
   }
 }

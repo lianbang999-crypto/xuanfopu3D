@@ -19,6 +19,11 @@
     "test:room": "node scripts/test-room-state.mjs",
     "test:net": "node scripts/test-net.mjs",
     "test:ui": "node scripts/test-ui-e2e.mjs",
+    "test:door": "node scripts/test-door-card.mjs",
+    "test:door-intro": "node scripts/test-door-intro.mjs",
+    "test:pos-card": "node scripts/test-pos-card.mjs",
+    "test:toss-read": "node scripts/test-toss-read.mjs",
+    "check:door-baihua": "node scripts/check-door-baihua.mjs",
     "test:name-ready": "node scripts/test-name-ready-flow.mjs",
     "test:finish": "node scripts/test-finish-flow.mjs",
     "test:finish-rule": "node scripts/test-finish-rule.mjs",
@@ -27,7 +32,10 @@
     "test:plaza-client": "node scripts/test-plaza-client.mjs",
     "test:backlang": "node scripts/test-back-and-lang.mjs",
     "test:agent": "node agent/eval/canon-eval.mjs && node agent/eval/intent-eval.mjs && node agent/eval/player-eval.mjs && node agent/eval/guard-eval.mjs",
-    "check:dir": "node scripts/check-dir.mjs"
+    "check:dir": "node scripts/check-dir.mjs",
+    "check:baihua": "node scripts/check-pos-baihua.mjs",
+    "test:verdict": "node scripts/test-verdict-card.mjs",
+    "test:card": "node scripts/test-card-v2.mjs"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4",
