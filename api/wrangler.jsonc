@@ -1,0 +1,19 @@
+{
+  // 選佛譜正本 API —— 只讀 JSON 接口，全量數據打進 bundle，無 KV／D1／DO 依賴。
+  // 部署：node api/build.mjs && npx wrangler deploy --config api/wrangler.jsonc
+  "name": "xuanfopu-canon-api",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-01",
+
+  // 獨立子域，與遊戲站 game.foyue.org、問答 foyue.org/xuanfopu/ask/api 各不相犯。
+  // custom_domain 由 Cloudflare 自動建 DNS 與證書，無需手動加 A/CNAME 記錄。
+  "routes": [
+    { "pattern": "api.foyue.org", "custom_domain": true }
+  ],
+
+  // 加 routes 後 workers.dev 默認停用；顯式保留作備路，
+  // 子域出事時可繞開 DNS 直訪排查（與 agent worker 同例）。
+  "workers_dev": true,
+
+  "observability": { "enabled": true }
+}
