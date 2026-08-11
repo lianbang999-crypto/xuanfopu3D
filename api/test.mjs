@@ -7,6 +7,7 @@
 // 用法：node api/test.mjs            對本地 bundle 自檢
 //       node api/test.mjs <origin>   對已部署站點自檢（如 https://api.foyue.org）
 
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -208,12 +209,153 @@ console.log(`\n選佛譜正本 API 自檢 · ${ORIGIN ? `線上 ${ORIGIN}` : '�
   ok(c.body.combos.filter((x) => x.standard).length === 15, '標準十五序');
 }
 
-// ── 九 · 雜項 ───────────────────────────────────────────────
+// ── 九 · 位注原文三段（義解｜行法｜後論）────────────────────
 {
-  ok((await get('/openapi.json')).body.openapi === '3.1.0', 'OpenAPI 3.1 規格可取');
+  const { SFP_POS } = await import(pathToFileURL(join(ROOT, 'src/sfp-data.js')));
+  const { sfpSplitOf } = await import(pathToFileURL(join(ROOT, 'src/sfp-canon-split.js')));
+
+  const one = await get(`/v1/positions/${encodeURIComponent('上品十惡')}`);
+  const c = one.body.canon;
+  ok(c.full === SFP_POS[0].note, '位注原文 full 與源數據一字不差');
+  ok(c.exegesis + (c.practice || '') + (c.postscript || '') === c.full, '三段拼回即全文');
+  // 切点在「那那」处，其前的全角分隔空格归義解段——故比對前先去尾空白
+  ok(c.exegesis.trimEnd().endsWith('故是地獄因也。'), '義解段止於「故是地獄因也。」', c.exegesis.slice(-10));
+  ok(c.practice?.includes('那那。則邪見增盛'), '行法段自「那那」起', String(c.practice).slice(0, 12));
+  ok(one.body.definition === c.full, 'v1.0 之 definition 欄位仍等同 canon.full');
+
+  // 全量核對：220 位三段皆與 sfpSplitOf 相符
+  const ex = await get('/v1/export');
+  let badSplit = 0, actN = 0, postN = 0;
+  for (const p of ex.body.positions) {
+    const src = SFP_POS.find((x) => x.name === p.name);
+    const r = sfpSplitOf(p.name, src.note || '');
+    const got = p.canon;
+    if (got.full !== src.note) { badSplit += 1; continue; }
+    if (got.exegesis !== (r.act ? r.jie : src.note)) badSplit += 1;
+    else if ((got.practice || '') !== (r.post ? r.act : r.act)) badSplit += 1;
+    else if ((got.postscript || '') !== r.post) badSplit += 1;
+    if (got.practice) actN += 1;
+    if (got.postscript) postN += 1;
+  }
+  ok(badSplit === 0, '二百二十位三段與切点表逐位相符', `${badSplit} 位不符`);
+  ok(actN === 140, '有行法段者 140 位', String(actN));
+  ok(postN === 6, '另有後論者 6 位', String(postN));
+
+  // 門十五題下六句標目
+  const fo = await get(`/v1/positions/${encodeURIComponent('佛')}`);
+  ok(fo.body.headings?.length === 6, '門十五「佛」帶題下六句標目', String(fo.body.headings?.length));
+  ok(fo.body.headings?.[0] === '圓教究竟妙覺位', '首句標目為圓教究竟妙覺位', fo.body.headings?.[0]);
+}
+
+// ── 十 · 各層白話 ───────────────────────────────────────────
+{
+  const { SFP_POS_BAIHUA } = await import(pathToFileURL(join(ROOT, 'src/sfp-pos-baihua.js')));
+  const { SFP_DOOR_BAIHUA } = await import(pathToFileURL(join(ROOT, 'src/sfp-door-baihua.js')));
+  const { SFP_FRONT_BAIHUA, SFP_POST_BAIHUA } = await import(pathToFileURL(join(ROOT, 'src/sfp-front-baihua.js')));
+
+  // 位注白話：220 位無一缺，且逐字對得上源數據
+  const ex = await get('/v1/export');
+  const noVern = ex.body.positions.filter((p) => !p.vernacular?.text).length;
+  ok(noVern === 0, '二百二十位位注白話無一缺', `${noVern} 位缺`);
+  let badVern = 0;
+  for (const p of ex.body.positions) {
+    const src = SFP_POS_BAIHUA[p.name] ?? SFP_POS_BAIHUA[p.formal_name];
+    if (!src || src.v !== p.vernacular.text) badVern += 1;
+  }
+  ok(badVern === 0, '位注白話逐位與源數據一字不差', `${badVern} 位不符`);
+
+  // 門義白話
+  const d1 = await get('/v1/doors/1');
+  ok(d1.body.vernacular?.text === SFP_DOOR_BAIHUA[1].v, '門一門義白話對得上源數據');
+  ok(d1.body.vernacular?.self_authored === true, '門一導語標為本項目自撰（原譜無此門總說）');
+  const d3 = await get('/v1/doors/3');
+  ok(!d3.body.vernacular?.self_authored, '門三有原譜總說，不標自撰');
+  ok(d3.body.intro.startsWith('依六道論'), '門三門首總說原文無「譜曰」領起', d3.body.intro.slice(0, 8));
+  let badDoorBH = 0;
+  for (let n = 1; n <= 15; n += 1) {
+    const r = await get(`/v1/doors/${n}`);
+    if (r.body.vernacular?.text !== SFP_DOOR_BAIHUA[n].v) badDoorBH += 1;
+  }
+  ok(badDoorBH === 0, '十五門門義白話逐門相符', `${badDoorBH} 門不符`);
+
+  // 位下後論白話：原文有後論之六位方有，餘位皆 null
+  const withPost = ex.body.positions.filter((p) => p.postscript_vernacular);
+  ok(withPost.length === 6, '位下後論白話六位', String(withPost.length));
+  ok(withPost.every((p) => p.canon.postscript), '有後論白話者原文必有後論段');
+  ok(withPost.every((p) => SFP_POST_BAIHUA[p.name]?.v === p.postscript_vernacular.text), '後論白話逐位相符');
+
+  // 卷首卷末四篇
+  const f = await get('/v1/front');
+  ok(f.body.total === 4, '卷首卷末四篇', String(f.body.total));
+  ok(f.body.sections.every((x) => x.text && x.vernacular?.text), '四篇原文與白話俱全');
+  ok(f.body.sections.every((x) => SFP_FRONT_BAIHUA[x.title]?.v === x.vernacular.text), '四篇白話逐篇相符');
+  const one = await get(`/v1/front/${encodeURIComponent('輪相表法第一')}`);
+  ok(one.body.text.includes('那謨表惡'), '〈輪相表法第一〉原文含「那謨表惡」');
+  ok(one.body.text.length === 808, '〈輪相表法第一〉原文 808 字', String(one.body.text.length));
+  ok((await get('/v1/front/2')).body.title === '輪相表法第一', '序號 2 即輪相表法第一');
+  ok((await get(`/v1/front/${encodeURIComponent('查無此篇')}`)).status === 404, '無此篇 404');
+}
+
+// ── 十一 · 全書原文 ─────────────────────────────────────────
+{
+  const corpus = JSON.parse(readFileSync(join(ROOT, '全文/corpus.json'), 'utf8'));
+  const r = await get('/v1/text?limit=500');
+  ok(r.body.total === 692, '全書原文 692 塊', String(r.body.total));
+
+  const ex = await get('/v1/export?include=text');
+  ok(ex.body.text?.length === 692, 'export?include=text 併出 692 塊', String(ex.body.text?.length));
+  const plain = await get('/v1/export');
+  ok(plain.body.text === undefined, 'export 默認不併出全書原文');
+
+  let badText = 0;
+  for (const b of ex.body.text) {
+    const src = corpus.blocks.find((x) => x.id === b.id);
+    if (!src || (src.text || '') !== b.text) badText += 1;
+  }
+  ok(badText === 0, '六九二塊原文逐塊與 corpus 一字不差', `${badText} 塊不符`);
+  ok(ex.body.text.reduce((a, b) => a + b.text.length, 0) === 76276, '全書原文合計 76276 字');
+  const empties = ex.body.text.filter((b) => b.empty);
+  ok(empties.length === 2, '母本未取到正文者 2 塊，且如實標 empty', String(empties.length));
+  ok(empties.every((b) => b.text === ''), 'empty 之塊正文留空，不以他文冒充');
+
+  const j1 = await get('/v1/text?juan=1&limit=500');
+  ok(j1.body.total === 100, '卷一 100 塊', String(j1.body.total));
+  const qa = await get('/v1/text?kind=qa&limit=500');
+  ok(qa.body.total === 11, '問答塊 11', String(qa.body.total));
+  const byPos = await get(`/v1/text?position=${encodeURIComponent('見取')}&limit=500`);
+  ok(byPos.body.total === 6, '〈見取〉6 塊', String(byPos.body.total));
+  ok(byPos.body.blocks.every((b) => b.position === '見取'), '按位篩選之塊皆屬該位');
+  const blk = await get('/v1/text/j1-g01-title');
+  ok(blk.body.title?.includes('發始因地門'), '單塊可取', blk.body.title);
+  ok((await get('/v1/text/j9-none')).status === 404, '無此塊 404');
+  ok((await get('/v1/text?juan=9')).status === 400, '卷次越界 400');
+  ok((await get('/v1/text?kind=nope')).status === 400, '偽 kind 400');
+}
+
+// ── 十二 · 檢索擴至白話與全書原文 ───────────────────────────
+{
+  const v = await get('/v1/search?in=vernacular&q=' + encodeURIComponent('殺生'));
+  ok(v.body.positions.length > 0, '按白話檢索有命中', String(v.body.positions.length));
+  ok(v.body.positions.every((p) => p.vernacular?.text), '白話命中項帶白話正文');
+  const t = await get('/v1/search?in=text&q=' + encodeURIComponent('萬德洪名'));
+  ok(t.body.texts.length > 0, '按全書原文檢索有命中', String(t.body.texts.length));
+  ok(t.body.texts.some((b) => b.text.includes('萬德洪名')), '命中塊正文確含該詞');
+  const all = await get('/v1/search?q=' + encodeURIComponent('取相懺'));
+  ok(all.body.counts.texts > 0 && all.body.counts.rules > 0, 'in=all 兼收格與全書原文');
+  ok((await get('/v1/search?in=nope&q=x')).status === 400, '偽 in 400');
+}
+
+// ── 十三 · 雜項 ─────────────────────────────────────────────
+{
+  const o = await get('/openapi.json');
+  ok(o.body.openapi === '3.1.0', 'OpenAPI 3.1 規格可取');
+  ok(o.body.paths['/v1/text'] && o.body.paths['/v1/front'], 'OpenAPI 含新增端點');
   ok((await get('/v1/不存在')).status === 404, '未知路徑 404');
   const m = await get('/v1/meta');
   ok(typeof m.body.source?.dice === 'string', 'meta 帶輪相總說');
+  ok(m.body.statistics.text_blocks === 692 && m.body.statistics.front_sections === 4, 'meta 統計含新層');
+  const root = await get('/');
+  ok(root.body.version === '1.1.0', '版本已進至 1.1.0', root.body.version);
 }
 
 // ── 交卷 ────────────────────────────────────────────────────
