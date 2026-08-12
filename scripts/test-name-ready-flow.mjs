@@ -78,7 +78,9 @@ try {
     }
     return false;
   };
-  await pump(() => document.querySelector('#boot')?.classList.contains('ready'));
+  // 2026-08-12 再修：负载高的慢机上 16s 催帧不够（多进程并行时首帧可迟至 40s+），放宽到 ~45s 并显式报因
+  const bootReady = await pump(() => document.querySelector('#boot')?.classList.contains('ready'), 320);
+  if (!bootReady) throw new Error('题屏 .ready 超时——headless 首帧未到（机器负载？）');
   await page.locator('#tiHall').evaluate((b) => b.click());
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 });
 
@@ -155,7 +157,8 @@ try {
   });
   ok(readyPending.disabled && readyPending.busy === 'true' && readyPending.text.includes('正在准备'), '快速连点“我已准备”只进入一次待确认状态');
   ok(readyPending.guide.includes('正在确认您的准备状态'), '确认期间引导文案与按钮状态一致');
-  await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('取消准备'));
+  // polling 定时而非默认 rAF：freezeVisuals 后无头断帧，rAF 轮询会在回执早到的情况下干等 30s
+  await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('取消准备'), null, { polling: 250 });
   ok(await page.locator('#netReadyBtn').getAttribute('aria-pressed') === 'true'
     && (await page.locator('#netRoster').innerText()).includes('已准备'), '服务端确认后名单和按钮统一显示已准备');
   ok((await page.locator('#netStartBtn').innerText()).includes('邀请莲友')
@@ -171,12 +174,12 @@ try {
     };
   });
   ok(cancelPending.disabled && cancelPending.busy === 'true' && cancelPending.text.includes('正在取消'), '快速连点取消也只进入一次待确认状态');
-  await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('我已准备'));
+  await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('我已准备'), null, { polling: 250 });
   ok(await page.locator('#netReadyBtn').getAttribute('aria-pressed') === 'false'
     && (await page.locator('#netRoster').innerText()).includes('等待准备'), '取消确认后按钮与名单恢复未准备状态');
 
   await page.locator('#netLeaveBtn').click({ force: true });
-  await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 15_000 });
+  await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 }); // 慢机上离席→重开大厅含一次网络往返，放宽
 } catch (error) {
   failed++;
   console.error(`  ✗ 名号/准备验收中断：${error.stack || error.message}`);

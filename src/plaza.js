@@ -361,6 +361,10 @@ export function renderPlaza(data, ui) {
 
 // 入座前问名（只在没有存名时出现一次；留空即「莲友」，此后自动带上）
 // 一张卡两用：入座前留名号，或单从功课榜来改名号（ui.rename）
+// 2026-08-12 极简重做（用户点单）：八层收六层——标题下即输入框，label 行与 lead 句撤
+// （义归 aria-label 与 scope 一句）；「选填／留空即莲友／存本机」三句并作输入框下一句；
+// 新增三枚建议名章：不想费神起名的人点一枚即填好（不弹键盘），再点主钮即入——两点进房。
+const NAME_POOL = ['慧明', '净安', '照心', '澄怀', '若水', '闻钟', '静远', '莲舟', '初心', '望岳', '拾阶', '归元'];
 export function renderSitName(code, ui) {
   const { el } = ui;
   const rename = !!ui.rename;
@@ -370,17 +374,22 @@ export function renderSitName(code, ui) {
     <div class="askEyebrow">${rename ? '共修名号 · 记名' : `共修室${ord} · 入座前一步`}</div>
     <h2 id="pzNameTitle">${rename ? (savedName() ? '改名号' : '取个共修名号') : '留下共修名号'}</h2>
     <form class="body" id="pzNameForm" novalidate>
-      <p class="lead">${rename ? '功课与成佛都记在这个名下' : '方便同座莲友认得您'}</p>
       <div class="nameField">
-        <label for="pzName">名号 <span>选填</span></label>
         <input id="pzName" class="bigIn" maxlength="24" autocomplete="nickname" enterkeyhint="go"
-          spellcheck="false" aria-describedby="pzNameNote pzNameScope" placeholder="例如：慧明">
+          spellcheck="false" aria-label="共修名号，选填" aria-describedby="pzNameNote pzNameScope" placeholder="如「慧明」，可留空">
         <div class="fieldMeta">
-          <span id="pzNameNote">留空则显示「莲友」</span>
+          <span id="pzNameNote" aria-live="polite"></span>
           <span id="pzNameCount">0 / 12</span>
         </div>
       </div>
-      <p class="scope" id="pzNameScope">将显示在本室名单与共修动态，并保存在本机。</p>
+      <div class="nameChips" aria-label="名号建议">
+        <span class="chipCap">或取一枚</span>
+        <button type="button" class="chip"></button><button type="button" class="chip"></button><button type="button" class="chip"></button>
+        <button type="button" class="chipMore" aria-label="换一批建议名" title="换一批">↻</button>
+      </div>
+      <p class="scope" id="pzNameScope">${rename
+        ? '功课与成佛都记在这个名下；显示在本室名单与共修动态，只存本机。'
+        : '将显示在本室名单与共修动态；只存本机，留空即以「莲友」入座。'}</p>
       <button class="gbtn primary big" id="pzNameSubmit" type="submit">
         <span id="pzNameGo">以「莲友」${verb}</span>
       </button>
@@ -402,9 +411,21 @@ export function renderSitName(code, ui) {
     const name = input.value.replace(/\s+/g, ' ').trim() || '莲友';
     go.textContent = `以「${name}」${verb}`;
     note.classList.remove('err');
-    note.textContent = '留空则显示「莲友」';
+    note.textContent = '';   // 「留空即莲友」已并入 scope 一句；此行只在出错时说话
   };
   input.addEventListener('input', syncName);
+  // 建议名章：点即填好并同步主钮——不 focus 输入框（免手机弹键盘），看主钮变字即知已取
+  const chips = [...p.querySelectorAll('.nameChips .chip')];
+  let poolAt = Math.floor(Math.random() * NAME_POOL.length);
+  const dealChips = () => { chips.forEach((c) => { c.textContent = NAME_POOL[poolAt % NAME_POOL.length]; poolAt++; }); };
+  dealChips();
+  p.querySelector('.chipMore').addEventListener('click', dealChips);
+  p.querySelector('.nameChips').addEventListener('click', (event) => {
+    const c = event.target.closest('.chip');
+    if (!c || submitting) return;
+    input.value = c.textContent || '';
+    syncName();
+  });
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (submitting) return;
@@ -479,7 +500,7 @@ export const PLAZA_CSS = `
   radial-gradient(circle at 84% 16%,rgba(176,131,28,.08),transparent 32%),
   radial-gradient(circle at 10% 90%,rgba(47,106,94,.09),transparent 38%),
   linear-gradient(166deg,#e2ebe8,#e7ede9 52%,#d5e2db);
-  backdrop-filter:none;animation:pzIn .24s ease-out}
+  backdrop-filter:none;animation:pzIn var(--t-mid,.24s) var(--ease-out,ease-out)}
 @keyframes pzIn{from{opacity:.4;transform:scale(1.01)}}
 .pzPanel>.ovClose{top:calc(18px + env(safe-area-inset-top));right:calc(22px + env(safe-area-inset-right));
   border-color:var(--aq-line);background:rgba(255,255,255,.5);color:var(--aq-note)}
@@ -487,7 +508,22 @@ export const PLAZA_CSS = `
 .overlay .pzPanel .gbtn{background:rgba(255,255,255,.55);border:1px solid var(--aq-line);color:var(--aq-tx)}
 .overlay .pzPanel .gbtn.primary{background:var(--aq-goldwash);border:1px solid var(--aq-goldline);color:var(--aq-tx);font-weight:600}
 .overlay .pzPanel .cNote{color:var(--aq-note)}
-.pzLoading{display:grid!important;place-items:center}.pzLoadingInner{text-align:center;width:min(360px,84vw)}
+/* 加载态两形（2026-08-12 批）：默认九宫格骨架（与终局同形零跳变）；.err 才居中错误卡 */
+.pzLoading.err{display:grid!important;place-items:center}
+.pzLoadingInner{text-align:center;width:min(360px,84vw)}
+.pzLoadingInner[hidden],.pzSkShell[hidden]{display:none}
+.pzSkShell{align-content:start}
+.pzSk{display:block;border:1px solid var(--aq-line);border-radius:14px;background:rgba(255,255,255,.5);animation:pzSk 1.2s ease-in-out infinite}
+.pzSk.skT{min-height:44px;border-radius:12px}
+.pzSk.skM{min-height:84px}
+.pzSk.skC{min-height:108px}
+.pzSk.skSide{display:none}
+@keyframes pzSk{0%,100%{opacity:.4}50%{opacity:.85}}
+@media (min-width:981px){
+  .pzSkShell .pzSk.skT,.pzSkShell .pzSk.skM,.pzSkShell .pzGrid{grid-column:1}
+  .pzSk.skSide{display:block;grid-column:2;grid-row:2/5;border-radius:16px}
+}
+@media (prefers-reduced-motion:reduce){.pzSk{animation:none;opacity:.55}}
 .pzLoadingInner>span{color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:4px}
 .pzLoadingInner h2{margin:6px 0 18px;color:var(--aq-title);font-size:28px;letter-spacing:7px;font-weight:500}
 .pzLoadingInner .body{color:var(--aq-note)}.pzLoadingInner .gbtn{display:block;width:100%;margin-top:10px}
@@ -659,7 +695,7 @@ export const PLAZA_CSS = `
   .pzShell{padding-left:16px;padding-right:16px;gap:12px}
 }
 @media (max-width:640px){
-  .overlay .pzPanel{width:100vw;max-width:none;height:100dvh;max-height:none;border:0;border-radius:0;padding:0;animation:pzIn .2s ease}
+  .overlay .pzPanel{width:100vw;max-width:none;height:100dvh;max-height:none;border:0;border-radius:0;padding:0;animation:pzIn var(--t-fast,.18s) var(--ease-out,ease)}
   .pzPanel>.ovClose{top:calc(10px + env(safe-area-inset-top));right:calc(10px + env(safe-area-inset-right))}
   .pzShell{padding:calc(14px + env(safe-area-inset-top)) 12px calc(14px + env(safe-area-inset-bottom));gap:10px}
   .pzTop{padding-right:50px}.pzTop h2{font-size:24px;letter-spacing:5px}.pzShell .pzEyebrow,.myPanel .pzEyebrow{display:none}
@@ -705,10 +741,16 @@ export const PLAZA_CSS = `
 .pzAskName .askEyebrow{margin:0 46px 8px 0;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:2px}
 .pzAskName h2{margin:0 46px 5px 0;font-size:clamp(22px,4.6vw,28px);letter-spacing:3px}
 .pzAskName .body{gap:14px;text-align:left}
-.pzAskName .lead{margin:0 0 2px;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px}
 .pzAskName .nameField{display:grid;gap:7px}
-.pzAskName label{display:flex;align-items:baseline;gap:8px;color:var(--aq-title);font-size:var(--fs-md,14px);letter-spacing:2px}
-.pzAskName label span{color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:1px}
+/* 建议名章（2026-08-12 极简重做）：三枚泥金小章＋一枚 ↻ 换批——两点进房的那条近路 */
+.pzAskName .nameChips{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.pzAskName .chipCap{color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:1px}
+.pzAskName .chip{min-height:34px;padding:5px 13px;border:1px solid var(--aq-goldline);border-radius:17px;
+  background:rgba(255,255,255,.5);color:var(--aq-tx);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
+.pzAskName .chip:hover,.pzAskName .chip:focus-visible{background:var(--aq-goldwash)}
+.pzAskName .chipMore{width:34px;height:34px;flex:none;border:1px solid var(--aq-line);border-radius:50%;
+  background:none;color:var(--aq-note);font:inherit;font-size:var(--fs-md,14px);cursor:pointer}
+.pzAskName .chipMore:hover,.pzAskName .chipMore:focus-visible{border-color:var(--aq-goldline);color:var(--aq-strong)}
 .pzAskName .bigIn{min-height:52px;padding:13px 14px;font-size:var(--fs-xl);letter-spacing:1.5px;text-indent:0;text-align:left}
 .pzAskName .bigIn::placeholder{letter-spacing:1px}
 .pzAskName .fieldMeta{display:flex;justify-content:space-between;gap:12px;min-height:17px;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:.5px}
@@ -730,12 +772,15 @@ export const PLAZA_CSS = `
 
 /* 同修成佛横幅：不弹窗不打断 */
 export const PEER_WIN_CSS = `
-#peerWin{position:fixed;left:50%;top:12%;transform:translate(-50%,-14px);z-index:52;pointer-events:none;
-  opacity:0;transition:opacity .45s,transform .45s;white-space:nowrap;
+#peerWin,#matchBegin{position:fixed;left:50%;top:12%;transform:translate(-50%,-14px);z-index:52;pointer-events:none;
+  opacity:0;transition:opacity var(--t-slow,.36s) var(--ease-out,ease),transform var(--t-slow,.36s) var(--ease-out,ease);white-space:nowrap;
   background:linear-gradient(90deg,rgba(232,199,102,0),rgba(232,199,102,.22),rgba(232,199,102,0));
   border-top:1px solid rgba(232,199,102,.45);border-bottom:1px solid rgba(232,199,102,.45);
   padding:9px 30px;color:#f4e6b8;letter-spacing:2px;font-size:var(--fs-md,14px)}
-#peerWin.show{opacity:1;transform:translate(-50%,0)}
-#peerWin b{color:var(--gold-hi);font-weight:600;margin-right:6px}
-#peerWin i{font-style:normal;color:var(--teal);margin-left:12px;font-size:var(--fs-sm,12.5px)}
+#peerWin.show,#matchBegin.show{opacity:1;transform:translate(-50%,0)}
+#peerWin b,#matchBegin b{color:var(--gold-hi);font-weight:600;margin-right:6px}
+#peerWin i,#matchBegin i{font-style:normal;color:var(--teal);margin-left:12px;font-size:var(--fs-sm,12.5px)}
+/* #matchBegin＝共同开局金横幅（2026-08-12 批）：与同修成佛横幅同形制——开局是全局最有仪式感的一刻，
+   从一条 toast 升格为金字幕＋磬；字距放大一档以示庄重 */
+#matchBegin b{letter-spacing:6px;font-size:var(--fs-lg,16px)}
 `;

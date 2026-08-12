@@ -693,9 +693,9 @@ export const Net = {
    像从大厅长出的房间卡；开局（is-playing）或大厅不在时回左下老位。⤢ 全屏自取时豁免居中。
    位置带过渡：大厅开合时面板滑移而非瞬跳。 */
 @media (min-width:521px){
-  #netPanel.on{transition:left .28s ease-out,bottom .28s ease-out,transform .28s ease-out}
-  body:has(.overlay .pzPanel) #netPanel.is-waiting:not(.full),
-  body:has(.overlay .pzPanel) #netPanel.is-finished:not(.full){left:50%;bottom:50%;transform:translate(-50%,50%);
+  #netPanel.on{transition:left var(--t-mid,.24s) var(--ease-out,ease-out),bottom var(--t-mid,.24s) var(--ease-out,ease-out),transform var(--t-mid,.24s) var(--ease-out,ease-out)}
+  body:has(.overlay:not(.bye) .pzPanel) #netPanel.is-waiting:not(.full),
+  body:has(.overlay:not(.bye) .pzPanel) #netPanel.is-finished:not(.full){left:50%;bottom:50%;transform:translate(-50%,50%);
     box-shadow:0 24px 60px rgba(10,20,26,.30),0 0 0 1px rgba(150,112,32,.26),0 0 40px rgba(176,131,28,.14)} /* 居中房卡镶一圈金晕：像从大厅长出的牌位卡 */
 }
 @media (prefers-reduced-motion:reduce){#netPanel.on{transition:none}}
@@ -1086,7 +1086,7 @@ export const Net = {
     this.$panel.classList.add('on');
     // 等候室入厅（2026-08-11）：大厅在背后时不挂「点外收起」遮罩——厅是等候的背景，
     // 桌况、右墙茶寮都要留给人点；收面板走 ⌄。别处（星图上）遮罩照旧。
-    if (!document.querySelector('.overlay .pzPanel')) this.$dismiss.classList.add('on');
+    if (!document.querySelector('.overlay:not(.bye) .pzPanel')) this.$dismiss.classList.add('on');
     document.querySelectorAll('.netEntry').forEach((button) => button.setAttribute('aria-expanded', 'true'));
     this._unread = 0;
     this._badge();

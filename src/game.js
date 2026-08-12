@@ -1920,6 +1920,12 @@ css.textContent = `
   --fs-lg:16px;   /* 强调·小标题 */
   --fs-xl:19px;   /* 面板标题 */
   --fs-display:22px; /* 展示级题字 */
+  /* ── 转场节奏三档（2026-08-12 批）：页面级转场唯一取时处——快·开合 / 中·换页 / 慢·横幅，
+     缓动统一柔出。微交互（hover 等）各留原值不入此表；行棋演出（fadeWhite 等）属演出层豁免。 ── */
+  --t-fast:.18s;
+  --t-mid:.24s;
+  --t-slow:.36s;
+  --ease-out:cubic-bezier(.22,.7,.35,1);
   /* ── 色彩立宪（2026-07-29 提案 §一.1）：全站色 token 唯一取色处；明度分层用透明度档，不再新造 hex。
      注：JS 内联着色暂留字面 hex（写经纸兜底按 [style*="#…"] 字面匹配，token 化须与兜底改造同批，见提案）；
      canvas/three.js 侧色值（轮面/星流/珠色）属数据层豁免，归 JS 常量不入此表。 ── */
@@ -2352,7 +2358,16 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .profRow .pk{flex:0 0 4.6em;color:var(--gold);font-size:var(--fs-sm);letter-spacing:1px;padding-top:1px}
 .profRow .pv{flex:1;color:#dccf9f;font-size:var(--fs-md);line-height:1.65}
 .profRow .psrc{margin-left:6px;font-size:var(--fs-xs);color:var(--note);border:1px solid rgba(157,145,112,.5);padding:0 5px;border-radius:6px;white-space:nowrap}
-.overlay{inset:0;background:var(--ck-scrim);display:flex;align-items:center;justify-content:center;z-index:30;animation:ovIn .18s ease}
+.overlay{inset:0;background:var(--ck-scrim);display:flex;align-items:center;justify-content:center;z-index:30;animation:ovIn var(--t-fast) var(--ease-out)}
+/* 浮层退场与入场同一口呼吸（2026-08-12 批）：closeOverlay 先挂 .bye 淡出再摘——
+   暗星图与浅大厅两域切换从硬切改为交叠淡化，其余浮层关闭的生硬感一并消。 */
+.overlay.bye{opacity:0;transition:opacity var(--t-fast) var(--ease-out);pointer-events:none}
+@media (prefers-reduced-motion:reduce){.overlay.bye{transition:none}}
+/* 按压反馈（2026-08-12 批）：触屏无 hover，按下轻缩即「按到了」的肉感——全站按钮统一。
+   :where 零特异性：已自带 transition/transform 的按钮（.pzMode 等）照旧压过此默认。 */
+:where(button:not(:disabled)){transition-property:transform;transition-duration:.12s}
+button:not(:disabled):active{transform:scale(.97)}
+@media (prefers-reduced-motion:reduce){button:not(:disabled):active{transform:none}}
 .overlay .panel{max-width:min(560px,92vw);max-height:82vh;display:flex;flex-direction:column;padding:16px;
   position:relative;animation:pnIn .24s cubic-bezier(.2,.8,.25,1)}
 @keyframes ovIn{from{opacity:0}}
@@ -2674,8 +2689,9 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 #vClock:empty{display:none}
 #vClock.warn{color:var(--gold-hi)}
 /* 站内确认卡（替代 window.confirm）：自成一层，不占 overlay */
-/* z:80＝全站最高一层（netGrant 62 之上）：确认卡是打断性的最后一问，任何面板都不得压它 */
-#sfpConfirm{position:fixed;inset:0;z-index:80;display:none;align-items:center;justify-content:center;
+/* z:120＝全站绝顶（题屏 #boot 是 z:100）：确认卡是打断性的最后一问，连题屏都不得压它——
+   题屏「新开一局」的确认从前就弹在 #boot 背后，看着像「点了没反应」（用户 2026-08-12 报）。 */
+#sfpConfirm{position:fixed;inset:0;z-index:120;display:none;align-items:center;justify-content:center;
   padding:16px;background:rgba(8,10,15,.76);backdrop-filter:blur(4px)}
 #sfpConfirm.on{display:flex}
 #sfpConfirm .cfCard{width:min(340px,92vw);box-sizing:border-box;padding:20px 18px 16px;color:#e8e2d0;
@@ -2938,9 +2954,10 @@ html.bigfont #cardBody,html.bigfont .overlay .body{font-size:var(--fs-lg)}
 .sfpMoves{margin:6px 0}
 .sfpMoves .mv{display:flex;gap:8px;font-size:var(--fs-sm);margin:3px 0;color:#dccf9f;text-align:left}
 .sfpMoves .mv b{color:var(--gold);font-weight:600;flex:0 0 8.5em;text-align:right}
-#toast{bottom:calc(178px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);
+#toast{bottom:calc(178px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);z-index:120;
   background:rgba(26,22,44,.95);border:1px solid rgba(215,170,69,.6);border-radius:9px;padding:9px 16px;
-  font-size:var(--fs-md);opacity:0;transition:opacity .3s;pointer-events:none;max-width:86vw;text-align:center}
+  font-size:var(--fs-md);opacity:0;transition:opacity var(--t-mid) var(--ease-out);pointer-events:none;max-width:86vw;text-align:center}
+  /* z:120 与确认卡同层：toast 是全局旁白（pointer-events:none 不挡点），题屏上的重连报因等语从前被 #boot(z:100) 盖住 */
 #peek{position:absolute;z-index:26;pointer-events:none;max-width:272px;padding:9px 12px;font-size:var(--fs-sm);line-height:1.6;color:#dccf9f;display:none}
 #peek b{color:#f4e6b8}
 @media (max-width:600px){ #title{font-size:var(--fs-lg);letter-spacing:2px} .nlabel{font-size:var(--fs-xs)} .nlabel.t1{font-size:var(--fs-md)} }
@@ -3133,11 +3150,28 @@ function noIntroClash() {
   const d = p ? SFP_DOOR_BY[p.door] : null;
   return !(d && d.intro && !sfpS.seenD.includes(p.door));
 }
-function showToast(msg        , ms = 2600) {
+// 排队防覆盖（2026-08-12 批）：来人＋房主易主等连发时，从前后到直接吞先到——
+// 今改小队列：有后续时当前条压缩至 1.6s，淡隐一口气后放下一条；连发同文去重，积压逾三条丢最旧。
+const toastQ                                   = [];
+let toastBusy = false;
+function toastPump() {
+  if (toastBusy || !toastQ.length) return;
+  const { msg, ms } = toastQ.shift()      ;
+  toastBusy = true;
   toast.style.pointerEvents = 'none'; toast.style.cursor = ''; // 默认不可点（同修播报单独开）
   toast.textContent = zh(msg); toast.style.opacity = '1';
+  const hold = toastQ.length ? Math.min(ms, 1600) : ms;
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => { toast.style.opacity = '0'; }, ms);
+  toastTimer = window.setTimeout(() => {
+    toast.style.opacity = '0';
+    window.setTimeout(() => { toastBusy = false; toastPump(); }, 260);
+  }, hold);
+}
+function showToast(msg        , ms = 2600) {
+  if (toastQ.length && toastQ[toastQ.length - 1].msg === msg) return;
+  toastQ.push({ msg, ms });
+  if (toastQ.length > 3) toastQ.shift();
+  toastPump();
 }
 
 // ── 站内确认卡 ──
@@ -3661,7 +3695,14 @@ function topNavLock(on         ) {
 function softCloseOverlay() { if (overlayEl && overlayEl.querySelector('.keepOv')) return; closeOverlay(); }
 function closeOverlay() {
   myCalClose?.();   // 页内弹窗随母页一同收：句柄与 keydown 监听不留孤儿
-  if (overlayEl) { overlayEl.remove(); overlayEl = null; }
+  if (overlayEl) {
+    // 退场与入场同一口呼吸（2026-08-12 批）：挂 .bye 淡出 0.18s 再摘——开新层时新旧交叠淡化，
+    // 暗星图与浅大厅两域不再硬切。凡「大厅是否在场」的判定须查 .overlay:not(.bye)，勿把将逝者当在场。
+    const old = overlayEl;
+    overlayEl = null;
+    old.classList.add('bye');
+    window.setTimeout(() => old.remove(), 190);
+  }
   topNavLock(false);
   if (vdAutoMin) { vdAutoMin = false; if (verdictEl.classList.contains('show')) verdictEl.classList.remove('min'); } // 关层还原被自动收起的判词
   controls.autoRotate = false; // 题屏环拍只在题屏挂：任何覆盖层一收即停
@@ -8415,6 +8456,19 @@ function openNetSettle(message         ) {
 let peerWinT = 0;
 const peerWinEl = el('<div id="peerWin" class="ui"></div>');
 app.appendChild(peerWinEl);
+// 共同开局金横幅（2026-08-12 批）：开局是全局最有仪式感的一刻，从 toast 升格为金字幕＋磬。
+// 与成佛横幅分立两元素：先成佛者的横幅与下一局开局可能相近出现，不互相吞。
+let matchBeginT = 0;
+const matchBeginEl = el('<div id="matchBegin" class="ui"></div>');
+app.appendChild(matchBeginEl);
+function sfpMatchBegin() {
+  matchBeginEl.innerHTML = `<b>${zh('共同开局')}</b><i>${zh('依入座次序轮流掷轮')}</i>`;
+  matchBeginEl.classList.add('show');
+  playBell(524, 0.06);
+  vib(30);
+  clearTimeout(matchBeginT);
+  matchBeginT = window.setTimeout(() => matchBeginEl.classList.remove('show'), 3600);
+}
 function sfpPeerWin(name, n) {
   peerWinEl.innerHTML = `<b>${esc(name)}</b>${zh(n ? ` 第 ${n} 掷选佛及第` : ' 选佛及第')}<i>${zh('随喜')}</i>`;
   peerWinEl.classList.add('show');
@@ -8474,7 +8528,7 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
     // 等候/结算期面板浮于大厅之上（桌面居中如展开的房间卡），本局行谱中（含旁观）才关厅切星图。
     // 此判定必须在 joinRoom 兑现之后：承诺在首拍房态落地后才兑现，isPlaying 至此方可靠。
     if (Net.isPlaying()) { plazaNavAway(); closeOverlay(); }
-    else if (!document.querySelector('.overlay .pzPanel')) openPlaza(); // 从问名/密码卡或邀请链接来：先铺开大厅作等候的底（openPlaza 自会换掉当前卡层）
+    else if (!document.querySelector('.overlay:not(.bye) .pzPanel')) openPlaza(); // 从问名/密码卡或邀请链接来：先铺开大厅作等候的底（:not(.bye) 免把淡出中的旧厅当在场）
     Net.openPanel();
     // 中途入室是旁观，不是入局：别拿「两位准备即可开局」糊弄他等一个不属于他的轮次
     showToast(zh(Net.isSpectator()
@@ -8835,9 +8889,16 @@ async function openPlaza() {
   Net.closePanel();          // 同上：全屏页与同修面板不并存
   // 手关（✕/Esc/背景/右滑）与底部「返回」同去向：停表，无局回题屏——两个退出一个去处
   const handClose = () => { plazaStop(); plazaSideStop(); if (!sfpS.active) openTitle(); };
-  const loading = el(`<div class="panel pzPanel pzLoading"><div class="pzLoadingInner">
-    <span>选佛谱</span><h2>共修大厅</h2><div class="body"><div class="cbStage">正在入大厅……</div></div>
-  </div></div>`);
+  // 加载骨架（2026-08-12 批）：与终局同形的九宫格灰卡轻呼吸，数据到即原位换真——版面零跳变。
+  // 失败时骨架让位（.err），居中错误卡带重试与一人行谱兜底（pzLoadingInner 承旧职）。
+  const loading = el(`<div class="panel pzPanel pzLoading"><div class="pzShell pzSkShell" aria-hidden="true">
+      <header class="pzTop"><div><span class="pzEyebrow">选佛谱</span><h2>共修大厅</h2></div></header>
+      <span class="pzSk skT"></span>
+      <span class="pzSk skM"></span>
+      <div class="pzGrid">${'<span class="pzSk skC"></span>'.repeat(9)}</div>
+      <span class="pzSk skSide"></span>
+    </div>
+    <div class="pzLoadingInner" hidden><span>选佛谱</span><h2>共修大厅</h2><div class="body"></div></div></div>`);
   openOverlay(loading); zhDom(loading);
   overlayOnClose = handClose;
   let panel = null;
@@ -8868,6 +8929,9 @@ async function openPlaza() {
       if (panel && panel.isConnected) return;
       plazaStop();
       if (!loading.isConnected) return;
+      loading.classList.add('err');                       // 骨架让位，错误卡居中
+      (loading.querySelector('.pzSkShell')               ).hidden = true;
+      (loading.querySelector('.pzLoadingInner')               ).hidden = false;
       loading.querySelector('.body').innerHTML =
         `<div class="cNote">${zh('大厅暂时连接不上，请稍后再试')}</div>` +
         `<button class="gbtn primary" id="pzRetry" style="margin-top:10px;width:100%">${zh('重试')}</button>` +
@@ -10695,7 +10759,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     closeOverlay();
     Net.closePanel();
     startSfp(false);
-    showToast('真人共修共同开局——依入座次序轮流掷轮', 4200);
+    sfpMatchBegin();   // 金横幅＋磬代 toast（2026-08-12 批）：开局的话由仪式说，不再两处各说一遍
     netClockSync();
     scheduleNetTurnUi();
   };
