@@ -16,10 +16,10 @@ const PLAYER_COLORS = ['#e8c766', '#96e1d6', '#d98873', '#b9a7e0']; // 金·青�
 // 房主离开后按入座次序递补，不再让用户理解“东南西北”。
 const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
 
-// ---- 共修广场：固定 12 张共修室（桌数固定、座数固定，入座准备后共同开局） ----
+// ---- 共修广场：固定 9 张共修室（桌数固定、座数固定，入座准备后共同开局；2026-08-11 由 12 收为 9） ----
 const PLAZA_OBJECT = '__xuanfopu_plaza__';
-const TABLE_COUNT = 12;
-const TABLE_ORD = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+const TABLE_COUNT = 9;
+const TABLE_ORD = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 // plaza_feed 为旧「成佛公报流」，已由共修动态（一人一行，见 plaza_practice）取代；
 // 建表与旧数据保留，只在推算「本站共修起始日」时读一次，不再写入。
 const RUN_KEEP = 500;   // 成佛录留存条数（超出按时间裁旧）
@@ -28,10 +28,11 @@ const PRACTICE_DAILY_CAP = 10000; // 功课榜是随喜记录；单身份日上�
 // 超期即视为失效并清掉；在座者只要还在掷轮就会续报，不会被误清。
 const TABLE_TTL = 20 * 60 * 1000;
 const REPORT_REFRESH = 5 * 60 * 1000; // 行棋时若距上次上报超过此值就续报一次，保住新鲜度
-// 桌号 H{厅}T{桌}（如 H1T12）：厅满自动开下一厅，桌数每厅固定 12——
+// 桌号 H{厅}T{桌}（如 H1T9）：厅满自动开下一厅，桌数每厅固定 9——
 // 与旧的 4 位纯数字房号天然不撞，沿用现有 /api/room/:code/ws 路由，无需改路由正则。
+// （旧 T10–T12 的房号与邀请链接自此失效；其快照随 TABLE_TTL 过期自清，不必迁移。）
 const tableCode = (hall, no) => `H${hall}T${no}`;
-const TABLE_RE = /^H([1-9]\d{0,2})T([1-9]|1[0-2])$/;
+const TABLE_RE = /^H([1-9]\d{0,2})T([1-9])$/;
 const isTableCode = (code) => TABLE_RE.test(String(code || '').toUpperCase());
 function tableSeatOf(code) {
   const m = TABLE_RE.exec(String(code || '').toUpperCase());
@@ -45,7 +46,7 @@ const dayKey = (ts = Date.now()) => new Date(ts + SHANGHAI_OFFSET_MS).toISOStrin
 // 系统代设反而让人记不住、也没法口头报给莲友。
 const LOCK_MAX_TRIES = 10;      // 密码错满即暂闭，防暴力猜
 const LOCK_WINDOW_MS = 10 * 60 * 1000; // 十分钟后自动恢复，避免恶意试错永久锁死房间
-const LOCK_MAX_PER_HALL = 4;    // 一厅至多四室设密码（12 之三分一），余下永远对陌生人敞开
+const LOCK_MAX_PER_HALL = 3;    // 一厅至多三室设密码（9 之三分一），余下永远对陌生人敞开
 // 座位回收：不设闹钟，只在有人求座、真要谢客之前懒清一次
 const OFFLINE_GRACE = 90 * 1000;      // 断线保座九十秒：够走完一次重连退避
 const TURN_MS = 60 * 1000;            // 在线等待一手的最长时间
@@ -60,6 +61,9 @@ const HOST_IDLE_MS = 45 * 1000;
 const PUBLIC_RUN_CAP = 60;        // 单一来源每日至多登记的成佛局数
 const PUBLIC_TICK_CAP = 20000;    // 单一来源每日至多计入的掷数
 const CHAT_GAP_MS = 750;              // 单连接聊天限速
+const CHALOU_KEEP = 300;          // 茶寮留存条数：当下闲话不是档案，尾部之外随删
+const CHALOU_GAP_MS = 3000;       // 茶寮同人发言间隔：闲话慢语，也防连发刷屏
+const CHALOU_DAILY_CAP = 300;     // 单一来源每日发言上限（正常闲聊远用不完）
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -132,7 +136,7 @@ function tableState(seats) {
 }
 
 // 桌位快照由各桌 DO 在座次变动时推送到广场 DO（参 Colyseus LobbyRoom 的 push 模型）：
-// 看广场＝1 次 DO 请求，而非并发探 12 桌——看广场远比座位变动频繁，推送省得多。
+// 看广场＝1 次 DO 请求，而非并发探 9 桌——看广场远比座位变动频繁，推送省得多。
 function plazaTables(hall, snaps) {
   return Array.from({ length: TABLE_COUNT }, (_, i) => {
     const no = i + 1;
@@ -181,6 +185,10 @@ export default {
     if (path === '/api/plaza/me') {     // 个人功课：累计·成佛·共修天数·连续日·逐日（供月历）
       if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
       return plazaForward(request, env, '/plaza/me');
+    }
+    if (path === '/api/plaza/chat') {   // 莲友茶寮：GET 增量拉取 / POST 发言（本站自建，已与主站脱钩）
+      if (request.method !== 'GET' && request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+      return plazaForward(request, env, '/plaza/chat', url.search);
     }
 
     // ---- 共修室 API（择室在广场；此处只有入座与探室） ----
@@ -288,6 +296,15 @@ export class RoomDO {
         locked INTEGER NOT NULL DEFAULT 0
       );
       CREATE INDEX IF NOT EXISTS plaza_tables_hall ON plaza_tables(hall, no);
+      -- 莲友茶寮（2026-08-11 与主站脱钩）：本站自建留言，不再与 foyue.org 群互通。
+      -- 茶寮是当下闲话不是档案：只留尾部 CHALOU_KEEP 条，旧言随删；id 即增量游标。
+      CREATE TABLE IF NOT EXISTS plaza_chat (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        actor TEXT NOT NULL,         -- 匿名莲号（p_…24hex），只用于「我」的比对与限速，不外发
+        name TEXT NOT NULL,
+        text TEXT NOT NULL
+      );
     `);
     // 旧库补列（新建库已含）：locked 列缺失时补上，免得升级后读不到锁态
     try { this.state.storage.sql.exec('ALTER TABLE plaza_tables ADD COLUMN locked INTEGER NOT NULL DEFAULT 0'); }
@@ -562,6 +579,54 @@ export class RoomDO {
     return take;
   }
 
+  // 莲友茶寮（2026-08-11 与主站脱钩）：GET ?after=id 增量拉取，POST {actor,name,text} 发言。
+  // 「我」的判定：GET 带本机 actor 来比对，莲号本身不外发（与功课榜同一隐私口径）。
+  // 错误一律 json({error}) 中文短句——前端直接把 error 呈给用户，不再猜 HTTP 语义。
+  async plazaChat(request, url) {
+    this.plazaInit();
+    if (request.method === 'GET') {
+      const after = Math.max(0, Math.floor(Number(url.searchParams.get('after')) || 0));
+      const me = String(url.searchParams.get('actor') || '');
+      // 首拉取尾部 50 条（正序呈现）；增量取 after 之后至多 100 条——6 秒一轮询远到不了这个数
+      const rows = after
+        ? [...this.state.storage.sql.exec(
+            'SELECT id,ts,actor,name,text FROM plaza_chat WHERE id > ? ORDER BY id ASC LIMIT 100', after)]
+        : [...this.state.storage.sql.exec(
+            'SELECT id,ts,actor,name,text FROM (SELECT * FROM plaza_chat ORDER BY id DESC LIMIT 50) ORDER BY id ASC')];
+      return json({ items: rows.map(r => ({
+        id: Number(r.id), ts: Number(r.ts),
+        name: String(r.name), text: String(r.text),
+        mine: !!me && me === String(r.actor),
+      })) });
+    }
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: '留言格式有误' }, 400); }
+    const actor = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
+    if (!actor) return json({ error: '身份未就绪，请刷新页面再试' }, 400);
+    const name = this.safeName(body?.name) || '莲友';
+    const text = Array.from(String(body?.text || '')
+      .replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim()).slice(0, 150).join('');
+    if (!text) return json({ error: '说点什么再发' }, 400);
+    // 限速两道：同人 3 秒一句（DO 休眠丢表无妨——能休眠说明早过了间隔）；同源日上限防灌
+    const now = Date.now();
+    if (!this.chalouAt) this.chalouAt = new Map();
+    const last = Number(this.chalouAt.get(actor) || 0);
+    if (now - last < CHALOU_GAP_MS) return json({ error: '稍候片刻再发' }, 429);
+    if (!this.quotaTake('chalou', await this.sourceKey(request), CHALOU_DAILY_CAP, 1)) {
+      return json({ error: '今日留言已达上限' }, 429);
+    }
+    this.chalouAt.set(actor, now);
+    this.state.storage.sql.exec(
+      'INSERT INTO plaza_chat (ts,actor,name,text) VALUES (?,?,?,?)', now, actor, name, text,
+    );
+    // 只留尾部：每次写后顺手清一刀，表永远小
+    this.state.storage.sql.exec(
+      'DELETE FROM plaza_chat WHERE id NOT IN (SELECT id FROM plaza_chat ORDER BY id DESC LIMIT ?)', CHALOU_KEEP,
+    );
+    return json({ ok: true });
+  }
+
   // 共修室的成佛由本室 DO 直接登记（服务器权威），不经浏览器自报；
   // 成佛累加到本人莲号：共修室的由房间带莲号上来，一人行谱的由客户端自带
   bumpWin(actor, name, ts) {
@@ -582,7 +647,7 @@ export class RoomDO {
     catch { return json({ error: 'invalid json' }, 400); }
     const name = this.safeName(body?.name) || '同修';
     const n = Math.max(1, Math.min(9999, Math.floor(Number(body?.n) || 0)));
-    const seat = /^table:([1-9]|1[0-2])$/.test(String(body?.seat || '')) ? String(body.seat) : 'private';
+    const seat = /^table:[1-9]$/.test(String(body?.seat || '')) ? String(body.seat) : 'private';
     const actor = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
     const ts = Date.now();
     this.state.storage.sql.exec(
@@ -618,7 +683,7 @@ export class RoomDO {
     const lowest = String(body?.lowest || '').slice(0, 24);
     const span = Math.max(1, Math.min(999, Math.floor(Number(body?.span) || 1)));
     const path = body?.path === 'pure' ? 'pure' : 'rise';
-    const seat = /^(solo|private|table:([1-9]|1[0-2]))$/.test(String(body?.seat || '')) ? String(body.seat) : 'solo';
+    const seat = /^(solo|private|table:[1-9])$/.test(String(body?.seat || '')) ? String(body.seat) : 'solo';
     const actor = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
     const ts = Date.now();
     this.state.storage.sql.exec(
@@ -1303,6 +1368,7 @@ export class RoomDO {
     if (url.pathname === '/plaza/tick') return this.plazaTick(request);
     if (url.pathname === '/plaza/record') return this.plazaRecord(request);
     if (url.pathname === '/plaza/me') return this.plazaMine(request);
+    if (url.pathname === '/plaza/chat') return this.plazaChat(request, url);
     // 只对 DO 之间开放：公共 Worker 的 /api/* 路由不会转到这里
     if (url.pathname === '/plaza/record-verified') return this.plazaRecordVerified(request);
     if (url.pathname === '/plaza/table') return this.plazaTableReport(request);

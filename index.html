@@ -6,6 +6,10 @@
 <meta name="theme-color" content="#0b0d12">
 <meta name="description" content="十法界须弥山世界 · 选佛谱——依蕅益大师《選佛譜》十五门二百二十位，掷占察轮行十法界棋盘，从初发心直到成佛；支持四人实时联机与在线讨论。">
 <title>选佛谱 · 十法界须弥山世界</title>
+<!-- 题屏壁画随屏向取图：立轴（竖）与横卷（横）各一幅，media 只让当屏那幅上路，不白耗一份流量。
+     置于样式之前＝解析到 CSS 时图已在途，务求第一帧即是画（本屏无「加载态」画面可退） -->
+<link rel="preload" as="image" href="/assets/title-bg-p.webp" media="(orientation:portrait)" fetchpriority="high">
+<link rel="preload" as="image" href="/assets/title-bg-l.webp" media="(orientation:landscape)" fetchpriority="high">
 <style>
 /* touch-action 只对画布设 none（自定手势）；html/body/#app 改 pan-x pan-y——
    安卓 Chrome 会把祖先的 none 连累到浮层内滚动（我的/大厅在安卓滑不动的病根，iOS 不严格执行故无恙）；
@@ -13,10 +17,187 @@
 html,body,#app{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0d12;touch-action:pan-x pan-y;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
 #app{position:fixed;inset:0}
 canvas{display:block;touch-action:none}
+/* 全屏题屏（2026-08-11 四改：封面与开机屏并入题屏——从此一屏到底，不再有「开机」这一幕）。
+   #boot 即唯一门面：净土莲池界画从第一帧就在（预载 link ＋ 同色底渐变兜底，绝无黑屏一瞬），
+   JS 就绪是无声的（.ready 只校钮文案、亮细字行、浮 ✕ 与在场句），画面不换。
+   未就绪时点主钮＝记心愿（__wantStart），就绪自动起行。不设进度条不写「加载中」。
+   壁画两版随屏向自动更替：竖屏取立轴（殿宇踞上、莲池铺下），横屏取横卷（殿池左右舒展）。
+   版式亦分屏向：竖屏题名踞天光留白、行动区沉底压池面，中段整幅让给画；
+   横屏上下收紧、让出中轴殿门那一线。隐去态 .bye 只淡出不移除，回题屏即再亮。 */
+#boot{position:fixed;inset:0;z-index:100;display:flex;align-items:stretch;justify-content:center;
+  pointer-events:auto;transition:opacity .6s ease;
+  /* 底色即此画的晕影（天光米→石绿→池青）：图未解码时先见这一片净土色，与画同调故换得无声 */
+  background:linear-gradient(#e2dac2,#b8c9bc 24%,#4d989a 50%,#217985 74%,#12626f)}
+/* 壁画层（z:-2）：随屏向取图，解码毕即淡入——.bgOn 只为不生硬，非「加载态」 */
+#boot::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:-2;
+  opacity:0;transition:opacity .5s ease;
+  background:url(/assets/title-bg-p.webp) 50% 12%/cover no-repeat}
+#boot.bgOn::before{opacity:1}
+/* 青墨纱（z:-1，恒在）：此画明亮通透（天光、青碧水），浅金字直接压上去会失读——
+   故纱作「上下压、中段透」：顶band 托题名、底band 托钮与细字落款，
+   中段几乎不加以存画之清透（殿门白莲那一线正在此处）。 */
+#boot::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:-1;
+  background:linear-gradient(rgba(4,26,30,.66),rgba(4,26,30,.48) 8%,rgba(4,26,30,.34) 16%,
+    rgba(4,26,30,.19) 25%,rgba(4,26,30,.07) 34%,rgba(4,26,30,0) 44%,
+    rgba(4,26,30,0) 52%,rgba(4,26,30,.12) 60%,rgba(4,26,30,.40) 70%,
+    rgba(4,26,30,.68) 80%,rgba(4,26,30,.86) 92%,rgba(4,26,30,.9))}
+#boot.bye{opacity:0;pointer-events:none!important}
+/* 一栏到底：题名在上、主钮 margin-top:auto 沉底，中间的空即是画的呼吸位 */
+.bGroup{position:relative;display:flex;flex-direction:column;align-items:center;text-align:center;
+  width:100%;max-width:min(560px,94vw);box-sizing:border-box;
+  padding:calc(8.5vh + env(safe-area-inset-top)) 16px calc(13vh + env(safe-area-inset-bottom))}
+#bootName{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;font-weight:500;
+  font-size:clamp(48px,11.5vw,72px);letter-spacing:.3em;text-indent:.3em;line-height:1.16;
+  color:#fbf0d4;text-shadow:0 2px 12px rgba(3,20,24,.9),0 4px 38px rgba(3,20,24,.7),0 0 52px rgba(233,196,110,.3)}
+/* 题名与副题只以留白相隔：画已足够满，一道纯装饰的分隔线只是噪音（本项目不加装饰之则）。
+   副题字细而落在殿脊斗栱一带（画最繁处），故影比题名还要吃重——近影托边、远影压底，
+   不靠加重青墨纱换来（纱一重，界画的金线就没了）。 */
+#bootSub{margin-top:17px;font-size:13px;letter-spacing:.24em;text-indent:.24em;color:#f2e7c9;
+  font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;
+  text-shadow:0 1px 3px rgba(3,20,24,1),0 2px 14px rgba(3,20,24,.95),0 0 30px rgba(3,20,24,.75)}
+/* 主钮：第一毫秒即金钮（样式自足，不等主包）；就绪前点了记心愿，文案由内联小脚本改「正在入界…」 */
+#bootGo{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  margin-top:auto;width:min(300px,82vw);
+  min-height:58px;padding:14px 12px;border:1px solid rgba(255,240,200,.34);border-radius:13px;cursor:pointer;
+  font-family:inherit;font-weight:600;letter-spacing:5px;font-size:16px;color:#2a1e08;
+  background:linear-gradient(180deg,#e6bc5b,#b0831c);
+  box-shadow:0 10px 34px -12px rgba(3,20,24,.9),0 0 26px rgba(215,170,69,.16)}
+#bootGo:hover{filter:brightness(1.06)}
+#bootGo b{letter-spacing:5px;font-size:16px}
+#bootGo span{font-size:11px;letter-spacing:1px;opacity:.82;font-weight:400}
+/* 在场句：就绪且有真人才浮现（不留空盒，不假装热闹） */
+#bootPresence{display:none}
+#boot.ready #bootPresence:not([hidden]){display:block;animation:bIn .3s ease-out both}
+/* 细字行：静态即出（先展示后交互）——未就绪半暗禁点，就绪后 openTitle 换成可点版并亮起 */
+#bootLinks{display:flex;justify-content:center;gap:24px;margin-top:20px;flex-wrap:wrap;
+  font-size:13px;letter-spacing:.15em;color:#e9dcba;text-shadow:0 1px 8px rgba(3,20,24,.95);transition:opacity .4s}
+#boot:not(.ready) #bootLinks{pointer-events:none;opacity:.5}
+/* 六字名号：屏底落款——本谱轮相所刻，何时都在 */
+#bootSeat{position:absolute;bottom:calc(4.6vh + env(safe-area-inset-bottom));left:0;right:0;
+  text-align:center;font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;
+  font-size:12.5px;letter-spacing:.52em;text-indent:.52em;color:#cfbf92;text-shadow:0 1px 8px rgba(3,20,24,.9)}
+/* 主包失败这一行：坐落款与细字行之间的空档（旧值 12vh 正压在细字行上，一失败就两行叠字）。
+   且此时细字行的挂钩全在主包里，是一排点不动的字——一并收起，只留这句实话与主钮。 */
+#bootErr{position:absolute;bottom:calc(8.6vh + env(safe-area-inset-bottom));left:0;right:0;
+  text-align:center;color:#e0a48d;font-size:13px;letter-spacing:2px;text-shadow:0 1px 8px rgba(3,20,24,.9)}
+#bootErr[hidden]{display:none}
+#boot:has(#bootErr:not([hidden])) #bootLinks{display:none}
+/* ✕＝收起题屏观照星图：星图要 3D 就绪，故 ready 才在 */
+#bootX{display:none;position:fixed;top:calc(12px + env(safe-area-inset-top));right:calc(14px + env(safe-area-inset-right));
+  width:44px;height:44px;border:1px solid rgba(255,240,200,.3);border-radius:10px;background:rgba(4,26,30,.42);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  color:#e9dcba;font-size:17px;cursor:pointer}
+#boot.ready #bootX{display:block;animation:bIn .3s ease-out both}
+@keyframes bIn{from{opacity:0;transform:translateY(8px)}}
+/* ── 手机竖屏（立轴）：画按高填满、取中轴竖条（殿门·台阶·池·台毯，构图天然成立）；
+      题名由 vw 定尺（竖屏宽度才是稀缺物），上下留白收一档 ── */
+@media (orientation:portrait) and (max-width:640px){
+  #bootName{font-size:clamp(44px,13vw,58px);letter-spacing:.26em;text-indent:.26em}
+  .bGroup{padding-top:calc(8vh + env(safe-area-inset-top));padding-bottom:calc(11vh + env(safe-area-inset-bottom))}
+  #bootLinks{gap:18px}
+}
+/* ── 横屏（横卷）：换图、换纱、换版式 ──────────────────────────────
+   横卷天地窄而左右阔，顶上即斗栱额枋（比立轴的天光更满更暗），故纱的顶band 稍加、
+   底band 提早起势；取图位下移一档（40%），把殿身与池面同时留在幅内。 */
+@media (orientation:landscape){
+  #boot::before{background-image:url(/assets/title-bg-l.webp);background-position:50% 40%}
+  #boot::after{background:linear-gradient(rgba(4,26,30,.72),rgba(4,26,30,.64) 9%,rgba(4,26,30,.52) 18%,
+    rgba(4,26,30,.35) 26%,rgba(4,26,30,.17) 34%,rgba(4,26,30,.04) 42%,rgba(4,26,30,0) 50%,
+    rgba(4,26,30,.08) 56%,rgba(4,26,30,.34) 66%,
+    rgba(4,26,30,.66) 78%,rgba(4,26,30,.86) 91%,rgba(4,26,30,.92))}
+}
+/* 手机横屏：高只三四百点，题名改由 vh 定尺（此时高才是稀缺物），上下留白与字距一并收档；
+   钮收成中间一枚（横屏拉满一行的钮显得笨拙），中轴殿门那一线由此让出来不压字。
+   左右内边距吃刘海（横持时 safe-area 在两侧）。 */
+@media (orientation:landscape) and (max-height:560px){
+  .bGroup{max-width:min(620px,84vw);
+    padding:calc(5.5vh + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+            calc(15vh + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
+  #bootName{font-size:clamp(30px,11vh,48px);letter-spacing:.28em;text-indent:.28em}
+  #bootSub{margin-top:10px;font-size:11.5px;letter-spacing:.2em;text-indent:.2em}
+  #bootGo{width:min(280px,54vw);min-height:50px;padding:11px 12px}
+  #bootLinks{margin-top:13px;gap:20px;font-size:12px}
+  #bootSeat{bottom:calc(2.8vh + env(safe-area-inset-bottom));font-size:11px;letter-spacing:.44em;text-indent:.44em}
+  #bootErr{bottom:calc(4.6vh + 20px + env(safe-area-inset-bottom))}
+}
+@media (prefers-reduced-motion:reduce){#boot.ready #bootPresence:not([hidden]),#boot.ready #bootX{animation:none}
+  #boot::before{transition:none}}
 </style>
+<script>
+/* 主包加载失败才现形的一行（弱网等待本身不出话术——金晕的呼吸就是等待的全部语言） */
+addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){var n=document.getElementById('bootErr');if(n)n.hidden=false}},true);
+/* 门面的读档与接手都在 #boot 之后那一段内联脚本里（本段在 head，元素尚未解析到）。
+   ⚠️ 不可挂 DOMContentLoaded：`<script type="module">` 天然 defer，DCL 在主包求值**之后**才触发，
+   挂上去就等于又回去等主包——正是要消掉的那个等待。 */
+/* 壁画随屏向取图：先取当屏那幅，解码毕淡入（.bgOn），另一幅随后静默预热——转屏即在，不重演一次淡入。
+   这不是「加载态」：底色渐变本身已是此画的晕影，图未到时屏上也是净土色，无黑屏亦无半张图。
+   取图失败（弱网/断流）则底色渐变自持，字与钮照常可点，不另出话术。 */
+(function(){
+  var SRC={p:'/assets/title-bg-p.webp',l:'/assets/title-bg-l.webp'};
+  var land=matchMedia('(orientation:landscape)').matches;
+  var warm=function(k,done){var im=new Image();im.onload=done||null;im.onerror=done||null;im.src=SRC[k]};
+  warm(land?'l':'p',function(){
+    var b=document.getElementById('boot');if(b)b.classList.add('bgOn');
+    warm(land?'p':'l');   // 另一屏向静默预热，转屏无缝
+  });
+})();
+</script>
 </head>
 <body>
 <div id="app"></div>
+<!-- data-t＝该处的繁体字面。门面在主包到达前就要照实，而简繁转换表在主包里；
+     繁体设置下若不先换，就绪时 zhDom 会把满屏简体一并转成繁体——又是一次当着人面的改口。
+     六处字面手写两份，比背一张 30 KB 的表划算。（南無阿彌陀佛 走 data-nozh，本不转。） -->
+<div id="boot" aria-hidden="false"><div class="bGroup">
+  <div id="bootName" data-t="選佛譜">选佛谱</div>
+  <div id="bootSub" data-t="一人或與蓮友共修 · 行十法界 · 直至成佛">一人或与莲友共修 · 行十法界 · 直至成佛</div>
+  <button id="bootGo" type="button"><b data-t="開始行譜">开始行谱</b></button>
+  <button id="bootPresence" type="button" hidden></button>
+  <div id="bootLinks"><span data-t="玩法">玩法</span><span data-t="共修大廳">共修大厅</span><span data-t="我的">我的</span><span data-t="分享">分享</span></div>
+</div>
+<div id="bootSeat" data-nozh>南無阿彌陀佛</div>
+<div id="bootErr" hidden data-t="進入失敗，請檢查網絡後刷新重試">进入失败，请检查网络后刷新重试</div>
+<button id="bootX" type="button" aria-label="收起题屏，观照星图">✕</button>
+<noscript style="position:absolute;bottom:10vh;left:0;right:0;text-align:center;color:#8d8266;font-size:13px;letter-spacing:2px">此界须开启 JavaScript 方能进入</noscript></div>
+<script>
+/* 首帧即照实：静态门面自己读档，定主钮文案与细字行。
+   ── 何以在此处（#boot 之后、主包之前）同步执行 ──
+   主钮三态（回到局中／续掷上局／开始行谱）与「新开一局」这条细字，本由 openTitle 按存档写；
+   而 openTitle 挂在 bootActivate 上，后者卡在**首帧 rAF 之后**（game.js 的
+   requestAnimationFrame((t)=>{frame(t);bootActivate();})，那一行自注「首帧着色器编译很重，
+   软渲染环境可达数秒」）。于是有存局的人开站先见「开始行谱」，过一会儿才改口「续掷上局」——
+   门面说了它并不知道的事，随后被更正。
+   但存局就在 localStorage，解析到这一行即可同步读到，与 3D 场景毫无关系：那个等待纯属无谓。
+   ⚠️ 不可挂 DOMContentLoaded：`<script type="module">` 天然 defer，DCL 在主包求值**之后**，
+      挂上去等于又回去等主包。此段必须是解析即跑的裸内联，且须在 #boot 标记之后。
+   位名要过简繁转换，而转换表 30 KB 在主包里此处背不动，故 sfpSave 顺手存了一枚转好的 label
+   （见 game.js 的 sfpSave／sfpLabelSync）；label 缺失时退用 pos——全谱只终位的 id 与位名不同，
+   而终位不存局，故 pos 恒等于位名，至多字形略旧。
+   就绪后 openTitle 仍会重写一遍，写的是同一份内容，故屏上不再有变化。 */
+(function(){
+  var g=document.getElementById('bootGo');
+  try{
+    var s=JSON.parse(localStorage.getItem('sm10.save.v1')||'{}');
+    var T=s&&s.zh==='t';
+    // ① 繁体设置：先把静态字面换成 data-t 那一份（六处），免就绪时 zhDom 当众改口
+    if(T){var ns=document.querySelectorAll('#boot [data-t]');
+      for(var i=0;i<ns.length;i++)ns[i].textContent=ns[i].getAttribute('data-t');}
+    // ② 有存局：钮改「续掷上局」并报现居与掷数，细字行添「新开一局」
+    if(s&&s.sfp&&s.sfp.pos){
+      var esc=function(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
+      var nm=esc(s.sfp.label||s.sfp.pos),n=s.sfp.n|0;
+      if(g)g.innerHTML='<b>'+(T?'續擲上局':'续掷上局')+'</b><span>'
+        +(T?'現居':'现居')+'「'+nm+'」 · 第 '+n+(T?' 擲':' 掷')+'</span>';
+      var lk=document.getElementById('bootLinks');
+      if(lk)lk.insertAdjacentHTML('afterbegin','<span>'+(T?'新開一局':'新开一局')+'</span>');
+    }
+  }catch(e){/* 档坏／隐私模式禁 localStorage：静态文案原样留着，即无存局之简体形 */}
+  /* 就绪前点主钮＝记下心愿：文案给出回应，主包就绪即自动起行（game.js bootActivate 兑现） */
+  if(g)g.addEventListener('click',function(){
+    if(document.getElementById('boot').classList.contains('ready'))return;
+    window.__wantStart=true;g.innerHTML='<b>正在入界…</b>';});
+})();
+</script>
 <script type="module" src="./src/game.js"></script>
 </body>
 </html>

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const src = JSON.parse(readFileSync(join(HERE, '../全文/corpus.json'), 'utf8'));
-const { ZH_S2T, ZH_T2S } = await import(new URL('../src/zh-conv.js', import.meta.url));
+const { ZH_S2T, ZH_T2S, ZH_COMBO_S2T, ZH_COMBO_T2S } = await import(new URL('../src/zh-conv.js', import.meta.url));
 const hub = JSON.parse(readFileSync(join(HERE, 'index/hub.json'), 'utf8'));
 
 // ── 塊：只留檢索與呈現所需 ──
@@ -112,6 +112,11 @@ export const ENTITY = ${JSON.stringify(ENTITY)};
 
 // 簡→繁（只含書中出現之字詞）：用戶打簡體，語料存底本形，檢索前須歸一
 export const S2T = ${JSON.stringify(S2T)};
+
+// 輪相六字（那謨阿彌陀佛）之簡繁微表 —— 派生自 src/zh-conv.js 的 ZH_COMBO_*，勿手改。
+// intent.js／canon-route.js 從此處取，不再各自硬編碼（2026-08-12 微表歸一，護欄 npm run check:zh）。
+export const COMBO_S2T = ${JSON.stringify(ZH_COMBO_S2T)};
+export const COMBO_T2S = ${JSON.stringify(ZH_COMBO_T2S)};
 
 export const CORPUS_META = ${JSON.stringify({
   builtAt: new Date().toISOString().slice(0, 10),

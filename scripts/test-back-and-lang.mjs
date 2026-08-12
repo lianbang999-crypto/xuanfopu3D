@@ -32,8 +32,24 @@ try {
   const entry = page.getByRole('button', { name: '开始行谱', exact: true });
   await entry.waitFor({ state: 'visible', timeout: 90_000 });
 
+  // 钮可见 ≠ 题屏已接活。#boot 是 index.html 里的静态门面，`开始行谱` 在 DCL 时就在场了；
+  // 而 openTitle()（连同 armBackGuard 压哨兵）挂在 **首帧 rAF 回调**里（game.js 的
+  // `requestAnimationFrame((t) => { frame(t); bootActivate(); })`），首帧要等着色器编译完
+  // ——那一段注释自己写着「软渲染环境可达数秒」。无头 swiftshader 下 rAF 受节流，
+  // 这一等可达十余秒，且不催帧就可能一直不来。故此处：连拍 1×1 像素催帧 ＋ 轮询等哨兵，
+  // 不再拿「钮可见」当「已就绪」。等不到仍算失败，不是放行。
+  let armed = false;
+  for (let i = 0; i < 40 && !armed; i++) {
+    await Promise.race([
+      page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
+      new Promise((r) => setTimeout(r, 1200)),
+    ]).catch(() => {});
+    await page.waitForTimeout(250);
+    armed = await page.evaluate(() => !!(history.state && history.state.sfpBack));
+  }
+
   console.log('\n【返回键接管：哨兵历史项逐层退出】');
-  ok(await page.evaluate(() => !!(history.state && history.state.sfpBack)), '题屏在场即压入哨兵历史项');
+  ok(armed, '题屏接活即压入哨兵历史项');
   await page.goBack();
   await page.waitForFunction(() => !document.querySelector('.overlay'), undefined, { timeout: 8_000 });
   ok(true, '返回键关闭题屏浮层而非离开页面');

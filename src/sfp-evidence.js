@@ -1,6 +1,5 @@
 import { SFP_WHY } from './sfp-data.js';
 import { SFP_CANON_DOORS } from './sfp-canon.js';
-import { SFP_WHY_PLAIN } from './sfp-why-plain.js';
 import { SFP_GLYPH_WHY } from './sfp-glyph-why.js'; // v389 字义解：旧生成层，逐门手写完毕后退役
 import { sfpGlyphCanonText } from './sfp-glyph-canon.js'; // 2026-08-08 字义解手写正本：逐门核定，优先于旧生成层
 import { CZ, czOf } from './sfp-chengzhu.js'; // 承注库：4620 格逐格缘由（主源，取代 v390 之 SFP_REFER_WHY 为溯源主据）
@@ -35,6 +34,7 @@ import { SFP_STAY_WHY } from './sfp-stay-why.js'; // v409「不行」之由：�
 import { sfpStayCanonText } from './sfp-stay-canon.js'; // 2026-08-08「不行」之由手写正本：逐门核定，优先于旧生成层
 import { normWhy } from './sfp-norm.js'; // 话头归一：本组自称→「这一掷」，别组名字与枚举片段剔除，判语一字不动
 import { applyCanonLead } from './sfp-lead-canon.js'; // 话头正名：上游用词归到卷首〈輪相表法第一〉定诠（本地校勘层）
+import { sfpCanonVerdict } from './sfp-verdict-canon.js'; // 4620 格白话正本：游戏判词第一真源
 
 // 判词证据严格分层：逐字引文、项目释义、项目操作规则不得互相冒充。
 export const SFP_EVIDENCE_TYPE = Object.freeze({
@@ -107,6 +107,16 @@ export function sfpWhyLayered(position, combo) {
   // 含糊句（「餘如前說」类）不作引文：读者点开只会读到「餘如前說」，等于没给依据。
   const rawT0 = String((SFP_WHY[position] || {})[combo] || '').trim();
   const q0 = rawT0 && !SFP_VAGUE_FORMS.has(rawT0) ? rawT0 : '';
+  // 【正本直连】十五门已全部校审完毕，正本现在是游戏端第一真源。
+  // plain 与 quote 在正本中同条成对保存，界面可同时给白话判词与所据原文；
+  // 旧手工层、承注层和字义／不行层只保留为历史回退与交叉取证，不再抢上屏文案。
+  const published = sfpCanonVerdict(position, combo);
+  if (published) return {
+    // 正本自身已逐格写明本位当令字义；不可再过旧 applyCanonLead 补话头，
+    // 否则会出现“那那二字俱表见烦恼，两轮都掷到那……”的重复，亦非正本逐字上屏。
+    text: published.plain, kind: 'canon', quote: published.quote,
+    origin: 'verdict_canon',
+  };
   // 【正本最先】2026-08-08：手写正本是逐门核定、给用户看的大白话，一切旧层皆其前身。
   // 旧手工层（MANUAL_WHY）文简而味文言，只给结论不给所以然；正本既已核定，即以正本为准。
   // 正本未覆盖之格，仍依原次序层层回退，不留空白。
@@ -119,11 +129,6 @@ export function sfpWhyLayered(position, combo) {
   const r = SFP_REFER_WHY[key];
   if (r) return { text: dress(r.p || r.t), kind: 'refer', src: r.s, quote: r.t || '' };
   // 谱主于本位本组自有按语者，取其白话；含糊句不上屏——那等于没说原因。
-  const rawT = rawT0;
-  if (rawT && !SFP_VAGUE_FORMS.has(rawT)) {
-    const pl = sfpWhyPlainText(rawT);
-    if (pl) return { text: dress(pl), kind: 'canon', quote: rawT };
-  }
   // 手写正本优先于旧生成层（此处曾直查旧表，绕过正本取值口，2026-08-08 修正）。
   const gw = sfpGlyphWhyText(position, combo);
   if (gw) return { text: dress(main(gw)), kind: 'glyph', quote: quote(gw) };
@@ -209,17 +214,13 @@ for (const door of Object.values(SFP_CANON_DOORS)) {
   }
 }
 
-const PLAIN_BY_NORMALIZED_TEXT = new Map();
-const normalizePlainKey = (text) => String(text || '').replace(/\s+/gu, '').replaceAll('囘', '迴');
-for (const [sourceText, plainText] of Object.entries(SFP_WHY_PLAIN)) {
-  const key = normalizePlainKey(sourceText);
-  if (key && !PLAIN_BY_NORMALIZED_TEXT.has(key)) PLAIN_BY_NORMALIZED_TEXT.set(key, plainText);
-}
-
-// 释义最终挂在稳定的「位 ID＋轮相」证据对象上；逐字原文即使只改空白或囘/迴显示字形，也不丢失既有白话。
-export function sfpWhyPlainText(sourceText) {
-  return SFP_WHY_PLAIN[sourceText] || PLAIN_BY_NORMALIZED_TEXT.get(normalizePlainKey(sourceText)) || '';
-}
+// sfpWhyPlainText 与其归一索引已撤于 2026-08-12（「正本为准，旧数据下线」）：
+//   它查的是 sfp-why-plain.js——437 KB、1462 键的旧逐句白话本。那本身是好东西
+//   （220 位 49803 字全覆盖），撤它不是因为它坏，是因为**它是第二份白话**：
+//   同一句谱注，正本一说、旧本一说，站内并存两副，读者无从知道该信哪一份。
+//   实测三处取值点（sfpWhyLayered 兜底、证据表两支）在正本接手后全不可达，故一并拆走，
+//   437 KB 随之退出主包。旧本文件留在原处封存——agent/ 的 check-plain、build-hub、to-trad
+//   仍靠它做正本的溯源与核校，那是正本的来路，不可断。
 
 function compactWithMap(text) {
   const chars = [];
@@ -293,6 +294,16 @@ for (const combo of ['阿佛', '彌佛', '陀佛', '佛佛']) {
   ]);
 }
 
+// 【正本先取】2026-08-12 发起人定：正本是选佛谱的准确数据，旧层下线。
+//   sfpWhyLayered 早已在 2026-08-08 改成正本直连（实测 4620/4620 全走 verdict_canon，
+//   其下八层一格也够不着），唯独本表——上屏「释义」条目的来处——还在先问旧层。
+//   于是同一格判词，卡上是正本、证据栏是旧层，两副说法并陈。今归一：释义一律先取正本。
+//   正本未覆盖者仍按原次序回退（今为零格，留着是为将来增位增门时不至开天窗）。
+const canonPlain = (position, combo) => {
+  const v = sfpCanonVerdict(position, combo);
+  return v && v.plain ? String(v.plain).trim() : '';
+};
+
 export const SFP_WHY_EVIDENCE = {};
 for (const [position, combos] of Object.entries(SFP_WHY)) {
   const canonical = CANON_BY_POSITION[position];
@@ -303,7 +314,7 @@ for (const [position, combos] of Object.entries(SFP_WHY)) {
       // 手工逐组说明须盖过 SPECIAL 里「本位谱曰没有另释这一轮相的缘由」的旧话——今已逐组手写，
       // 那句已不成立（此十格中八格属第十四门净土，正是玩家最要读懂之处）。
       // SPECIAL 的行法表逐字引文照留（那是依据），位次归属之注亦留（那是本项目的位次交代，非轮相缘由）。
-      const manual = sfpManualWhyText(position, combo);
+      const manual = canonPlain(position, combo) || sfpManualWhyText(position, combo);
       SFP_WHY_EVIDENCE[position][combo] = manual
         ? evidence(position, combo, [
           ...special.items.filter((it) => it.type !== SFP_EVIDENCE_TYPE.interpretation),
@@ -323,12 +334,12 @@ for (const [position, combos] of Object.entries(SFP_WHY)) {
       czItems.forEach((it) => items.push(it));
       // 承注库该格无白话时，仍以本位按语之白话补足——白话全覆盖不许因换源而漏格
       if (!czItems.some((it) => it.type === SFP_EVIDENCE_TYPE.interpretation)) {
-        const plain = sfpManualWhyText(position, combo) || sfpWhyPlainText(rawText);
+        const plain = canonPlain(position, combo) || sfpManualWhyText(position, combo);
         if (plain) items.push(interpretation(plain));
       }
     } else {
       // 此分支不取 czItems（无溯源可标），故手工白话须在此另取一次，否则 4356 格手写会在这里漏掉
-      const plain = sfpManualWhyText(position, combo) || sfpWhyPlainText(rawText);
+      const plain = canonPlain(position, combo) || sfpManualWhyText(position, combo);
       if (plain) items.push(interpretation(plain));
     }
     // v390 旧溯源表所指若与承注库不同，仍列一条并存——两者皆谱主之言，只是所承之位远近不同。

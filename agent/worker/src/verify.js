@@ -13,7 +13,10 @@
 // 簡體歸一串與「逐字皆在乾草堆中」那種寬校。用戶側繁簡由前端 zh() 一鍵切換，
 // 數據層不隨之變（game.js 之 zh() 雙向，繁體文本過 S2T 實測變動 0 條）。
 
-import { POS, POS_BY_NAME } from './canon.js';
+// 位名全集取自語料實體表（t:'pos' 者 220 條）——2026-08-12 問譜 v3 起不再取 canon.js：
+// 那是舊定本路由的 667KB 查表數據，本檔只用得着「哪些字串是位名」這一件事。
+import { ENTITY } from './corpus.js';
+const POS_NAMES = [...new Set(Object.values(ENTITY).flat().filter((e) => e.t === 'pos').map((e) => e.v))];
 
 /** 歸一：去校勘記、括注、空白、標點；異體字囘→迴。不作繁簡轉換。 */
 const cmp = (t) => String(t || '')
@@ -30,7 +33,7 @@ function verbatimIn(hay, text) {
 
 const GATE_CN = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五'];
 const CN_NUM = '零一二三四五六七八九十百千萬万';
-const POS_NAME_SET = new Set([...POS_BY_NAME.keys()]);
+const POS_NAME_SET = new Set(POS_NAMES);
 // 譜曰多用簡稱，且截法不一：或去後綴（「無財」之於無財鬼），或去前綴（「內院」之於彌勒內院）。
 // 白話展簡稱為全名是正譯，不當報為憑空添位。判據取「全名有過半連續字見於原文」——
 // 既豁免各種簡稱，又仍攔得住真憑空之位（憑空者一字不著，遑論過半）。
@@ -88,19 +91,19 @@ export function verifyAnswer(answer, passages, facts) {
   // ③ 位名：答語所稱之位，須為**本答語所覆蓋諸格**之去向、本位，或引文所出之位。
   //    一句常管數格——「那那猶為上畜。那謨猶為畜脩。謨謨猶為有財鬼」一句管三格，
   //    只比本格去向則三分之二必誤報。故以 ansDests（答語級並集）為準。
-  const allowedIdx = new Set();
-  const addAllowed = (name) => { const i = POS_BY_NAME.get(name); if (i !== undefined) allowedIdx.add(i); };
+  const allowed = new Set();
+  const addAllowed = (name) => { if (name && POS_NAME_SET.has(name)) allowed.add(name); };
   [facts.pos, facts.to, ...(facts.ansDests || [])].filter(Boolean).forEach(addAllowed);
   passages.forEach((p) => { if (p.posName) addAllowed(p.posName); });
 
   const stray = [];
-  POS.forEach((p, i) => {
-    if (p.n.length < 3 || allowedIdx.has(i)) return;
-    if (!A.includes(p.n)) return;
-    if (verbatimIn(hay, p.n)) return;                 // 引文原文本有者不論
-    if (abbrevSeen(cmp(p.n), hayN)) return;           // 原文用簡稱、白話展全名者不論
-    stray.push(p.n);
-  });
+  for (const n of POS_NAMES) {
+    if (n.length < 3 || allowed.has(n)) continue;
+    if (!A.includes(n)) continue;
+    if (verbatimIn(hay, n)) continue;                 // 引文原文本有者不論
+    if (abbrevSeen(cmp(n), hayN)) continue;           // 原文用簡稱、白話展全名者不論
+    stray.push(n);
+  }
   if (stray.length) issues.push({ kind: 'position', detail: `答語稱及本格所無之位「${stray.join('、')}」` });
 
   // ④ 門號：答語稱「第N門」者，須合本格門號

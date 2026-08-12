@@ -66,7 +66,20 @@ try {
   const entry = page.getByRole('button', { name: '开始行谱', exact: true });
   await entry.waitFor({ state: 'visible', timeout: 90_000 });
   await freezeVisuals(page);
-  await entry.evaluate((button) => button.click());
+  // 2026-08-12 修：同 test-ui-e2e——08-11 起主钮单人直开（点它是入局，不是入厅），
+  //   大厅今由题屏细字行「共修大厅」（#tiHall）入；那一行由 openTitle 在首帧 rAF 后重建重绑，
+  //   故须先催帧等 .ready，否则一直停在题屏静态门面上。
+  const pump = async (fn, rounds = 60) => {
+    for (let i = 0; i < rounds; i++) {
+      if (i % 4 === 0) await Promise.race([page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
+        new Promise((r) => setTimeout(r, 1200))]).catch(() => {});
+      await page.waitForTimeout(260);
+      if (await page.evaluate(fn).catch(() => false)) return true;
+    }
+    return false;
+  };
+  await pump(() => document.querySelector('#boot')?.classList.contains('ready'));
+  await page.locator('#tiHall').evaluate((b) => b.click());
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 });
 
   const tables = page.locator('.pzE:not(:disabled)');

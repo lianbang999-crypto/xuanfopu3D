@@ -1,5 +1,5 @@
 // 共修大厅 · 前端
-// 职责：广场数据取用（掷轮攒批上报／每日功课榜）＋ 大厅面板渲染（12 室·动态广播）
+// 职责：广场数据取用（掷轮攒批上报／每日功课榜）＋ 大厅面板渲染（9 室·动态广播）
 // 规则判定与谱义一律不在此处；本模块只做展示与上报。
 // 名字口径：进大厅／看广播／一人行谱皆不问名；真人入座才问，功课榜沿用该名或稳定匿名莲号。
 
@@ -10,7 +10,7 @@ const NAME_KEY = 'sm10.net.name';         // 与联机名号共用，免重复�
 const PRACTICE_ID_KEY = 'sm10.practice.id'; // 本机匿名功课身份：不含账号、IP 等个人信息
 const TICK_BATCH = 10;                    // 每十掷送一次，省请求
 
-export const TABLE_ORD = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
+export const TABLE_ORD = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
 const STATE_TEXT = { empty: '空室', waiting: '候莲友', playing: '行谱中', full: '满座' };
 
 export function savedName() {
@@ -240,12 +240,16 @@ export function renderStream(data, ui) {
   return p;
 }
 
-// 顶条一句叙述：当下多少人在座、几室行谱，再及本站共修多久、累计多少轮。
+// 顶条一句叙述：只说动的——当下多少人在座、几室行谱。
 // 2026-08-05 收口：页头右上原另有一份「N 位在座 · N 桌行谱中」，与此处同义，已撤——
 // 同一组数不在一屏里说两遍。「已参加 N 人」并入「共修动态」页头（那里本就有一份完整名单）。
+// 2026-08-11 再拆：静的（共修第 N 天·累计 N 掷）沉到页脚 .pzStill——数字不是大厅的主角。
 function sayHtml(data) {
-  return `<b>${num(data.online || 0)}</b> 位在座 · <b>${num(data.playingTables || 0)}</b> 室行谱中`
-    + ` · 共修第 <b>${num(data.days || 1)}</b> 天 · 累计 <b>${num(data.tosses || 0)}</b> 掷`;
+  return `<b>${num(data.online || 0)}</b> 位在座 · <b>${num(data.playingTables || 0)}</b> 室行谱中`;
+}
+// 页脚静数字：站史与累计，动也是一天一动，不必占顶条
+function stillHtml(data) {
+  return `共修第 <b>${num(data.days || 1)}</b> 天 · 累计 <b>${num(data.tosses || 0)}</b> 掷`;
 }
 // 顶条第二行：最近在用功的几位莲友。与「共修动态」同一份数据，不另起一套。
 function tickerHtml(data, esc) {
@@ -283,7 +287,19 @@ export function updatePlaza(p, data, ui) {
   bar.hidden = !empties.length;
   // 顶条最近几位只在条目身份（时刻＋正文）变了才重写——「几分钟前」每分钟都在变，
   // 拿渲染结果比对等于白比。（滚动动画已随极简方案撤除，此比对仍保住选中态与无谓的 DOM 重排）
-  p.querySelector('.pzTickerSay').innerHTML = sayHtml(data);
+  // 数字轻变：内容真变了才重写（dataset.raw 防 zhDom 简繁转换被原文覆写而每拍一闪），
+  // 且非首拍时 0.25s 淡入一记——数字换了有感，不跳不滚。
+  const sayEl = p.querySelector('.pzTickerSay');
+  const sayNow = sayHtml(data);
+  if (sayEl.dataset.raw !== sayNow) {
+    const firstPaint = !sayEl.dataset.raw;
+    sayEl.dataset.raw = sayNow;
+    sayEl.innerHTML = sayNow;
+    if (!firstPaint) { sayEl.classList.remove('fresh'); void sayEl.offsetWidth; sayEl.classList.add('fresh'); }
+  }
+  const stillEl = p.querySelector('.pzStill');
+  const stillNow = stillHtml(data);
+  if (stillEl.dataset.raw !== stillNow) { stillEl.dataset.raw = stillNow; stillEl.innerHTML = stillNow; }
   const track = p.querySelector('.pzTickerTrack');
   const key = (data.stream || []).slice(0, 3).map(r => `${r.at}:${r.name}`).join('|') + '|' + Math.floor(Date.now() / 60000); // 分钟桶：无新掷时「刚刚/N分钟前」也随时间刷新
   if (!key || track.dataset.feed !== key) {
@@ -311,15 +327,12 @@ export function renderPlaza(data, ui) {
         <span class="pzTickerMore">共修动态 <b>›</b></span>
       </button>
 
-      <section class="pzModes" aria-label="选择行谱方式">
-        <button class="pzMode solo" id="pzSolo" type="button">
-          <span class="pzModeNo">${ico('person')}</span><span><b>一人行谱</b><i>随时开始 · 独自完成一局</i></span><em>开始</em>
-        </button>
+      <section class="pzModes" aria-label="共修去处">
         <button class="pzMode multi primary" id="pzQuick" type="button">
           <span class="pzModeNo">${ico('group')}</span><span><b>与人共修</b><i>2–4 人 · 自动入座</i></span><em>随喜入座</em>
         </button>
         <button class="pzMode chalou" id="pzChalou" type="button">
-          <span class="pzModeNo">${ico('tea')}</span><span><b>茶寮</b><i>莲友闲话 · 与主站群相通</i></span><em>进来坐</em>
+          <span class="pzModeNo">${ico('tea')}</span><span><b>茶寮</b><i>莲友闲话一处</i></span><em>进来坐</em>
         </button>
       </section>
 
@@ -331,8 +344,15 @@ export function renderPlaza(data, ui) {
           <p class="pzRoomsNote">自行选室 · 两位准备即可开局</p>
         </section>
         <div class="pzSeatNote" hidden></div>
+        <div class="pzStill"></div>
         <button class="pzBack" id="pzClose" type="button">${ui.backText || '返回'}</button>
       </main>
+
+      <aside class="pzSide" aria-label="莲友茶寮">
+        <div class="pzSideHead">莲友茶寮</div>
+        <div class="pzSideFeed"></div>
+        <div class="pzSideInput"></div>
+      </aside>
     </div>
   </div>`);
 
@@ -342,7 +362,9 @@ export function renderPlaza(data, ui) {
     const button = event.target.closest('.pzR,.pzE');
     if (button) ui.onSit(button.dataset.code, '', button.classList.contains('locked'));
   });
-  p.querySelector('#pzSolo').addEventListener('click', () => ui.onSolo());
+  // 桌面右墙茶寮（2026-08-11 大厅即茶寮）：挂载交给宿主（chalou.js 的 feed＋input），
+  // 大厅自己不知聊天细节；手机上这面墙 display:none，茶寮入口是上头那张卡（独立全屏页）。
+  ui.mountSide?.(p.querySelector('.pzSide'));
   p.querySelector('#pzQuick').addEventListener('click', () => {
     const tables = p._plazaData?.tables || [];
     const open = tables.filter(t => t.state !== 'full' && !t.locked);
@@ -351,7 +373,7 @@ export function renderPlaza(data, ui) {
     // 全都在行谱中才退而求其次——否则人越多的室越可能正打到一半，点进去只能干等一整局。
     const rank = (t) => (t.state === 'waiting' ? 0 : (t.state === 'empty' ? 1 : 2));
     const best = open.slice().sort((a, b) => rank(a) - rank(b) || b.live - a.live)[0];
-    ui.onQuick(best.code);
+    ui.onQuick(best.code, best);   // 把选中桌况一并带出：系统替用户挑了哪间、为何，宿主 toast 报出来
   });
   p.querySelector('#pzRank').addEventListener('click', () => ui.onStream());
   p.querySelector('#pzChalou').addEventListener('click', () => ui.onChalou?.());
@@ -470,13 +492,16 @@ export function renderSitKey(code, ui, errText = '') {
 
 export const PLAZA_CSS = `
 /* 共修大厅是模式选择中心，不再作为窄弹窗：全屏承载三种去处、动态与选桌。
-   2026-07-30 石青·晓（§七之十一）：社交面换敦煌石青浅底，泥金只作线与形；色一律走 --aq-* token。 */
+   2026-07-30 石青·晓（§七之十一）：社交面换敦煌石青浅底，泥金只作线与形；色一律走 --aq-* token。
+   2026-08-11 美术批：底色向题屏莲池壁画（title-bg2）的石绿水色靠——顶上一抹石绿天光、
+   侧点泥金、底下一汪水光，仍是纯 CSS 三层光晕，不叠图不加动画。 */
 .overlay:has(.pzPanel){align-items:stretch;justify-content:stretch;background:rgba(8,8,18,.78)}
 .overlay .pzPanel{width:100vw;max-width:none;height:100dvh;max-height:none;box-sizing:border-box;
   padding:0;border:0;border-radius:0;overflow:hidden;color:var(--aq-tx);background:
-  radial-gradient(circle at 78% 14%,rgba(47,106,94,.06),transparent 36%),
-  radial-gradient(circle at 12% 84%,rgba(176,131,28,.06),transparent 30%),
-  linear-gradient(160deg,#e4ebee,var(--aq-bg) 58%,#d9e2e7);
+  radial-gradient(ellipse at 50% -8%,rgba(47,106,94,.13),transparent 46%),
+  radial-gradient(circle at 84% 16%,rgba(176,131,28,.08),transparent 32%),
+  radial-gradient(circle at 10% 90%,rgba(47,106,94,.09),transparent 38%),
+  linear-gradient(166deg,#e2ebe8,#e7ede9 52%,#d5e2db);
   backdrop-filter:none;animation:pzIn .24s ease-out}
 @keyframes pzIn{from{opacity:.4;transform:scale(1.01)}}
 .pzPanel>.ovClose{top:calc(18px + env(safe-area-inset-top));right:calc(22px + env(safe-area-inset-right));
@@ -509,17 +534,25 @@ export const PLAZA_CSS = `
 .fsBody>.body{overflow:visible;overscroll-behavior:auto}
 .pzTop{display:flex;align-items:center;justify-content:space-between;padding-right:58px}
 .pzEyebrow{display:block;font-size:var(--fs-xs,11px);color:var(--aq-note);letter-spacing:4px;margin-bottom:3px}
-.pzTop h2{margin:0;color:var(--aq-title);font-size:clamp(24px,3vw,36px);letter-spacing:7px;font-weight:500}
+/* 题字走楷金（与题屏 #bootName 同栈）：大厅、我的、共修动态、茶寮四页页头一体升格；
+   题下一道泥金短线作签，静态装饰不吃动画预算。 */
+.pzTop h2{margin:0;color:var(--aq-title);font-size:clamp(24px,3vw,36px);letter-spacing:7px;font-weight:600;
+  font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
+.pzTop h2::after{content:'';display:block;width:46px;height:2px;margin-top:7px;border-radius:1px;
+  background:linear-gradient(90deg,var(--aq-gold),rgba(176,131,28,0))}
 .pzPresence{display:flex;align-items:center;gap:12px;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px}
 .pzPresence b{font-size:var(--fs-xl);color:var(--aq-strong);font-weight:500}
 .pzPresence i{width:3px;height:3px;border-radius:50%;background:var(--aq-line)}
 .pzTicker{width:100%;min-height:44px;display:flex;align-items:center;gap:16px;padding:0 16px;
   overflow:hidden;border:1px solid var(--aq-line);border-radius:12px;
-  background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit;cursor:pointer;text-align:left}
+  background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit;cursor:pointer;text-align:left;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
 .pzTicker:hover,.pzTicker:focus-visible{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
 /* 顶条主句：本站共修第几天·多少人来过·一共掷了多少轮 */
 .pzTickerSay{flex:none;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
-.pzTickerSay b{color:var(--aq-strong);font-weight:500}
+.pzTickerSay b{color:var(--aq-strong);font-weight:500;font-variant-numeric:tabular-nums}
+.pzTickerSay.fresh{animation:pzNum .25s ease-out}
+@keyframes pzNum{from{opacity:.35}}
 .pzTickerViewport{min-width:0;flex:1;overflow:hidden;mask-image:linear-gradient(90deg,#000 92%,transparent)}
 .pzTickerTrack{display:flex;min-width:0;white-space:nowrap}
 .pzTickerSet{display:flex;align-items:center;min-width:0;gap:18px}
@@ -527,14 +560,20 @@ export const PLAZA_CSS = `
 .pzTickerSet i{font-style:normal;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs,11px);margin-left:9px}
 .pzTickerMore{flex:none;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
 .pzTickerMore b{font-size:var(--fs-xl);font-weight:400;margin-left:4px}
-/* 三卡并排（2026-07-30 用户定案）：一人行谱｜与人共修｜茶寮——三个去处同一族语言 */
-.pzModes{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+/* 两卡并排（2026-08-11 重排）：与人共修（主）｜茶寮（手机入口）——
+   「一人行谱」卡撤：单人是玩法不是共修去处，入口在题屏主钮；大厅只管人。
+   桌面双栏时茶寮卡亦藏（右墙代之），与人共修独占一行成唯一主动作。 */
+.pzModes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .pzMode{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;min-height:84px;
   padding:16px 18px;text-align:left;font:inherit;border-radius:14px;cursor:pointer;
   border:1px solid var(--aq-line);background:rgba(255,255,255,.6);color:var(--aq-tx);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
   transition:transform .18s,border-color .18s,background .18s}
 .pzMode:hover,.pzMode:focus-visible{transform:translateY(-1px);border-color:var(--aq-goldline);background:rgba(176,131,28,.08)}
-.pzMode.primary{border-color:var(--aq-goldline);background:linear-gradient(110deg,rgba(176,131,28,.16),rgba(176,131,28,.06))}
+.pzMode.primary{border-color:var(--aq-goldline);background:
+  radial-gradient(circle at 100% 0%,rgba(232,199,102,.22),transparent 44%),
+  linear-gradient(110deg,rgba(176,131,28,.17),rgba(176,131,28,.05));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
 .pzModeNo{width:40px;height:40px;display:grid;place-items:center;border:1px solid rgba(150,112,32,.4);
   border-radius:50%;color:var(--aq-gold);font-family:var(--f-display);font-size:var(--fs-xl)}
 .pzModeNo .ico{width:21px;height:21px;vertical-align:0}  /* 圆章内的形：一人／三人／茶盏一眼分得开 */
@@ -551,18 +590,28 @@ export const PLAZA_CSS = `
    房间卡按内容收，「回题屏」则 margin-top:auto 钉在壳底——退路本就该在页脚，
    否则它跟着短列表浮在半空、底下一大片空白。房间多时卡自行滚动，仍不溢出整壳。 */
 .pzMain{display:flex;flex-direction:column;gap:12px;min-height:0}
-.pzMain>.pzBack{margin-top:auto}
+.pzMain>.pzStill{margin-top:auto}   /* 静数字与「回题屏」一同钉页脚：退路与站史本就该在脚下 */
 .pzRooms{min-height:0;flex:0 1 auto;display:flex;flex-direction:column;gap:8px;padding:12px;
-  border:1px solid var(--aq-line);border-radius:16px;background:rgba(255,255,255,.4);overflow:auto}
+  border:1px solid var(--aq-line);border-radius:16px;background:rgba(255,255,255,.44);overflow:auto;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
 .pzList{display:flex;flex-direction:column;gap:6px}
 /* 一行说尽一间：室号｜在座者名号（主位，撑满）｜状态＋人数（右对齐成一列） */
-.pzR{display:grid;grid-template-columns:2.4em minmax(0,1fr) auto;align-items:center;gap:10px;
-  min-height:48px;padding:9px 13px;cursor:pointer;text-align:left;font:inherit;
-  border:1px solid var(--aq-line);border-radius:12px;background:rgba(255,255,255,.62);color:var(--aq-tx)}
+.pzR{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
+  min-height:48px;padding:8px 13px 8px 10px;cursor:pointer;text-align:left;font:inherit;
+  border:1px solid var(--aq-line);border-radius:12px;background:rgba(255,255,255,.62);color:var(--aq-tx);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 .pzR:hover:not(:disabled),.pzR:focus-visible:not(:disabled){border-color:var(--aq-goldline);background:rgba(176,131,28,.09)}
 .pzR:disabled{opacity:.42;cursor:not-allowed}
-.pzR .ord{color:var(--aq-title);font-size:var(--fs-md,14px);letter-spacing:1px;white-space:nowrap}
-.pzR .ord em{font-style:normal;font-size:var(--fs-xs,11px);margin-left:2px}
+/* 室号成章（2026-08-11 美术批）：九室皆单字，恰好容进一枚泥金描边的小圆章——
+   章色随行相走：行谱中石绿、候莲友泥金、您在此金洗底。锁标挪到章角，不挤章内。 */
+.pzR .ord{position:relative;width:30px;height:30px;display:grid;place-items:center;
+  border:1px solid rgba(150,112,32,.42);border-radius:50%;background:rgba(255,255,255,.55);
+  color:var(--aq-title);font-size:var(--fs-md,14px);
+  font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
+.pzR .ord em{position:absolute;right:-5px;bottom:-4px;font-style:normal;font-size:10px;line-height:1}
+.pzR.s-playing .ord{border-color:rgba(47,106,94,.52);color:var(--aq-green)}
+.pzR.s-waiting .ord{border-color:var(--aq-goldline);color:var(--aq-strong)}
+.pzR.mine .ord{background:var(--aq-goldwash);border-color:var(--aq-goldline);color:var(--aq-strong)}
 .pzR .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-size:var(--fs-sm,12.5px);line-height:1.4;color:var(--aq-note)}
 .pzR .who i{font-style:normal}
@@ -570,8 +619,13 @@ export const PLAZA_CSS = `
 .pzR .st b{margin-left:7px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--aq-tx)}
 .pzR.locked{border-style:dashed}.pzR.locked .st{color:var(--aq-strong)} /* 锁定语义已有 🔒＋虚线边双重表达 */
 .pzR.mine{border-color:rgba(150,112,32,.8);background:rgba(176,131,28,.12)}.pzR.mine .st{color:var(--aq-strong)}
-.pzR.s-playing{border-color:rgba(47,106,94,.45)}.pzR.s-playing .st{color:var(--aq-green)}
+/* 行谱中的房呼吸（2026-08-11）：边色 3.6s 极缓明暗，传达「这间是活的」——
+   一屏至多这一处常驻动画（动画预算），reduced-motion 全关。 */
+.pzR.s-playing{border-color:rgba(47,106,94,.45);animation:pzLive 3.6s ease-in-out infinite}.pzR.s-playing .st{color:var(--aq-green)}
+@keyframes pzLive{0%,100%{border-color:rgba(47,106,94,.28)}50%{border-color:rgba(47,106,94,.62)}}
 .pzR.s-waiting{border-color:var(--aq-goldline)}.pzR.s-waiting .st{color:var(--aq-strong)}
+/* 入座途中：点的那间原位亮着（joining 面板整体压暗，独此行答「正入此室」） */
+.pzPanel.joining .pzR.sitting,.pzPanel.joining .pzE.sitting{opacity:1;border-color:rgba(150,112,32,.8);background:rgba(176,131,28,.12)}
 /* 空室压成一条：七八间空房各占一格只为说「这里没人」，不值那半屏；序号即入口，点了照样入座 */
 .pzEmpties{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding-top:2px}
 .pzEmpties[hidden]{display:none}
@@ -592,6 +646,25 @@ export const PLAZA_CSS = `
 .pzBack{width:100%;min-height:44px;border:1px solid var(--aq-line);border-radius:10px;background:none;
   color:var(--aq-note);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:1px;cursor:pointer;padding:0 14px}
 .pzBack:hover{color:var(--aq-title)}
+/* 页脚静数字（2026-08-11 从顶条拆来）：站史与累计一天一动，沉底小字即可 */
+.pzStill{color:var(--aq-note);opacity:.85;font-size:var(--fs-xs,11px);letter-spacing:1.5px;text-align:center;padding:2px 0}
+.pzStill b{color:var(--aq-strong);font-weight:500;font-variant-numeric:tabular-nums}
+/* 桌面右墙茶寮（2026-08-11 大厅即茶寮）：人进大厅就看见话在流——多人是氛围的载体。
+   基础不渲染（手机茶寮走独立全屏页），宽桌面才立墙。 */
+.pzSide{display:none}
+@media (min-width:981px){
+  .pzShell{grid-template-columns:minmax(0,1fr) 320px;grid-template-rows:auto auto auto minmax(0,1fr);column-gap:26px}
+  .pzTop{grid-column:1/-1}
+  .pzTicker,.pzModes,.pzMain{grid-column:1}
+  .pzSide{grid-column:2;grid-row:2/5;display:flex;flex-direction:column;gap:9px;min-height:0;
+    padding:14px 14px 12px;border:1px solid var(--aq-line);border-radius:16px;background:rgba(255,255,255,.42);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+  .pzSideHead{flex:none;color:var(--aq-title);font-size:var(--fs-md,14px);letter-spacing:3px}
+  .pzSideFeed{flex:1;min-height:0;display:flex;flex-direction:column}
+  .pzSideInput{flex:none}
+  .pzModes{grid-template-columns:1fr}
+  .pzModes .pzMode.chalou{display:none}   /* 右墙已是茶寮本体，入口卡不再重复（§5.0b 入口只出一次） */
+}
 /* 共修动态一行三段：名号 · 掷数 · 何时。没有名次列——不排名次就不给序号留位置。 */
 .pzRankList{margin-top:14px;border-top:1px solid var(--aq-line)}
 .pzRankRow{display:grid;grid-template-columns:minmax(72px,1fr) auto auto;align-items:center;gap:12px;min-height:48px;
@@ -604,7 +677,7 @@ export const PLAZA_CSS = `
 .pzRankRow i{font-style:normal;font-size:var(--fs-xs,11px);color:var(--aq-strong);letter-spacing:1px;margin-left:6px}
 .pzRankEmpty{padding:38px 12px;text-align:center;color:var(--aq-note);letter-spacing:2px}
 .pzRankNote{margin-top:12px;color:var(--aq-note);text-align:center;font-size:var(--fs-xs,11px)}
-@media (prefers-reduced-motion:reduce){.pzMode{transition:none}}
+@media (prefers-reduced-motion:reduce){.pzMode{transition:none}.pzR.s-playing{animation:none}.pzTickerSay.fresh{animation:none}}
 @media (max-width:820px){
   .pzShell{padding-left:16px;padding-right:16px;gap:12px}
 }
@@ -625,12 +698,13 @@ export const PLAZA_CSS = `
   .pzMode i,.pzMode em{display:none}
   /* 窄屏整块主区一起滚（房间卡不自成内滚，免两层滚动互抢）；「回题屏」仍钉页脚 */
   .pzMain{overflow:auto;gap:10px}.pzRooms{flex:0 0 auto;padding:10px;overflow:visible}
-  .pzR{grid-template-columns:2.3em minmax(0,1fr) auto;gap:8px;min-height:46px;padding:8px 11px}
+  .pzR{grid-template-columns:auto minmax(0,1fr) auto;gap:8px;min-height:46px;padding:7px 11px 7px 8px}
+  .pzR .ord{width:27px;height:27px;font-size:var(--fs-sm,12.5px)}
   .pzR .who{font-size:var(--fs-xs,11px)}
   .fsShell{padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));gap:10px}
   .pzRankRow{grid-template-columns:minmax(60px,1fr) auto auto;gap:8px}
 }
-@media (max-width:370px){.pzR{grid-template-columns:2.2em minmax(0,1fr) auto;gap:6px;padding:8px 9px}}
+@media (max-width:370px){.pzR{grid-template-columns:auto minmax(0,1fr) auto;gap:6px;padding:7px 9px 7px 7px}}
 /* 问名／问密码卡：随社交面走石青（.panel 底为暗夜 --ck-*，此处整卡覆写） */
 .pzAsk{background:var(--aq-panel);border-color:var(--aq-goldline);color:var(--aq-tx)}
 .pzAsk h2{color:var(--aq-title)}
@@ -673,39 +747,7 @@ export const PLAZA_CSS = `
   .pzAskName{width:min(92vw,420px);padding:21px 18px 16px!important}
   .pzAskName h2{font-size:24px}
 }
-/* 莲友茶寮（2026-07-30 §七之十一）：与佛悦主站共修群相通——同数据不同皮，石青展卷 */
-.clWrap{display:flex;flex-direction:column;min-height:100%}
-.clNotice{margin:0 0 10px;padding:9px 12px;border:1px solid var(--aq-line);border-radius:10px;
-  background:rgba(255,255,255,.5);color:var(--aq-note);font-size:var(--fs-sm,12.5px);line-height:1.6}
-.clNotice:empty{display:none}
-/* 初到茶寮的一次性之约：说一次，记住即不再叨扰（常驻说明句已撤） */
-.clHello{display:flex;align-items:center;gap:10px;margin:0 0 10px;padding:9px 12px;border:1px solid var(--aq-goldline);
-  border-radius:10px;background:var(--aq-goldwash);color:var(--aq-tx);font-size:var(--fs-sm,12.5px);line-height:1.6}
-.clHello span{flex:1;min-width:0}
-.clHello button{flex:none;min-height:34px;padding:5px 12px;border:1px solid var(--aq-goldline);border-radius:9px;
-  background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit;font-size:var(--fs-xs,11px);letter-spacing:1px;cursor:pointer}
-.clMsgs{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;
-  display:flex;flex-direction:column;gap:8px;padding:4px 2px 10px}
-.clTs{align-self:center;font-size:var(--fs-xs,11px);color:var(--aq-note);opacity:.85;padding:2px 0}
-.clM{display:flex;flex-direction:column;align-items:flex-start;max-width:88%}
-.clM .who{font-size:var(--fs-xs,11px);color:var(--aq-note);margin:0 4px 3px}
-.clM .bb{padding:8px 11px;border-radius:5px 13px 13px 13px;background:var(--aq-wash2);color:var(--aq-tx);
-  font-size:var(--fs-md,14px);line-height:1.55;word-break:break-word}
-.clM.mine{align-self:flex-end;align-items:flex-end}
-.clM.mine .bb{border-radius:13px 5px 13px 13px;background:rgba(176,131,28,.16);color:#3f3312}
-.clEmpty{margin:auto;text-align:center;color:var(--aq-note);font-size:var(--fs-sm,12.5px);line-height:1.7;padding:34px 0}
-.clQuick{display:flex;flex:none;gap:8px;padding:2px 0 8px;overflow-x:auto}
-.clQuick button{min-height:40px;white-space:nowrap;border:1px solid var(--aq-line);background:rgba(255,255,255,.5);
-  color:var(--aq-tx);border-radius:12px;padding:7px 12px;cursor:pointer;font:inherit;font-size:var(--fs-sm)}
-.clQuick button:hover{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
-.clInput{position:relative;display:flex;flex:none;gap:8px;padding:9px 0 0;border-top:1px solid var(--aq-line)}
-.clInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.7);
-  border:1px solid var(--aq-line);border-radius:10px;color:var(--aq-tx);padding:9px 11px;font-family:inherit;font-size:var(--fs-lg);outline:none}
-.clInput input:focus{border-color:rgba(150,112,32,.6);box-shadow:0 0 0 2px rgba(176,131,28,.1)}
-.clInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-goldline);background:var(--aq-goldwash);
-  color:var(--aq-tx);border-radius:10px;cursor:pointer;font:inherit;font-weight:600}
-.clHint{position:absolute;left:2px;bottom:calc(100% + 3px);color:var(--aq-woe);font-size:var(--fs-xs,11px);pointer-events:none}
-.clHint:empty{display:none}
+/* 莲友茶寮样式已随 2026-08-11 脱钩改版迁至 chalou.js（CHALOU_CSS）——一行一言极简皮，此处不再持有 .cl* */
 `;
 
 /* 同修成佛横幅：不弹窗不打断 */

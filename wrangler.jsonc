@@ -16,8 +16,9 @@
       { "name": "ROOM", "class_name": "RoomDO" }
     ]
   },
-  // 智能体切至 v2（2026-08-03）：定本路由 4620 格 100% 可核、谱内全文 692 块、问文库旁路。
-  // 旧 xuanfopu-evidence-agent 未删，回退只需把 service 改回该名重新 deploy。
+  // 问谱 v3（2026-08-12 覆盖部署于同名 worker xuanfopu-agent-v2）：检索谱内全文 692 块 → 据文生成，
+  // 句级核验、逐句角标；协议 ndjson meta/delta/done 不变，故此绑定与前端无须随之改动。
+  // 旧管线（定本路由/意图层/问文库旁路）git 可考；更旧的 xuanfopu-evidence-agent 未删，仍可回退。
   "services": [
     { "binding": "ASK_SERVICE", "service": "xuanfopu-agent-v2" }
   ],

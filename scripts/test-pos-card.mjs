@@ -6,6 +6,8 @@
 import { chromium } from 'playwright-core';
 import { SFP_POS_BAIHUA } from '../src/sfp-pos-baihua.js';
 import { SFP_POS } from '../src/sfp-data.js';
+import { SFP_CANON_DOORS } from '../src/sfp-canon.js';
+import { sfpCanonVerdict, sfpQuoteKind } from '../src/sfp-verdict-canon.js';
 
 const UI_BASE = process.env.UI_BASE || 'http://localhost:5930';
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -108,7 +110,103 @@ const glsOK = glsProbe.filter((x) => x.n > 0);
 ok(glsOK.length === glsProbe.length, '位卡白话挂上名相浮标（繁体键生效）',
   glsProbe.map((x) => `${x.id}:${x.n}`).join(' '));
 
-console.log('\n【六 无脚本报错】');
+// ── 本掷态（2026-08-12 三卡归一：详读卡撤，本掷层并入位卡）──────────────────
+// 从判词卡「详读 ›」／去向条位名／3D 行迹线进来时，位卡多一段「这一掷为什么这样判」。
+// 三件要守：① 判词逐字取自 4620 格正本；② 「谱曰／承前」判分以**出发位**位文为基准
+//（引文系于出发位，拿落处位文去比几乎全判承前）；③ 不带 toss 时本掷层根本不出。
+console.log('\n【六 位卡 · 本掷态】');
+{
+  const TOSS = { c: '那那', from: '上品十惡', to: '阿鼻地獄', evidence: null };
+  const withToss = await page.evaluate((t) => {
+    const o = window.__posCardObj('阿鼻地獄', t);
+    return o && o.toss ? { ...o.toss } : null;
+  }, TOSS);
+  const without = await page.evaluate(() => {
+    const o = window.__posCardObj('阿鼻地獄');
+    return o ? !!o.toss : null;
+  });
+  const canon = sfpCanonVerdict('上品十惡', '那那') || {};
+  const fromText = String((SFP_CANON_DOORS['1'].positions.find((x) => x.name === '上品十惡') || {}).text || '')
+    .replace(/^譜曰。/, '');
+
+  ok(!!withToss, '带 toss 时位卡对象有本掷层');
+  if (withToss) {
+    ok(withToss.plain === canon.plain, '本掷判词逐字取自 4620 格正本', (withToss.plain || '').slice(0, 28));
+    ok(withToss.quote === canon.quote, '本掷引文逐字取自同一格', (withToss.quote || '').slice(0, 28));
+    ok(withToss.kind === sfpQuoteKind(fromText, canon.quote),
+      '「谱曰／承前」判分与共用判分口一致', `${withToss.kind}`);
+    ok(withToss.from === '上品十惡' && withToss.here === '阿鼻地獄', '路由行两端＝出发位→落处');
+    ok(/〈上品十惡〉/.test(withToss.src || ''), '出处署**出发位**名（引文系于出发位，非落处）', withToss.src);
+  }
+  ok(without === false, '不带 toss 时本掷层不出（非本掷不做空槽）');
+
+  // 错配挡：toss 的落处与 pid 对不上时须丢弃（防返程闭包捕获的旧 toss）
+  const mism = await page.evaluate((t) => {
+    const o = window.__posCardObj('無間地獄', t);   // 落处是阿鼻，卡是无间
+    return o ? !!o.toss : null;
+  }, TOSS);
+  ok(mism === false, 'toss 与 pid 错配时丢弃本掷层');
+
+  // 实开卡：本掷段在文白开关**之下**（开关位置恒定是卡制 v3 明定之形）
+  const dom = await page.evaluate(async (t) => {
+    window.__openSfpNote('阿鼻地獄', t);
+    await new Promise((r) => setTimeout(r, 320));
+    const sec = document.querySelector('#cardBody .cSec');
+    const bar = sec?.querySelector('.cSwapBar');
+    const toss = sec?.querySelector('.cToss');
+    const pos = bar && toss ? (bar.compareDocumentPosition(toss) & Node.DOCUMENT_POSITION_FOLLOWING) > 0 : null;
+    const rd = [...document.querySelectorAll('#cardBtns .gbtn')].map((b) => b.textContent.trim());
+    document.querySelector('.overlay .ovClose')?.click();
+    await new Promise((r) => setTimeout(r, 160));
+    return { hasToss: !!toss, tossN: sec ? sec.querySelectorAll('.cToss').length : -1, barBeforeToss: pos, btns: rd };
+  }, TOSS);
+  ok(dom.hasToss, '实开卡：本掷段在场');
+  ok(dom.tossN === 1, '本掷段恰一段', String(dom.tossN));
+  ok(dom.barBeforeToss === true, '文白开关在本掷段之上（开关位置恒定，不随内容浮动）');
+  ok(dom.btns.some((b) => /读原文/.test(b)), '位卡有「读原文 ›」入阅读器（补此前的断链）', dom.btns.join(' / '));
+}
+
+console.log('\n【八 位名浮标：位卡内点别位之名即换位；上限 7 仍守】');
+// 2026-08-12 发起人二次点单：位名→位卡的派发由「只限判词卡」推至全站。此处验位卡这一路
+//   （门卡那一路在 test:door 第八节，阅读器那一路在 test:reader 第九节）。
+// 同时验「门放位不放」：门卡明细行已放开不折，位卡仍守 CARD_ROW_MAX=7。
+{
+  const openNote = async (id) => { await page.evaluate((i) => window.__openSfpNote(i), id);
+    await new Promise((r) => setTimeout(r, 320)); };
+  const closeAll = () => page.evaluate(() => document.querySelectorAll('.overlay').forEach((o) => o.remove()));
+
+  // 〈根本四禪〉白话提及〈四無量心〉〈四無色定〉——两位皆在 129 条同名词条内
+  await openNote('根本四禪');
+  const jump = await page.evaluate(() => {
+    const c = document.querySelector('#card');
+    const from = c?.dataset.pid || '';
+    const hit = Array.from(c ? c.querySelectorAll('.gls') : [])
+      .find((g) => /^(四无量心|四無量心|四无色定|四無色定)$/.test(g.textContent.trim()));
+    if (!hit) return { from, term: '(无)' };
+    const term = hit.textContent.trim(); hit.click();
+    return { from, term, to: document.querySelector('#card')?.dataset.pid || '',
+      kind: document.querySelector('#card')?.dataset.kind || '',
+      popShut: (document.querySelector('#glsPop')?.style.display || 'none') === 'none' };
+  });
+  ok(jump.term !== '(无)', '位卡白话里的别位之名确已成浮标', JSON.stringify(jump));
+  ok(jump.kind === 'pos' && /^pos:/.test(jump.to) && jump.to !== jump.from,
+    '点它即换到那一位的卡（不再弹缩写签）', `${jump.from} → ${jump.to}`);
+  ok(jump.popShut, '缩写签未同时弹出（一击一去处）');
+  await closeAll();
+
+  // 上限对照：〈八背捨觀〉十行、〈根本四禪〉与〈八勝處觀〉各八行——皆须折起超出的部分
+  const caps = [];
+  for (const id of ['八背捨觀', '根本四禪', '八勝處觀']) {
+    await openNote(id);
+    caps.push(await page.evaluate((i) => { const c = document.querySelector('#card');
+      return { id: i, head: c.querySelectorAll('.cSec .nRow:not(.cMore .nRow)').length,
+        folded: c.querySelectorAll('.cMore .nRow').length }; }, id));
+    await closeAll();
+  }
+  ok(caps.every((c) => c.head === 7 && c.folded > 0), '位卡明细行仍守上限 7，余行折起', JSON.stringify(caps));
+}
+
+console.log('\n【七 无脚本报错】');
 const real = errors.filter((e) => !isRes(e));
 ok(real.length === 0, '全程无脚本报错（资源 404 单列）', real.slice(0, 3).join(' | '));
 if (missing.length) console.log(`    资源缺失 ${missing.length} 项（dev 环境静态资源，与本次接线无关）`);

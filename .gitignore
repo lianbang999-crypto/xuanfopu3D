@@ -10,3 +10,4 @@ release/
 .~*
 scripts/.cbeta-cache/
 outputs/
+.dev.vars

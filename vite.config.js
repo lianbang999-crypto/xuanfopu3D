@@ -1,5 +1,6 @@
 // 构建配置：静态资源相对路径，方便任意路径部署（Cloudflare Workers Assets / GitHub Pages 均可）
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
   base: './',
@@ -16,5 +17,12 @@ export default defineConfig({
     outDir: 'dist',
     target: 'es2022',
     chunkSizeWarningLimit: 1500,
+    // 双页入口：主图（游戏）＋ 六卷原文独立阅读页（2026-08-12，wenchao 纸墨形制）
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        read: fileURLToPath(new URL('./read.html', import.meta.url)),
+      },
+    },
   },
 });

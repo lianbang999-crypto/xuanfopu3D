@@ -48,7 +48,7 @@ console.log('【一形状 · 十五门同形】');
       return {
         h2: p.querySelector('h2')?.textContent || '',
         pos: !!p.querySelector('#dcPos'),
-        canon: !!p.querySelector('#dcCanon'),
+        read: !!p.querySelector('#dcRead'),        // 2026-08-11：旧 #dcCanon 段撤，改一枚「读本门原文 ›」入阅读器
         // 2026-08-08 卡制总纲 v3：门义走正文段（#dcEntry .cSec .qp）——
         // v2 的三问栏 .cQ 已撤，旧选择器一律不再命中，故改此一处
         intro: !!p.querySelector('#dcEntry .cSec .qp'),
@@ -58,66 +58,30 @@ console.log('【一形状 · 十五门同形】');
     await closeAll();
   }
   ok(shape.every((s) => s && s.pos), '十五门皆有「位次一览」段');
-  ok(shape.every((s) => s && s.canon), '十五门皆有「谱文·全文对读」段');
+  ok(shape.every((s) => s && s.read), '十五门皆有「读本门原文 ›」钮（入阅读器）');
   ok(shape.every((s) => s && s.intro), '十五门皆有门义（导语或谱曰总说）——归一前门1/2/15 无话可说');
   ok(shape.every((s) => s && s.posCount > 0), '十五门位次皆可点入位卡', JSON.stringify(shape.map((s) => s?.posCount)));
   const total = shape.reduce((a, s) => a + (s?.posCount || 0), 0);
   ok(total === 220, `位次合计 220 位（实得 ${total}）`);
 }
 
-console.log('【二 lazy · 首屏不因合并变重】');
+// 【二 lazy】与【三 jump】两组共 9 项撤于 2026-08-11：所测的「谱文·全文对读」第三段已撤，
+//   全文阅读归 src/sfp-reader.js（一节一屏，无 lazy 建段、无段内滚动定位，故那两组无对象可测）。
+//   门卡今只余一枚入口钮，验其在场与去处即可；阅读器自身另有 scripts/test-reader.mjs 二十一项。
+console.log('【二 · 谱文入阅读器】');
 {
-  await openDoor(12); // 门12 位多，最能显出差别
-  const before = await page.evaluate(() => {
-    const b = document.querySelector('#dcCanonBody');
-    return { html: (b?.innerHTML || '').length, nodes: document.querySelectorAll('.overlay .panel *').length };
-  });
-  ok(before.html === 0, '谱文段折叠时 #dcCanonBody 为空（未建 DOM）', `实得 ${before.html} 字符`);
-  await page.evaluate(() => { document.querySelector('#dcCanon').open = true; document.querySelector('#dcCanon').dispatchEvent(new Event('toggle')); });
-  await wait(400);
-  const after = await page.evaluate(() => {
-    const b = document.querySelector('#dcCanonBody');
+  await openDoor(12); // 门12 位多，从前最能显出 lazy 的差别，今验入口
+  const r = await page.evaluate(() => {
+    const p = document.querySelector('.overlay .panel');
     return {
-      html: (b?.innerHTML || '').length,
-      toc: b?.querySelectorAll('.cnT').length || 0,
-      cards: b?.querySelectorAll('.cnCard').length || 0,
+      gone: !p.querySelector('#dcCanon'),
+      btn: (p.querySelector('#dcRead')?.textContent || '').trim(),
       nodes: document.querySelectorAll('.overlay .panel *').length,
     };
   });
-  ok(after.html > 2000, '展开后谱文正文建出', `${after.html} 字符`);
-  ok(after.toc > 3, `位名目录建出（${after.toc} 条）`);
-  ok(after.cards > 3, `逐位「位卡 ›」建出（${after.cards} 枚）`);
-  ok(after.nodes > before.nodes * 2, `展开前后 DOM 结点 ${before.nodes} → ${after.nodes}（折叠态确实轻）`);
-  await closeAll();
-}
-
-console.log('【三来路 · jump 一步到位】');
-{
-  // 门6 第 5 位「取相懺」——取靠后之位，落位若不生效则须自行下滚，正是要防的中间态
-  const JUMP_DOOR = 6, JUMP_NAME = '取相懺', JUMP_CI = 4;
-  await openDoor(JUMP_DOOR, { jump: JUMP_NAME });
-  await wait(700); // 落位是 smooth 滚动，等其走完
-  const r = await page.evaluate((ci) => {
-    const sec = document.querySelector('#dcCanon');
-    const b = document.querySelector('#dcCanonBody');
-    const body = document.querySelector('.overlay .panel .body');
-    const tgt = b?.querySelector(`div[data-ci="${ci}"]`);
-    return {
-      open: !!sec?.open,
-      built: (b?.innerHTML || '').length > 1000,
-      exists: !!tgt,
-      delta: tgt && body ? Math.round(tgt.getBoundingClientRect().top - body.getBoundingClientRect().top) : null,
-      scrolled: Math.round(body?.scrollTop || 0),
-      max: body ? Math.round(body.scrollHeight - body.clientHeight) : 0,
-    };
-  }, JUMP_CI);
-  ok(r.open, 'jump 来路：谱文段自动展开');
-  ok(r.built, 'jump 来路：正文已建');
-  ok(r.exists, `jump 来路：目标位 ci=${JUMP_CI} 在场`);
-  ok(r.scrolled > 100, `jump 来路：确实滚动了（${r.scrolled}px）`);
-  // 同上：落到位顶 或 已至底（末位之后无内容可让其到顶）
-  ok(r.delta !== null && (Math.abs(r.delta) < 40 || r.max - r.scrolled <= 2),
-    `jump 来路：目标位落到视口顶（偏 ${r.delta}px）——不留「先看门义再自己找」的中间态`);
+  ok(r.gone, '旧「谱文·全文对读」段已撤');
+  ok(/读本门原文|讀本門原文/.test(r.btn), `入口钮题字带卷次：${r.btn}`);
+  ok(r.nodes < 900, `门12 首屏 DOM 结点 ${r.nodes}（撤段后不再因合并变重）`);
   await closeAll();
 }
 
@@ -178,15 +142,18 @@ console.log('【五 出口 · 位次入位卡】');
   await openDoor(3);
   await page.evaluate(() => document.querySelector('#dcPos [data-pi]').click());
   await wait(320);
-  // v3：位卡与处所／辅标／段签同走 #card 一副壳，不再自建带「· 原文说明」的 h2 面板；
-  // 认卡改看卡名＋副题「谱位」＋词头门链，三者俱在方算真进了位卡
+  // v3：位卡与处所／辅标／段签同走 #card 一副壳，不再自建带「· 原文说明」的 h2 面板。
+  // 认卡＝卡名 ＋ **卡型 data-kind** ＋ 词头门链，三者俱在方算真进了位卡。
+  //   从前认的是副题文案（「谱位」／「二百二十位之一」），而副题已撤于 2026-08-12
+  //   （它不报关于这一位的任何事，只说「这是个谱位」，词眉已题「谱位详解」）。
+  //   卡型是结构信号、不是措辞，日后再改文案也不会误伤此条。
   const noteOpen = await page.evaluate(() => ({
     name: document.querySelector('#cardName')?.textContent || '',
-    sub: document.querySelector('#cardSub')?.textContent || '',
+    kind: document.querySelector('#card')?.dataset?.kind || '',
     doorLink: !!document.querySelector('#cardBody .cbMeta .lnk[data-hg]'),
   }));
-  ok(!!noteOpen.name && /谱位/.test(noteOpen.sub) && noteOpen.doorLink,
-    '点位次即入位卡', `${noteOpen.name}/${noteOpen.sub}/门链=${noteOpen.doorLink}`);
+  ok(!!noteOpen.name && noteOpen.kind === 'pos' && noteOpen.doorLink,
+    '点位次即入位卡', `${noteOpen.name}/kind=${noteOpen.kind}/门链=${noteOpen.doorLink}`);
   await closeAll();
 }
 
@@ -199,6 +166,82 @@ console.log('【六 旧卡确已退场】');
     four: typeof window.openFourLands,
   }));
   ok(Object.values(gone).every((t) => t === 'undefined'), '四个旧卡函数不再暴露', JSON.stringify(gone));
+}
+
+console.log('【七 门义明细行不折】');
+// 2026-08-12 发起人点单「门卡 CARD_ROW_MAX=7 放宽」：门义那几行是「何以稱惡」这类逐问逐答，
+//   一行一问，本就是要通读的一份；先前与位卡共守上限 7，门14（四土各摄何位）十四行被折起六行。
+//   位卡不放宽——那边明细行是同类项罗列，多则宜折，故此处一并验「门放位不放」。
+{
+  const rows = [];
+  for (let dn = 1; dn <= 15; dn++) {
+    await openDoor(dn);
+    rows.push(await page.evaluate(() => {
+      const e2 = document.querySelector('.overlay .panel #dcEntry');
+      return e2 ? { n: e2.querySelectorAll('.nRow').length, more: e2.querySelectorAll('.cMore').length } : null;
+    }));
+    await closeAll();
+  }
+  ok(rows.every((r) => r && r.more === 0), '十五门门义无一处折叠',
+    JSON.stringify(rows.map((r, i) => (r && r.more ? `门${i + 1}折${r.more}` : null)).filter(Boolean)));
+  const max = Math.max(...rows.map((r) => (r ? r.n : 0)));
+  ok(max > 7, `最长一门明细行 ${max} 行全呈（放宽前此数会被截到 7）`);
+}
+
+console.log('【八 位名浮标：全站点开即入位卡】');
+// 名相词条有 129 条与谱位同名，其释义是位卡白话的缩写版。2026-08-12 发起人二次点单：
+//   由「只限判词卡」推至全站——一个位名在哪儿点都是同一个去处。此处验门卡这一路。
+{
+  // 门1 门义提及「見取」等位名；门9 提及「十六特勝」。页面简体态，故位名两形皆认。
+  const probe = [];
+  for (const dn of [1, 9]) {
+    await openDoor(dn);
+    probe.push(await page.evaluate(() => {
+      const c = document.querySelector('.overlay .panel');
+      const hit = Array.from(c ? c.querySelectorAll('#dcEntry .gls') : [])
+        .find((g) => /^(见取|見取|十六特胜|十六特勝)$/.test(g.textContent.trim()));
+      if (!hit) return { term: '(无)' };
+      hit.click();
+      return { term: hit.textContent.trim(),
+        kind: document.querySelector('#card')?.dataset.kind || '',
+        pid: document.querySelector('#card')?.dataset.pid || '',
+        popShut: (document.querySelector('#glsPop')?.style.display || 'none') === 'none' };
+    }));
+    await closeAll();
+  }
+  ok(probe.every((r) => r.kind === 'pos'), '门义里的位名点开＝位卡（不再是缩写签）', JSON.stringify(probe));
+  ok(probe.every((r) => /^pos:/.test(r.pid)), '落到的正是该位之卡', probe.map((r) => r.pid).join(' / '));
+  ok(probe.every((r) => r.popShut), '缩写签未同时弹出（一击一去处）');
+}
+
+console.log('【九 天梯点门 · 报门义白话而非操作说明】');
+// 旧文门门一个样：「全亮——位次依经典坐标布于诸界；点小珠读谱注，双击门签入门内观照」，
+//   看十五遍是十五遍废话。今报本门门义领起句（SFP_DOOR_BAIHUA，与门卡同一份正本）。
+{
+  await closeAll();
+  const tips = [];
+  for (const dn of [3, 8, 13]) {
+    tips.push(await page.evaluate(async (d) => {
+      const it = document.querySelector(`#ladder .ladDoor[data-d="${d}"]`);
+      it && it.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      await new Promise((r) => setTimeout(r, 90));
+      const t = document.querySelector('#toast');
+      return { txt: (t?.textContent || '').trim(), on: t?.style.opacity };
+    }, dn));
+    await wait(260);
+  }
+  ok(tips.every((t) => t.on === '1'), '点门签即弹提示');
+  ok(!tips.some((t) => /位次依经典坐标布于诸界/.test(t.txt)), '旧操作说明已不再复述');
+  ok(/三恶趣|三惡趣/.test(tips[0].txt) && /毗婆沙/.test(tips[0].txt), '门3 报的是四种恶趣门门义', tips[0].txt.slice(0, 40));
+  ok(/无漏智慧|無漏智慧/.test(tips[1].txt) && /增上/.test(tips[1].txt), '门8 报的是增上定学门门义', tips[1].txt.slice(0, 40));
+  ok(/圆妙|圓妙/.test(tips[2].txt), '门13 报的是圆教位次门门义', tips[2].txt.slice(0, 40));
+  // 本条依赖「本节是整会话头一次点门签」。若日后在本节之前加了别的点签动作，opCount 会成 0，
+  //   届时该把本节前移，而不是把这条删掉——故失败讯息把这层依赖直说出来。
+  const opCount = tips.filter((t) => /双击门签|雙擊門籤/.test(t.txt)).length;
+  ok(opCount === 1 && /双击门签|雙擊門籤/.test(tips[0].txt),
+    '操作那一句只在整会话头一次缀上，此后不复述',
+    opCount === 0 ? '本节之前已有别处点过门签（railOpHinted 已置位）——请把本节前移' : `命中 ${opCount} 次`);
+  await closeAll();
 }
 
 const scriptErrors = errors.filter((e) => !/Failed to load resource/.test(e));

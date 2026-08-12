@@ -11,9 +11,9 @@ import {
   SFP_VAGUE_FORMS,
   makeSfpOperationalEvidence,
   makeSfpGlyphEvidence,
-  sfpWhyPlainText,
 } from '../src/sfp-evidence.js';
 import { SFP_GLYPH_WHY } from '../src/sfp-glyph-why.js';
+import { sfpCanonVerdict } from '../src/sfp-verdict-canon.js';
 import { SFP_REFER_WHY } from '../src/sfp-refer-why.js';   // v390 旧溯源表：已由承注库取代，保留作历史数据与自身护栏
 import { CZ, CZ_ANS, CZ_CITE, czOf } from '../src/sfp-chengzhu.js';
 
@@ -118,13 +118,14 @@ assert.ok(!SFP_WHY['初發心住']['佛佛'].includes('從淨土來者'));
 
 // V78 校正层统一规范字「迴」；白话释义仍能以稳定证据对象命中。
 assert.equal(SFP_WHY['彌勒內院']['陀陀'], '陀陀。則有功用行已極。故為第十迴向。');
-assert.equal(
-  sfpWhyPlainText(SFP_WHY['彌勒內院']['陀陀']),
-  // 2026-08-07 移植线上 V105 后，白话库底本形由繁改简（谱曰引文仍逐字保繁，不在此列）。
-  // 用户侧繁简仍由 game.js 之 zh() 一键切换，且简体作底本更稳：zh() 是双向的，
-  // 繁体底本在繁体模式下会被「简→繁」再套一遍，简体底本无此虞。
-  '陀陀则有功用之行已至其极，故进为第十回向。',
-);
+// 2026-08-12「正本为准，旧数据下线」：sfpWhyPlainText 已随 sfp-why-plain.js 撤出主包
+//   （证据表改由正本供释义，实测 4620 格逐格不变）。本条改验正本这一路：
+//   同一格，正本须给得出白话，且仍系于「迴向」这一规范字——校正层的用意不因换源而失守。
+{
+  const v = sfpCanonVerdict('彌勒內院', '陀陀');
+  assert.ok(v && v.plain, '正本须为〈彌勒內院〉陀陀格供白话');
+  assert.ok(/迴向|回向/.test(v.plain), `正本白话须落到「迴向」：${v.plain}`);
+}
 
 // V78 校正原本的篇名与缺字标记须完整保留。
 assert.equal(SFP_CANON_FRONT[0].title, '敘選佛譜敘');

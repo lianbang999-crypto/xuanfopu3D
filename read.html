@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>選佛譜</title>
+<meta name="description" content="蕅益大师《選佛譜》六卷全文，原文白话对照阅读，并可向问谱提问。十五门二百二十位，逐位白话译注。">
+<meta name="theme-color" content="#f6f1e6">
+<!-- 主题闪白防护：CSS 到位前先把存档里的主题写上 <html>，暗色用户不吃一帧白光 -->
+<script>try{var t=JSON.parse(localStorage.getItem('sfpr.theme'));if(t==='night'||t==='plain')document.documentElement.dataset.theme=t;}catch(e){}</script>
+<!-- 字体自托管（延用 wenchao 之制，见 public/css/fonts.css 头注）：宋体 Noto Serif SC + 楷体兜底霞鹜文楷GB；
+     安卓无楷体时白话退化宋体会失去文白区分，靠霞鹜文楷兜底；苹果命中本地楷体不产生下载。 -->
+<link rel="stylesheet" href="./css/fonts.css">
+</head>
+<body>
+
+<!-- 顶栏（恒定四件）：左目录 · 中书名（点按回顶） · 右问谱＋回主站 -->
+<header class="topbar" id="topbar">
+  <button class="icon-btn" id="btn-nav" aria-label="打开目录">
+    <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>
+  </button>
+  <button class="topbar-title" id="topbar-title" aria-label="回到页首">選佛譜</button>
+  <button class="icon-btn" id="btn-ask" aria-label="问谱">
+    <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3c4.97 0 9 3.36 9 7.5 0 4.14-4.03 7.5-9 7.5-.98 0-1.92-.13-2.8-.37L5 19.5l1.04-3.05C4.18 15.1 3 12.93 3 10.5 3 6.36 7.03 3 12 3Z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/><path d="M8.5 10.5h7M8.5 13h4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  </button>
+  <a class="icon-btn" id="btn-world" href="./index.html" aria-label="回须弥山世界">
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="m5 20 5.5-12L14 14l2.5-5L21 20"/><circle cx="7.5" cy="5.5" r="1.6"/></svg>
+  </a>
+</header>
+<div class="read-progress" id="read-progress" aria-hidden="true"></div>
+
+<!-- 左抽屉：目录树（六卷为经、门为节） -->
+<nav class="drawer drawer-left" id="drawer-left" aria-label="目录">
+  <div class="drawer-head">
+    <a class="seal seal-home" id="seal-home" href="./index.html" aria-label="回须弥山世界">選佛</a>
+    <div class="drawer-head-text">
+      <strong id="nav-title">選佛譜</strong>
+      <small id="nav-stats"></small>
+    </div>
+  </div>
+  <div class="nav-search">
+    <input type="search" id="nav-search" placeholder="在谱中搜索位名…" autocomplete="off">
+  </div>
+  <div class="nav-tree" id="nav-tree" role="tree"></div>
+</nav>
+
+<!-- 右抽屉：问谱（形制同 wenchao 问文钞：chips · 流式问答 · 出处角标） -->
+<aside class="drawer drawer-ask" id="drawer-ask" aria-label="问谱">
+  <div class="drawer-head">
+    <div class="drawer-head-text">
+      <strong id="ask-title">问谱</strong>
+      <small id="ask-sub">基于《選佛譜》六卷全文</small>
+    </div>
+    <button class="icon-btn" id="btn-ask-new" aria-label="新对话" title="新对话">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <button class="icon-btn" id="btn-ask-close" aria-label="关闭">
+      <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="ai-chips" id="ai-chips"></div>
+  <div class="ai-log" id="ai-log"></div>
+  <form class="ai-input" id="ai-form">
+    <textarea id="ai-text" rows="1" placeholder="向谱请益…"></textarea>
+    <button type="submit" class="chip-btn ai-send">发送</button>
+  </form>
+  <p class="ai-disclaimer" id="ai-disclaimer">回答仅供参考，请以出处原文为准</p>
+</aside>
+
+<div class="overlay" id="overlay" hidden></div>
+
+<!-- 中间：阅读主区 -->
+<main class="reader" id="reader"><div class="loading">卷帙載入中</div></main>
+
+<!-- 名相注释弹卡（底部抽出，同 wenchao 注释弹卡之制） -->
+<div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+<section class="sheet" id="sheet" hidden aria-label="名相注释">
+  <div class="sheet-handle" aria-hidden="true"></div>
+  <div class="sheet-body" id="sheet-body"></div>
+</section>
+
+<script type="module" src="./src/reader-page.js"></script>
+</body>
+</html>

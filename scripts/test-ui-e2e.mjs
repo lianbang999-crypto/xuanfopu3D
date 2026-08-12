@@ -88,6 +88,10 @@ async function openPeer(code, name) {
   return new Peer(code, name).open();
 }
 
+// 注意调用时机（2026-08-12 踩过）：本函数把 requestAnimationFrame 整个换成空函数，
+//   而 bootActivate（题屏三态改写、细字行 #tiHall 的重建重绑）就跑在首帧 rAF 里。
+//   若在题屏就绪之前冻，那一帧永远不来，题屏停在静态门面上，#tiHall 一辈子不出现。
+//   故一律「先催帧等 .ready，再冻」。
 async function freezeVisuals(page) {
   await page.addStyleTag({
     content: 'canvas{visibility:hidden!important}*,*::before,*::after{animation:none!important;transition:none!important}',
@@ -123,11 +127,26 @@ async function takeLeaveConfirm(page) {
   return text;
 }
 
+// 2026-08-12 修：本函数自 65cfc8b 起就按旧流程「点主钮＝进共修大厅」，
+//   而 08-11 已改题屏主钮单人直开——点它是入局，不是入厅，旧写法遂空等 .pzPanel 到超时。
+//   大厅今由题屏细字行的「共修大厅」（#tiHall）入。那一行由 openTitle 重建重绑，
+//   而 openTitle 挂在首帧 rAF 之后（着色器编译可达数秒），故须先催帧等 .ready 再点。
+async function pumpUntil(page, fn, rounds = 60) {
+  for (let i = 0; i < rounds; i++) {
+    if (i % 4 === 0) await Promise.race([page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
+      new Promise((r) => setTimeout(r, 1200))]).catch(() => {});
+    await page.waitForTimeout(260);
+    if (await page.evaluate(fn).catch(() => false)) return true;
+  }
+  return false;
+}
 async function enterPlaza(page) {
   const entry = page.getByRole('button', { name: '开始行谱', exact: true });
   await entry.waitFor({ state: 'visible', timeout: 90_000 });
-  await freezeVisuals(page);
-  await entry.evaluate((button) => button.click());
+  const ready = await pumpUntil(page, () => document.querySelector('#boot')?.classList.contains('ready'));
+  if (!ready) throw new Error('题屏未就绪（首帧 rAF 未到）——大厅入口 #tiHall 由 openTitle 建，此时尚不存在');
+  await freezeVisuals(page);   // 冻在就绪之后：早冻则 rAF 被换成空函数，bootActivate 永不执行
+  await page.locator('#tiHall').evaluate((b) => b.click());
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 });
 }
 
@@ -369,8 +388,11 @@ try {
   await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 12_000 });
 
   await page.reload({ waitUntil: 'domcontentloaded' });
+  // 刷新即重来一遍首帧：自动回座要等 bootActivate，而它在首帧 rAF 之后；
+  //   无头 swiftshader 下 rAF 受节流，须催帧（同 enterPlaza，2026-08-12）。
+  await pumpUntil(page, () => document.querySelector('#netPanel')?.classList.contains('on'), 90);
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 90_000 });
-  await freezeVisuals(page);
+  await freezeVisuals(page);   // 同前：冻在就绪之后
   ok((await page.locator('#netRoomState').innerText()).includes('第 1 轮'), '刷新页面后自动回原座并恢复进行中的共同轮次');
 
   host.leave();

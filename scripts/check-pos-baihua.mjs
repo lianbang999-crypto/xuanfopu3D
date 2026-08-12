@@ -5,7 +5,7 @@
 //   译得好不好，判准是读者读得懂、明白，不是这个百分数。
 import { SFP_POS } from '../src/sfp-data.js';
 import { SFP_CANON_DOORS } from '../src/sfp-canon.js';
-import { SFP_WHY_EVIDENCE, sfpEvidenceItems, SFP_EVIDENCE_TYPE } from '../src/sfp-evidence.js';
+import { sfpSplitOf } from '../src/sfp-canon-split.js';
 import { SFP_POS_BAIHUA } from '../src/sfp-pos-baihua.js';
 import { SFP_GLOSS } from '../src/sfp-gloss.js';
 import { ZH_T2S, ZH_S2T } from '../src/zh-conv.js';
@@ -13,21 +13,18 @@ import { ZH_T2S, ZH_S2T } from '../src/zh-conv.js';
 const CN = '一二三四五六七八九十'.split('').concat(['十一', '十二', '十三', '十四', '十五']);
 const conv = (s, d) => [...String(s)].map((c) => d[c] || c).join('');
 
-function canonPosOnly(pid, text) {
-  const combos = SFP_WHY_EVIDENCE[pid] || {};
-  let idx = -1;
-  for (const evd of Object.values(combos))
-    for (const it of sfpEvidenceItems(evd, SFP_EVIDENCE_TYPE.source)) {
-      const i = text.indexOf(String(it.text)); if (i > 0 && (idx < 0 || i < idx)) idx = i;
-    }
-  if (idx < 0) return text;
-  const head = text.slice(0, idx);
-  return /。$/.test(head) ? head : text;
-}
+// 义解段的切分：2026-08-12 起与游戏端同走 sfpSplitOf（220 位逐位手核的切点表，有 check:split 护栏）。
+//   此前本脚本自带一份 canonPosOnly 抄件（拿证据引文反查最早出现处），游戏端改了它不改，
+//   两边口径即刻漂移——护栏量的是一段，卡上呈的是另一段。今删抄件，一处定口径。
+//   注：切点表按**谱面位名**索引，终位题作「佛」，故须传 canonOf 里那个 x.name。
 const canonOf = (p) => {
   const d = SFP_CANON_DOORS[p.door];
   const x = ((d && d.positions) || []).find((q) => q.name === p.name || q.name === p.id || (q.name === '佛' && p.id === '圓教究竟妙覺位'));
-  return { text: x ? String(x.text || '').replace(/^譜曰。/, '') : '', juan: (d && d.juan) || 1 };
+  return {
+    text: x ? String(x.text || '').replace(/^譜曰。/, '') : '',
+    name: x ? x.name : p.name,
+    juan: (d && d.juan) || 1,
+  };
 };
 
 const BY_ID = Object.fromEntries(SFP_POS.map((p) => [p.id, p]));
@@ -48,7 +45,7 @@ for (const k of keys) {
   const p = BY_ID[k]; if (!p) continue;
   const e = SFP_POS_BAIHUA[k];
   const c = canonOf(p);
-  const head = canonPosOnly(p.id, c.text);
+  const head = (sfpSplitOf(c.name, c.text).jie || c.text).trim();
   const v = String(e.v || '');
   const rows = e.rows || [];
   // 清单式内容走 rows：领起句留 v，明细入行。量重合度、查字形、判译足，一律以「领起句＋各行」合计为准；
@@ -93,9 +90,10 @@ for (const k of keys) {
   if (full.length < 30) warn.push(`${k}：仅 ${full.length} 字，恐未译足`);
   if (v.length > 160) warn.push(`${k}：领起句 ${v.length} 字，太长，宜收束或拆入 rows`);
 
-  // partial 须名副其实：原文义解段确实远长于白话才算
+  // partial 须名副其实：原文义解段确实远长于白话才算；长篇若已分行覆译，不因字数长就强制 partial。
   if (e.partial && head.length < full.length * 1.6) warn.push(`${k}：标了 partial，但原文义解段仅 ${head.length} 字（白话合计 ${full.length} 字），标记恐不必要`);
-  if (!e.partial && head.length > 400) warn.push(`${k}：原文义解段 ${head.length} 字而未标 partial`);
+  if (!e.partial && head.length > 400 && full.length < head.length * 0.45)
+    warn.push(`${k}：原文义解段 ${head.length} 字，白话仅 ${full.length} 字且未标 partial，恐有漏译`);
 
   if (e.partial) partials.push(k);
   if (e.q) quests.push(`${k}：${e.q}`);

@@ -30,7 +30,11 @@ export const GEN_DAILY_DEFAULT = 60;
 export function genGuard(req, env) {
   let host = '';
   try { host = new URL(req.url).hostname; } catch { /* 無效 URL 者按公網待之 */ }
-  const trusted = host === 'ask.internal';
+  // 本機信任（2026-08-12 問譜 v3）：wrangler dev 的主機名是 localhost，非 ask.internal，
+  // 開發者經 vite 代理試問永遠走降級、看不到生成路。DEV_TRUST=1（只寫在 .dev.vars，
+  // 不入 wrangler.toml [vars]）時本機直訪視同內轉——線上部署無此變量，公網分級絲毫不鬆。
+  const devTrust = env && env.DEV_TRUST === '1' && (host === 'localhost' || host === '127.0.0.1');
+  const trusted = host === 'ask.internal' || devTrust;
   const client = String(req.headers.get('x-ask-client') || '').slice(0, 64) || 'game';
   const cap = Math.max(1, Number(env && env.ASK_GEN_DAILY) || GEN_DAILY_DEFAULT);
   return {

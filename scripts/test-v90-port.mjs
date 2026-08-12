@@ -51,11 +51,23 @@ try {
   await page.goto(UI_BASE, { waitUntil: 'domcontentloaded' });
   const start = page.getByRole('button', { name: '开始行谱', exact: true });
   await start.waitFor({ state: 'visible', timeout: 90_000 });
+  // 2026-08-12 修：本本自 163ac9a 起就按旧流程等「共修大厅 → #pzSolo」，而 08-11 已改
+  //   题屏主钮单人直开，#pzSolo 全站不存（只余大厅连不上时的兜底钮 #pzSolo2）。
+  //   另：未就绪时点主钮只记心愿（__wantStart），真正起行由 bootActivate 在首帧 rAF 后代点，
+  //   无头 swiftshader 下不催帧则永远停在题屏——故须先催帧等 .ready，再点。
+  const pump = async (fn, rounds = 60) => {
+    for (let i = 0; i < rounds; i++) {
+      if (i % 4 === 0) await Promise.race([page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
+        new Promise((r) => setTimeout(r, 1200))]).catch(() => {});
+      await page.waitForTimeout(260);
+      if (await page.evaluate(fn).catch(() => false)) return true;
+    }
+    return false;
+  };
+  await pump(() => document.querySelector('#boot')?.classList.contains('ready'));
   await start.click({ force: true });
-  const solo = page.locator('#pzSolo');
-  await solo.waitFor({ state: 'visible', timeout: 12_000 });
-  await solo.click({ force: true });
-  await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 12_000 });
+  await pump(() => document.querySelector('#sfpBar')?.classList.contains('show'));
+  await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 30_000 });
   await page.waitForTimeout(250);
 
   console.log('\n【须弥山环缝】');
@@ -151,10 +163,17 @@ try {
   ok(content.d1.includes('置輪掌心') && !content.d1.includes('诸恶莫作'), '第一门修行说明不再借用外部偈语');
   ok(content.d2.includes('法道流弊門「破軌則」') && !content.d2.includes('解行相应'), '第二门改用本门原文，不再把自撰提法当作引文');
   ok(content.d15.includes('圓極果位門「佛」') && !content.d15.includes('心空及第'), '第十五门只引用本门「佛」位原文');
-  ok(content.fo15.includes('原文说明 · 对读') && content.fo15.includes('圓極果位門「佛」') && !content.fo15.includes('輪相表法第一'), '及第说明只呈门十五原文对读，不借别门判词');
+  // 2026-08-12 改按义核：原条钉「原文说明 · 对读」四字，而成佛面板已于同日改接正本——
+  //   白话取 SFP_POS_BAIHUA，原文退为折叠段并改题「谱曰原文 · 卷第六」，那四字不复存在。
+  //   本条要守的从来不是段题，是「只引本门『佛』位、不借别门判词」，故改验此实。
+  ok(content.fo15.includes('圓極果位門「佛」') && !content.fo15.includes('輪相表法第一'),
+    '及第说明只引门十五「佛」位原文，不借别门判词');
 
   console.log('\n【V92 内容与见闻录】');
-  ok(content.rules.includes('至心称念') && !content.rules.includes('默念'), '掷轮操作统一校正为至心称念');
+  // 同上改按义核：原条钉「至心称念」四字，现行文案作「长按掷钮时称念一声『南无阿弥陀佛』」，
+  //   「至心」二字已不在这一句里（站内别处仍有）。要守的是「称念出声、不是默念」这件事。
+  ok(/称念|稱念/.test(content.rules) && content.rules.includes('南无阿弥陀佛') && !content.rules.includes('默念'),
+    '掷轮操作是称念一声佛号，不作默念');
   const logBefore = await page.evaluate(() => window.__lgDbg?.());
   ok(logBefore?.games >= 1 && Array.isArray(logBefore?.seen), '见闻录跨局数据结构已建立并记录开局');
   // 见闻录已并入「我的」全屏页，入口在星图右上角（⋯ 菜单只留局务两项）

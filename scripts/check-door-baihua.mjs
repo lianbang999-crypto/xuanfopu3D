@@ -69,9 +69,10 @@ for (let n = 1; n <= 15; n++) {
     err.push(`門${n}：混入簡體字 ${[...new Set(bad)].join('')} —— 名相浮標只認繁體鍵，會漏標`);
   }
 
-  // ⑥ partial 須名副其實
+  // ⑥ partial 須名副其實；長篇已用 rows 分段覆譯者，不因原文超 400 字就強制 partial。
   if (e.partial && intro && intro.length < full.length * 1.6) warn.push(`門${n}：標了 partial，但原文總說僅 ${intro.length} 字（白話合計 ${full.length} 字）`);
-  if (!e.partial && intro.length > 400) warn.push(`門${n}：原文總說 ${intro.length} 字而未標 partial`);
+  if (!e.partial && intro.length > 400 && full.length < intro.length * 0.45)
+    warn.push(`門${n}：原文總說 ${intro.length} 字，白話僅 ${full.length} 字且未標 partial，恐有漏譯`);
   if (v.length > 160) warn.push(`門${n}：領起句 ${v.length} 字，太長，宜收束或拆入 rows`);
 
   const hits = GLS_TRAD.filter((t) => full.includes(t)).length;

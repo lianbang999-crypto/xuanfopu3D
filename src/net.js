@@ -93,6 +93,7 @@ export const Net = {
   _pendingStart: '',
   _connState: 'ok',
   _lastFocused: null,
+  _seatSnap: null,   // 上一拍在座名单（id→name）：来人/离席差分播报用；离房清空
   _joinPromise: null,
   _joinCode: '',
   _joinSeq: 0,
@@ -105,6 +106,7 @@ export const Net = {
   onState: null,
   onToss: null,
   onNotice: null,   // 行棋公事播报（贈掷施与等）：宿主接去状态行＋消息回看，聊天室只留人语与人事
+  onSeat: null,     // 等候期来人/离席（{kind:'join'|'leave', name}）——宿主接去放磬
   onMatchStarted: null,
   onMatchFinished: null,
   onCommandError: null,
@@ -128,7 +130,7 @@ export const Net = {
   roomLabel(code = this.code) {
     const at = /^H(\d+)T(\d+)$/i.exec(String(code || ''));
     if (!at) return code ? `房间 ${code}` : '共修室';
-    const ord = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'][Number(at[2]) - 1];
+    const ord = ['一', '二', '三', '四', '五', '六', '七', '八', '九'][Number(at[2]) - 1];
     return ord ? `共修室${ord}` : `共修室 ${at[2]}`;
   },
   isPlaying() { return this.room.status === 'playing'; },
@@ -380,6 +382,7 @@ export const Net = {
     this._pendingReady = null;
     this._pendingStart = '';
     this._pendingGrant = '';
+    this._seatSnap = null;
     this._grantSync();
     try {
       localStorage.removeItem(NET_KEY);
@@ -502,10 +505,44 @@ export const Net = {
   setKey(key) { return this._send({ type: 'lock', key, requestId: requestId('lock') }); },
   clearKey() { return this._send({ type: 'lock', off: true, requestId: requestId('unlock') }); },
 
+  // 来人/离席播报（2026-08-11）：等人是全流程最静的一段，从前名单静默换行等于来人无声——
+  // 房主点完「邀请」盯着屏干等，人来了却毫无动静。首拍只建快照不播报（入座那一刻的
+  // 满室名单不是「刚来的人」）；此后新增 id＝入座、消失 id＝离席，各落一行系统消息
+  // （入座离席属「人事」，合于「聊天只留人语与人事」的定案）。等候/结算期另 toast＋
+  // onSeat（宿主放磬）——那正是等人最无聊的时段；局中只留系统行，不抢星图。
+  _seatWatch() {
+    const prev = this._seatSnap;
+    const snap = new Map(this.players.map((p) => [p.id, p.name]));
+    this._seatSnap = snap;
+    if (!prev) return;
+    const waitingRoom = this.room.status !== 'playing';
+    for (const [id, name] of snap) {
+      if (prev.has(id) || id === this.myId) continue;
+      const who = name || '莲友';
+      this._sysMsg(`${who}已入座`);
+      if (waitingRoom) {
+        const online = this.players.filter((p) => p.online).length;
+        this._toastCb?.(this.zh(`${who}已入座 · 室内 ${online} 人`));
+        this.onSeat?.({ kind: 'join', name: who });
+      }
+    }
+    for (const [id, name] of prev) {
+      if (snap.has(id) || id === this.myId) continue;
+      const who = name || '莲友';
+      this._sysMsg(`${who}已离席`);
+      if (waitingRoom) {
+        this._toastCb?.(this.zh(`${who}已离席`));
+        this.onSeat?.({ kind: 'leave', name: who });
+      }
+    }
+  },
+
   _applyState(message) {
-    if (Array.isArray(message.players)) this.players = message.players;
+    const rosterCame = Array.isArray(message.players);
+    if (rosterCame) this.players = message.players;
     if (message.room) this.room = { ...EMPTY_ROOM, ...message.room };
     if (typeof message.locked === 'boolean') this.locked = message.locked;
+    if (rosterCame) this._seatWatch();
     const me = this.me();
     if (me) {
       this.mySeat = me.seat;
@@ -652,8 +689,21 @@ export const Net = {
 /* ⤢ 全屏（批B W2 · 桌面亦可用）：基础规则的 max-height 钉子须同覆，否则被钉死 600px */
 #netPanel.full{bottom:calc(16px + env(safe-area-inset-bottom));width:min(560px,46vw);
   height:calc(100dvh - 32px);max-height:calc(100dvh - 32px)}
-#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--aq-line);min-height:40px;flex:none}
-#netHead b{letter-spacing:2px;color:var(--aq-title)}
+/* 等候室入厅（2026-08-11）：大厅在背后（.overlay .pzPanel 在场）时，等候/结算态面板居中——
+   像从大厅长出的房间卡；开局（is-playing）或大厅不在时回左下老位。⤢ 全屏自取时豁免居中。
+   位置带过渡：大厅开合时面板滑移而非瞬跳。 */
+@media (min-width:521px){
+  #netPanel.on{transition:left .28s ease-out,bottom .28s ease-out,transform .28s ease-out}
+  body:has(.overlay .pzPanel) #netPanel.is-waiting:not(.full),
+  body:has(.overlay .pzPanel) #netPanel.is-finished:not(.full){left:50%;bottom:50%;transform:translate(-50%,50%);
+    box-shadow:0 24px 60px rgba(10,20,26,.30),0 0 0 1px rgba(150,112,32,.26),0 0 40px rgba(176,131,28,.14)} /* 居中房卡镶一圈金晕：像从大厅长出的牌位卡 */
+}
+@media (prefers-reduced-motion:reduce){#netPanel.on{transition:none}}
+/* 匾额头（2026-08-11 美术批）：室名走楷金题字，头带下淡一线金洗——与大厅页头同一语言 */
+#netHead{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid var(--aq-line);min-height:40px;flex:none;
+  background:linear-gradient(180deg,rgba(176,131,28,.10),rgba(176,131,28,0))}
+#netHead b{letter-spacing:3px;color:var(--aq-title);font-weight:600;
+  font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
 #netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:var(--aq-green);letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
 #netHead .code:hover,#netHead .code:focus-visible{color:var(--aq-green)}
 #netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(139,74,58,.45);background:rgba(139,74,58,.08);color:var(--aq-woe);border-radius:10px;cursor:pointer}
@@ -684,7 +734,8 @@ export const Net = {
 #netPanel.is-playing #netRoundActions{display:none}
 #netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid var(--aq-line);background:rgba(255,255,255,.55);color:var(--aq-tx)}
 #netRoundActions button{flex:1}
-#netRoundActions button.pri,#netBtns button.pri{background:var(--aq-goldwash);color:var(--aq-tx);border-color:var(--aq-goldline);font-weight:600}
+#netRoundActions button.pri,#netBtns button.pri{background:var(--aq-goldwash);color:var(--aq-tx);border-color:var(--aq-goldline);font-weight:600;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
 /* 聊天区不再另立标题：下面就是聊天，「共修聊天」四字是废话。这一行只留隐私说明，
    翻历史时借同一位置报新消息（§5.0b 信息只出一次）。 */
@@ -1027,7 +1078,9 @@ export const Net = {
     // 局中默认半屏（星图是主角），全屏靠上滑/⤢ 自取。closePanel 会摘掉 full，故每次打开重判。
     if (this.room.status !== 'playing' && matchMedia('(max-width:520px)').matches) this.$panel.classList.add('full');
     this.$panel.classList.add('on');
-    this.$dismiss.classList.add('on');
+    // 等候室入厅（2026-08-11）：大厅在背后时不挂「点外收起」遮罩——厅是等候的背景，
+    // 桌况、右墙茶寮都要留给人点；收面板走 ⌄。别处（星图上）遮罩照旧。
+    if (!document.querySelector('.overlay .pzPanel')) this.$dismiss.classList.add('on');
     document.querySelectorAll('.netEntry').forEach((button) => button.setAttribute('aria-expanded', 'true'));
     this._unread = 0;
     this._badge();

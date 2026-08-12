@@ -1,14 +1,13 @@
+# 問譜 v3（2026-08-12 推倒重立，覆蓋部署於同名 worker——路由、KV、遊戲側 service binding 皆不動）。
+# 舊管線（M5.1 八路收兩層）之碼與評測 git 可考；此名沿用即是「覆蓋舊問」的落點。
 name = "xuanfopu-agent-v2"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 # 加 routes 後 workers.dev 會被自動停用，故顯式保留——
 # 它是不經 foyue.org 的直訪備路，出事時可繞開路由排查。
-# 公網直訪（含此備路）只開零生成路由（定本／位本／行法表），生成四路一律降級——
+# 公網直訪（含此備路）一律零生成：密鑰不入 env，答語降級為檢得原文直出——
 # 詳 src/guard.js。故留著不燒錢。
 workers_dev = true
-
-# 舊 worker（xuanfopu-evidence-agent）不覆蓋，留作回退。
-# 部署後改遊戲 Worker 之 service binding 一行即可切換。
 
 # 對外正式路由：foyue.org/xuanfopu/ask/api
 # 較 bojingtai 之 foyue.org/* 更具體，Cloudflare 按特異性匹配，故優先而不奪其餘路徑。
@@ -26,18 +25,10 @@ enabled = true
 # 三次有二次逕超時。故取 Pro。換模型後須重跑 player-eval --model，看 ttft 與丟句數。
 [vars]
 COMPOSE_MODEL = "deepseek-ai/DeepSeek-V4-Pro"
-# 意圖層之模型（intent.js，輸入端吐結構）。發起人 2026-08-04：統一用硅基流動 V4 系。
-# 意圖只出 200 token 結構、溫度 0、6s 超時、正則兜底——縱慢亦不失守。換後必跑 player-eval --model。
-INTENT_MODEL = "deepseek-ai/DeepSeek-V4-Pro"
-# 生成四路（corpus／rules／expand／wenku）每客戶端日配額（鍵＝遊戲側 x-ask-client 指紋）。
-# 額滿降級 M3 零生成，不拒答。定本三路零成本，不限。
+# 生成路每客戶端日配額（鍵＝前端側 x-ask-client 指紋）。額滿降級原文直出，不拒答。
+# 【問譜 v3，2026-08-12】意圖層（INTENT_MODEL）與問文庫旁路（WENKU_SERVICE）隨舊管線撤除：
+# 新管線只一條「檢索→據文生成」路，無意圖可分；譜外之問據實說材料答不了，不轉他家。
 ASK_GEN_DAILY = "60"
-
-# 問道旁路：譜外淨土修學之問轉佛樂問文庫（大安法師講記，8999 塊原文 RAG）。
-# 同帳號下走 service binding，免公網往返與對外限流；未綁定時 wenku.js 自動改走 HTTPS。
-[[services]]
-binding = "WENKU_SERVICE"
-service = "bojingtai"
 
 # 限流與答案快取（2026-08-04 P1 兌現，詳 src/guard.js 與 compose.js 快取段）。
 # 鍵形：rl:<client>:<日> 配額計數（27h 自清）；ans:<模型>:<鍵> 已過閘答案（7 日，鍵含數據版次）。
