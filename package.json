@@ -36,6 +36,7 @@
     "test:plaza-client": "node scripts/test-plaza-client.mjs",
     "test:backlang": "node scripts/test-back-and-lang.mjs",
     "test:agent": "node agent/eval/ask-eval.mjs",
+    "test:ask": "node scripts/test-ask-panel.mjs",
     "agent:dev": "npx wrangler dev --config agent/worker/wrangler.toml --port 8788",
     "agent:deploy": "node agent/eval/ask-eval.mjs && npx wrangler deploy --config agent/worker/wrangler.toml",
     "check:dir": "node scripts/check-dir.mjs",

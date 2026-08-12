@@ -156,27 +156,14 @@ function when(ts) {
   return `${Math.max(1, Math.floor(d / 86400000))}天前`;
 }
 
-// 2026-08-05 极简改版（用户点单）：十二格改「有人的逐行列出 ＋ 空室压成一行」。
-//   旧式十二格里常有七八格是空的，各自只传「这里没人」一个字节，却吃掉手机 55%／桌面 60% 的版面；
-//   而「哪里有人、有谁」——大厅真正要答的那一问——反被摊薄在满屏空盒之间。
-//   一间房原本还把同一件事说两遍：点阵 ●●○○ 与「2/4」同义，状态字「候莲友」与点阵亦同义。
-//   今各留其一：名号占主位，「候莲友 2/4」右对齐成一列，状态另以边色副述。
-// 有人的才立一行；空室（连同上锁的空室）归到底下那条，点任一序号照样入座。
-const isLive = (t, here) => t.live > 0 || t.code === here;
-
-// 行只建一次空壳，此后就地补写——整段 innerHTML 重绘会吞掉键盘焦点与正在进行的点击。
-function roomShell(t, esc) {
+// 2026-08-05 曾改「有人的逐行列出 ＋ 空室压成一行」：十二格时代七八格空盒吃掉半屏。
+// 2026-08-12 依用户点单改回九宫格（桌数已收九）：3×3 恒定紧凑，空卡只占 1/9 屏，
+//   十二格时代「空盒吃版面」的动因已消；九张桌卡本身即是「厅」的具象——
+//   空室不再是要藏的噪声，而是虚位以待的一张桌。
+// 格恒为九：壳建一次，此后逐格就地补写——整段 innerHTML 重绘会吞掉键盘焦点与正在进行的点击（旧则不变）。
+function tableShell(t, esc) {
   return `<button class="pzR" data-code="${esc(t.code)}">
     <span class="ord"></span><span class="who"></span><span class="st"></span></button>`;
-}
-// 空室一条：序号即按钮，上锁的缀一把小锁。
-// 诸室皆空时不标「空室」二字——上头那句提示已经说过一遍，两处同义只留其一。
-function emptiesHtml(list, esc, cap) {
-  if (!list.length) return '';
-  return (cap ? `<span class="pzEmptyCap">空室</span>` : '') + list.map(t =>
-    `<button class="pzE${t.locked ? ' locked' : ''}" data-code="${esc(t.code)}"`
-    + ` aria-label="共修室${TABLE_ORD[t.no - 1]}，空室${t.locked ? '，凭密码入座' : ''}">`
-    + `${TABLE_ORD[t.no - 1]}${t.locked ? '<em>🔒</em>' : ''}</button>`).join('');
 }
 
 // 只在内容真的变了才写 DOM：dataset.raw 记的是转换前的原文，
@@ -188,20 +175,25 @@ function setCell(host, selector, html) {
   node.innerHTML = html;
 }
 
-function paintRoom(button, t, esc, here) {
-  const who = t.seats.filter(s => s.online).map(s =>
-    `<i style="color:${esc(s.color || '#dccf9f')}">${esc(s.name)}</i>`).join(' ');
+// 桌卡三段：圆章室号｜在座名号（空则「空室」浅字）｜状态＋人数。
+// 名号不再随珠色上色——珠色的辨识意义在房内名单；浅底大厅里统一墨色更清。
+function paintTable(button, t, esc, here) {
   const mine = t.code === here;
   const full = t.state === 'full' && !mine;
-  const label = mine ? '您在此' : (t.locked ? '凭密码入座' : (STATE_TEXT[t.state] || ''));
+  const empty = t.state === 'empty';
   const className = `pzR s-${t.state}${t.locked ? ' locked' : ''}${mine ? ' mine' : ''}`;
   if (button.className !== className) button.className = className;
   button.disabled = full;
-  button.setAttribute('aria-label', `共修室${TABLE_ORD[t.no - 1]}，${label}，${t.live}/${t.max}位在线`);
+  const label = mine ? '您在此' : (t.locked ? '凭密码入座' : (STATE_TEXT[t.state] || ''));
+  button.setAttribute('aria-label', `共修室${TABLE_ORD[t.no - 1]}，${label}${empty ? '' : `，${t.live}/${t.max}位在线`}`);
   setCell(button, '.ord', `${TABLE_ORD[t.no - 1]}${t.locked ? '<em>🔒</em>' : ''}`);
+  const who = empty
+    ? `<i class="idle">${t.locked ? '凭密码入座' : '空室'}</i>`
+    : t.seats.filter(s => s.online).map(s => `<i>${esc(s.name)}</i>`).join('');
   setCell(button, '.who', who || '&nbsp;');
-  // 右列一句说尽状态与人数：状态字与「2/4」并列，不再另画一行点阵说同一件事
-  setCell(button, '.st', `${mine ? '您在此' : (t.locked ? '凭密码' : (STATE_TEXT[t.state] || ''))}<b>${t.live}/${t.max}</b>`);
+  // 状态字与「2/4」并列一行；空室不再复述（卡上「空室」已答）
+  setCell(button, '.st', empty ? '&nbsp;'
+    : `${mine ? '您在此' : (t.locked ? '凭密码' : (STATE_TEXT[t.state] || ''))}<b>${t.live}/${t.max}</b>`);
 }
 
 // 哪一行是「我」：服务端不外发匿名莲号，故按本机上报的那个名号比对。
@@ -266,25 +258,12 @@ export function updatePlaza(p, data, ui) {
   const activeUi = p._plazaUi;
   const tables = data.tables || [];
   const here = activeUi.seatedAt;
-  // 有人的立行、空的归底条。两处都按室号顺序，不按人数重排——八秒一刷，
-  // 若照人数排序，房间会在眼皮底下跳来跳去，正想点的那间恰好挪开。
-  const live = tables.filter(t => isLive(t, here));
-  const empties = tables.filter(t => !isLive(t, here));
-  const list = p.querySelector('.pzList');
-  const sig = live.map(t => t.code).join(',');
-  if (list.dataset.sig !== sig) {            // 只有「哪几间有人」这个集合变了才重建空壳
-    list.dataset.sig = sig;
-    list.innerHTML = live.map(t => roomShell(t, activeUi.esc)).join('');
-  }
-  const rows = list.querySelectorAll('.pzR');
-  live.forEach((t, i) => { if (rows[i]) paintRoom(rows[i], t, activeUi.esc, here); });
-  const none = p.querySelector('.pzNone');
-  none.hidden = live.length > 0;
-  const bar = p.querySelector('.pzEmpties');
-  const cap = live.length > 0;                                   // 有人的行在上头时才需「空室」二字分隔
-  const esig = (cap ? 'c|' : '|') + empties.map(t => t.code + (t.locked ? 'L' : '')).join(',');
-  if (bar.dataset.sig !== esig) { bar.dataset.sig = esig; bar.innerHTML = emptiesHtml(empties, activeUi.esc, cap); }
-  bar.hidden = !empties.length;
+  // 九宫格恒定按室号排，不按人数重排——八秒一刷，若照人数排序，
+  // 房间会在眼皮底下跳来跳去，正想点的那间恰好挪开。
+  const grid = p.querySelector('.pzGrid');
+  if (grid.children.length !== tables.length) grid.innerHTML = tables.map(t => tableShell(t, activeUi.esc)).join('');
+  const cells = grid.querySelectorAll('.pzR');
+  tables.forEach((t, i) => { if (cells[i]) paintTable(cells[i], t, activeUi.esc, here); });
   // 顶条最近几位只在条目身份（时刻＋正文）变了才重写——「几分钟前」每分钟都在变，
   // 拿渲染结果比对等于白比。（滚动动画已随极简方案撤除，此比对仍保住选中态与无谓的 DOM 重排）
   // 数字轻变：内容真变了才重写（dataset.raw 防 zhDom 简繁转换被原文覆写而每拍一闪），
@@ -338,9 +317,7 @@ export function renderPlaza(data, ui) {
 
       <main class="pzMain">
         <section class="pzRooms" aria-label="共修诸室">
-          <div class="pzList"></div>
-          <div class="pzNone" hidden>此刻诸室皆空——点「与人共修」便开一间</div>
-          <div class="pzEmpties" hidden></div>
+          <div class="pzGrid"></div>
           <p class="pzRoomsNote">自行选室 · 两位准备即可开局</p>
         </section>
         <div class="pzSeatNote" hidden></div>
@@ -357,9 +334,9 @@ export function renderPlaza(data, ui) {
   </div>`);
 
   p._plazaUi = ui;
-  // 一处代理管两种去处：有人的行 .pzR 与底条空室 .pzE，点了都是入座（上锁的照旧先问密码）
+  // 一处代理管九格：点任一桌卡即入座（上锁的照旧先问密码）
   p.querySelector('.pzRooms').addEventListener('click', (event) => {
-    const button = event.target.closest('.pzR,.pzE');
+    const button = event.target.closest('.pzR');
     if (button) ui.onSit(button.dataset.code, '', button.classList.contains('locked'));
   });
   // 桌面右墙茶寮（2026-08-11 大厅即茶寮）：挂载交给宿主（chalou.js 的 feed＋input），
@@ -582,7 +559,7 @@ export const PLAZA_CSS = `
 .pzMode b{color:var(--aq-title);font-size:var(--fs-lg,16px);letter-spacing:3px;font-weight:600}
 .pzMode i{font-style:normal;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px;text-wrap:balance}
 .pzMode em{font-style:normal;color:var(--aq-strong);font-size:var(--fs-sm,12.5px);letter-spacing:2px}
-.pzPanel.joining .pzMode,.pzPanel.joining .pzR,.pzPanel.joining .pzE{pointer-events:none;opacity:.56}
+.pzPanel.joining .pzMode,.pzPanel.joining .pzR{pointer-events:none;opacity:.56}
 .pzPanel.joining #pzQuick{border-color:rgba(150,112,32,.7);opacity:1}
 /* 右侧原有「今日共修／入座后／邀请说明」三块已撤：数字在功课榜里已有一份，
    入座说明在房内指引里已有一份，同一句话不在大厅再说一遍（§5.0b）。房间格因此拿到整幅宽度。 */
@@ -594,13 +571,16 @@ export const PLAZA_CSS = `
 .pzRooms{min-height:0;flex:0 1 auto;display:flex;flex-direction:column;gap:8px;padding:12px;
   border:1px solid var(--aq-line);border-radius:16px;background:rgba(255,255,255,.44);overflow:auto;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.6)}
-.pzList{display:flex;flex-direction:column;gap:6px}
-/* 一行说尽一间：室号｜在座者名号（主位，撑满）｜状态＋人数（右对齐成一列） */
-.pzR{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;
-  min-height:48px;padding:8px 13px 8px 10px;cursor:pointer;text-align:left;font:inherit;
-  border:1px solid var(--aq-line);border-radius:12px;background:rgba(255,255,255,.62);color:var(--aq-tx);
+/* 九宫格桌卡（2026-08-12 用户点单）：3×3 恒定，一格一桌——圆章室号、在座名号、状态一列。
+   卡底一弯「桌影」（radial 金洗）作桌的具象；行谱中转石绿并带呼吸边（一屏仍只此一种常驻动画）。 */
+.pzGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.pzR{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  min-height:108px;padding:12px 8px 10px;cursor:pointer;text-align:center;font:inherit;
+  border:1px solid var(--aq-line);border-radius:14px;color:var(--aq-tx);
+  background:radial-gradient(ellipse 64% 26% at 50% 92%,rgba(176,131,28,.10),transparent 72%),rgba(255,255,255,.6);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
-.pzR:hover:not(:disabled),.pzR:focus-visible:not(:disabled){border-color:var(--aq-goldline);background:rgba(176,131,28,.09)}
+.pzR:hover:not(:disabled),.pzR:focus-visible:not(:disabled){border-color:var(--aq-goldline);
+  background:radial-gradient(ellipse 64% 26% at 50% 92%,rgba(176,131,28,.15),transparent 72%),rgba(255,255,255,.74)}
 .pzR:disabled{opacity:.42;cursor:not-allowed}
 /* 室号成章（2026-08-11 美术批）：九室皆单字，恰好容进一枚泥金描边的小圆章——
    章色随行相走：行谱中石绿、候莲友泥金、您在此金洗底。锁标挪到章角，不挤章内。 */
@@ -612,32 +592,29 @@ export const PLAZA_CSS = `
 .pzR.s-playing .ord{border-color:rgba(47,106,94,.52);color:var(--aq-green)}
 .pzR.s-waiting .ord{border-color:var(--aq-goldline);color:var(--aq-strong)}
 .pzR.mine .ord{background:var(--aq-goldwash);border-color:var(--aq-goldline);color:var(--aq-strong)}
-.pzR .who{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  font-size:var(--fs-sm,12.5px);line-height:1.4;color:var(--aq-note)}
-.pzR .who i{font-style:normal}
-.pzR .st{white-space:nowrap;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:1px}
-.pzR .st b{margin-left:7px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--aq-tx)}
+.pzR .who{min-width:0;max-width:100%;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;font-size:var(--fs-sm,12.5px);line-height:1.45;color:var(--aq-tx)}
+.pzR .who i{font-style:normal;margin:0 3px}
+.pzR .who .idle{color:#8a8271;letter-spacing:2px;margin:0}
+.pzR .st{white-space:nowrap;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:1px;min-height:1em}
+.pzR .st b{margin-left:6px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--aq-tx)}
+/* 空桌自沉一档：底更淡、章更浅——「虚位以待」不与有人的桌抢眼 */
+.pzR.s-empty{background:radial-gradient(ellipse 64% 26% at 50% 92%,rgba(112,96,64,.05),transparent 72%),rgba(255,255,255,.4)}
+.pzR.s-empty .ord{border-color:rgba(112,96,64,.3);background:rgba(255,255,255,.42);color:#8a8271}
 .pzR.locked{border-style:dashed}.pzR.locked .st{color:var(--aq-strong)} /* 锁定语义已有 🔒＋虚线边双重表达 */
-.pzR.mine{border-color:rgba(150,112,32,.8);background:rgba(176,131,28,.12)}.pzR.mine .st{color:var(--aq-strong)}
-/* 行谱中的房呼吸（2026-08-11）：边色 3.6s 极缓明暗，传达「这间是活的」——
-   一屏至多这一处常驻动画（动画预算），reduced-motion 全关。 */
-.pzR.s-playing{border-color:rgba(47,106,94,.45);animation:pzLive 3.6s ease-in-out infinite}.pzR.s-playing .st{color:var(--aq-green)}
+.pzR.mine{border-color:rgba(150,112,32,.8);
+  background:radial-gradient(ellipse 64% 26% at 50% 92%,rgba(176,131,28,.16),transparent 72%),rgba(176,131,28,.1)}
+.pzR.mine .st{color:var(--aq-strong)}
+/* 行谱中的桌呼吸（2026-08-11）：边色 3.6s 极缓明暗，传达「这桌是活的」——
+   一屏至多这一种常驻动画（动画预算），reduced-motion 全关。桌影随行相转石绿。 */
+.pzR.s-playing{border-color:rgba(47,106,94,.45);
+  background:radial-gradient(ellipse 64% 26% at 50% 92%,rgba(47,106,94,.12),transparent 72%),rgba(255,255,255,.6);
+  animation:pzLive 3.6s ease-in-out infinite}
+.pzR.s-playing .st{color:var(--aq-green)}
 @keyframes pzLive{0%,100%{border-color:rgba(47,106,94,.28)}50%{border-color:rgba(47,106,94,.62)}}
 .pzR.s-waiting{border-color:var(--aq-goldline)}.pzR.s-waiting .st{color:var(--aq-strong)}
-/* 入座途中：点的那间原位亮着（joining 面板整体压暗，独此行答「正入此室」） */
-.pzPanel.joining .pzR.sitting,.pzPanel.joining .pzE.sitting{opacity:1;border-color:rgba(150,112,32,.8);background:rgba(176,131,28,.12)}
-/* 空室压成一条：七八间空房各占一格只为说「这里没人」，不值那半屏；序号即入口，点了照样入座 */
-.pzEmpties{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding-top:2px}
-.pzEmpties[hidden]{display:none}
-.pzEmptyCap{margin-right:2px;color:var(--aq-note);opacity:.75;font-size:var(--fs-xs,11px);letter-spacing:2px}
-.pzE{min-width:34px;min-height:34px;padding:2px 9px;cursor:pointer;font:inherit;
-  font-size:var(--fs-xs,11px);letter-spacing:1px;color:#8a8271;
-  border:1px solid rgba(112,96,64,.16);border-radius:9px;background:rgba(255,255,255,.34)}
-.pzE:hover,.pzE:focus-visible{border-color:var(--aq-goldline);background:rgba(176,131,28,.07);color:var(--aq-tx)}
-.pzE.locked{border-style:dashed}
-.pzE em{font-style:normal;margin-left:2px}
-.pzNone{padding:26px 12px;text-align:center;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:2px}
-.pzNone[hidden]{display:none}
+/* 入座途中：点的那张桌原位亮着（joining 面板整体压暗，独此卡答「正入此室」） */
+.pzPanel.joining .pzR.sitting{opacity:1;border-color:rgba(150,112,32,.8);background:rgba(176,131,28,.12)}
 /* 「两位准备即可开局」是新来者未必猜得到的规矩，故留：从旧式 34px 的标题块（含自明的「十二室」小题）
    降为一行页脚小字——话还在，版面省下大半。 */
 .pzRoomsNote{margin:2px 0 0;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs,11px);letter-spacing:1px}
@@ -698,13 +675,14 @@ export const PLAZA_CSS = `
   .pzMode i,.pzMode em{display:none}
   /* 窄屏整块主区一起滚（房间卡不自成内滚，免两层滚动互抢）；「回题屏」仍钉页脚 */
   .pzMain{overflow:auto;gap:10px}.pzRooms{flex:0 0 auto;padding:10px;overflow:visible}
-  .pzR{grid-template-columns:auto minmax(0,1fr) auto;gap:8px;min-height:46px;padding:7px 11px 7px 8px}
+  .pzGrid{gap:7px}
+  .pzR{gap:5px;min-height:96px;padding:10px 6px 8px}
   .pzR .ord{width:27px;height:27px;font-size:var(--fs-sm,12.5px)}
   .pzR .who{font-size:var(--fs-xs,11px)}
   .fsShell{padding:calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));gap:10px}
   .pzRankRow{grid-template-columns:minmax(60px,1fr) auto auto;gap:8px}
 }
-@media (max-width:370px){.pzR{grid-template-columns:auto minmax(0,1fr) auto;gap:6px;padding:7px 9px 7px 7px}}
+@media (max-width:370px){.pzGrid{gap:6px}.pzR{min-height:88px;padding:9px 5px 7px}}
 /* 问名／问密码卡：随社交面走石青（.panel 底为暗夜 --ck-*，此处整卡覆写） */
 .pzAsk{background:var(--aq-panel);border-color:var(--aq-goldline);color:var(--aq-tx)}
 .pzAsk h2{color:var(--aq-title)}

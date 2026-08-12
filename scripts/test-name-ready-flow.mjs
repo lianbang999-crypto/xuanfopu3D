@@ -82,7 +82,7 @@ try {
   await page.locator('#tiHall').evaluate((b) => b.click());
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 });
 
-  const tables = page.locator('.pzE:not(:disabled)');
+  const tables = page.locator('.pzR.s-empty:not(:disabled):not(.locked)'); // 2026-08-12 九宫格：空桌即 s-empty 卡（.pzE 空室条已撤）
   const tableCount = await tables.count();
   ok(tableCount > 0, '大厅有空共修室可验收');
   const table = tables.nth(tableCount - 1);

@@ -706,7 +706,6 @@ export const Net = {
   font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
 #netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:var(--aq-green);letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
 #netHead .code:hover,#netHead .code:focus-visible{color:var(--aq-green)}
-#netLeaveBtn{min-width:60px;height:44px;flex:none;border:1px solid rgba(139,74,58,.45);background:rgba(139,74,58,.08);color:var(--aq-woe);border-radius:10px;cursor:pointer}
 #netMinBtn,#netFullBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:var(--aq-note);border-radius:10px;cursor:pointer;font-size:var(--fs-xl)}
 #netMinBtn:hover,#netFullBtn:hover{background:rgba(57,50,42,.06);color:var(--aq-tx)}
 #netRoomState{flex:none;padding:8px 12px;color:var(--aq-tx);line-height:1.5}
@@ -732,8 +731,14 @@ export const Net = {
 .netP .st{color:var(--aq-note);font-size:var(--fs-xs);white-space:nowrap}
 #netRoundActions{display:flex;flex:none;gap:8px;padding:9px 12px;border-bottom:1px solid var(--aq-line)}
 #netPanel.is-playing #netRoundActions{display:none}
-#netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid var(--aq-line);background:rgba(255,255,255,.55);color:var(--aq-tx)}
+/* 按钮统一（2026-08-12 美术批）：普通钮白洗底金 hover、主钮金洗内高光、危险钮土红——
+   三级语言全面板一致；离席自头部移入此行（头部只留窗口控制，房间操作齐聚脚下）。 */
+#netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid var(--aq-line);background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit;font-size:var(--fs-sm);letter-spacing:1px}
 #netRoundActions button{flex:1}
+#netRoundActions button:not(:disabled):not(.pri):hover,#netBtns button:not(.pri):not(.danger):hover{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
+#netRoundActions button.pri:not(:disabled):hover,#netBtns button.pri:hover,#netInput button:hover{filter:brightness(1.04)}
+#netBtns .danger{border-color:rgba(139,74,58,.4);background:rgba(139,74,58,.06);color:var(--aq-woe)}
+#netBtns .danger:hover{border-color:rgba(139,74,58,.62);background:rgba(139,74,58,.11)}
 #netRoundActions button.pri,#netBtns button.pri{background:var(--aq-goldwash);color:var(--aq-tx);border-color:var(--aq-goldline);font-weight:600;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
@@ -752,7 +757,8 @@ export const Net = {
 .netEmpty{margin:auto;text-align:center;color:var(--aq-note);font-size:var(--fs-sm);line-height:1.6}
 #netQuick{display:flex;flex:none;gap:8px;padding:6px 12px 0;overflow-x:auto}
 #netPanel.is-waiting #netQuick,#netPanel.is-finished #netQuick{display:none}
-#netQuick button{min-height:44px;white-space:nowrap;border:1px solid var(--aq-line);background:rgba(255,255,255,.5);color:var(--aq-tx);border-radius:12px;padding:7px 12px;cursor:pointer}
+#netQuick button{min-height:44px;white-space:nowrap;border:1px solid var(--aq-line);background:rgba(255,255,255,.5);color:var(--aq-tx);border-radius:10px;padding:7px 12px;cursor:pointer;font:inherit;font-size:var(--fs-sm)}
+#netQuick button:hover{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
 /* 翻看历史时新消息不抢滚动：提示就借聊天标题行右端那句话的位置，不另起浮层 */
 #netNew{border:0;background:none;padding:0;color:var(--aq-note);font:inherit;font-size:var(--fs-xs);cursor:default}
 #netNew.has{color:var(--aq-strong);cursor:pointer;letter-spacing:1px}
@@ -834,7 +840,7 @@ export const Net = {
 
     this.$panel = el(`<section id="netPanel" role="dialog" aria-modal="false" aria-label="真人共修室">
       <div id="netGrab" title="上滑全屏 · 下滑收起"></div>
-      <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netLeaveBtn" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netFullBtn" aria-label="聊天全屏" title="全屏／还原">⤢</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
+      <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netFullBtn" aria-label="聊天全屏" title="全屏／还原">⤢</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
       <div id="netRoomState" aria-live="polite"></div>
       <div id="netRoster" aria-label="本室成员"></div>
       <div id="netRoundActions"><button id="netReadyBtn"></button><button id="netStartBtn" class="pri"></button></div>
@@ -843,7 +849,7 @@ export const Net = {
       <div id="netMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天消息"></div>
       <div id="netQuick"><button>南無阿彌陀佛</button><button>隨喜讚歎 🙏</button></div>
       <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="说一句…"><button aria-label="发送聊天">发送</button><span id="netChatHint" aria-live="polite"></span></div>
-      <div id="netBtns"><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请</button><button id="netHallBtn">大厅</button></div>
+      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请</button><button id="netHallBtn">大厅</button></div>
     </section>`);
     document.body.appendChild(this.$panel);
     this.$msgs = this.$panel.querySelector('#netMsgs');

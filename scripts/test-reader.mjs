@@ -177,8 +177,10 @@ if (booted) {
   await wait(400);
   ok(await game.locator('#dcRead').count() === 1, '门卡「读本门原文」钮在');
   await game.evaluate(() => document.querySelector('#dcRead')?.click());
-  // 先等新页渲染成，再验 URL——游戏页 WebGL 占帧，导航提交会迟；提交前 page.url() 还是旧页
-  await game.waitForSelector('.art-title', { timeout: 30000 });
+  // 先等新页渲染成，再验 URL——游戏页 WebGL 占帧，导航提交会迟；提交前 page.url() 还是旧页。
+  // 给到 120s：这一跳要 dev server 现编 read.html 那一支模块图，冷启实测可近半分钟
+  //   （同 test-v90-port／test-ui-e2e 之放宽，报「超时」看着像页面坏了，其实只是没编完）。
+  await game.waitForSelector('.art-title', { timeout: 120_000 });
   // hash 里的 door:2 何形皆认——%3A 与冒号两种呈现是同一 URL
   ok(/read\.html#door(%3A|:)2$/.test(game.url()), '点钮跳独立页并带门锚：' + game.url().split('/').pop());
   ok((await game.locator('.art-title').textContent() || '').includes('法道流弊'), '落在第二门：' + await game.locator('.art-title').textContent());

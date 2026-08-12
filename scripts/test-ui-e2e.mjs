@@ -181,7 +181,9 @@ try {
     await dialog.accept();
   });
 
-  await page.goto(UI_BASE, { waitUntil: 'domcontentloaded' });
+  // 超时放宽同 test-v90-port：dev server 冷启一次 domcontentloaded 实测 28s，
+  //   正卡在默认 30s 边上，机器一忙即报「导航超时」，看着像页面坏了，其实只是没编完。
+  await page.goto(UI_BASE, { waitUntil: 'domcontentloaded', timeout: 120_000 });
   await enterPlaza(page);
   const hallBox = await page.locator('.pzPanel').boundingBox();
   ok(hallBox.width >= 1400 && hallBox.height >= 880, '共修大厅完整占据桌面视口');
@@ -219,7 +221,7 @@ try {
   ok(await page.locator('#pzSolo').isVisible() && await page.locator('#pzQuick').isVisible(), '手机首屏保留单人与多人入口');
   await capture(page, '00b-plaza-mobile');
   await page.setViewportSize({ width: 1440, height: 900 });
-  const openTables = page.locator('.pzE:not(:disabled)');
+  const openTables = page.locator('.pzR.s-empty:not(:disabled):not(.locked)'); // 2026-08-12 九宫格：空桌即 s-empty 卡（.pzE 空室条已撤）
   const openCount = await openTables.count();
   ok(openCount >= 3, '大厅至少有三张空共修桌可供独立验收');
   // 从末尾取桌，避开本地反复调试时仍处于九十秒保座期的前几桌。
@@ -387,7 +389,7 @@ try {
   await host.next((message) => message.type === 'match_started');
   await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 12_000 });
 
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.reload({ waitUntil: 'domcontentloaded', timeout: 120_000 });   // 同上：dev server 冷启慢，非页面之过
   // 刷新即重来一遍首帧：自动回座要等 bootActivate，而它在首帧 rAF 之后；
   //   无头 swiftshader 下 rAF 受节流，须催帧（同 enterPlaza，2026-08-12）。
   await pumpUntil(page, () => document.querySelector('#netPanel')?.classList.contains('on'), 90);

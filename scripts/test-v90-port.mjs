@@ -48,7 +48,10 @@ try {
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
 
-  await page.goto(UI_BASE, { waitUntil: 'domcontentloaded' });
+  // 【何以放宽到 120s】dev server 把千余个模块逐个现编现供，冷启一次 domcontentloaded
+  //   实测 28s——正卡在 playwright 默认 30s 的边上，机器一忙即超时，报的却是「导航超时」，
+  //   看着像页面坏了，其实只是没编完。下面等主钮本就给到 90s，此处不该反倒最紧。
+  await page.goto(UI_BASE, { waitUntil: 'domcontentloaded', timeout: 120_000 });
   const start = page.getByRole('button', { name: '开始行谱', exact: true });
   await start.waitFor({ state: 'visible', timeout: 90_000 });
   // 2026-08-12 修：本本自 163ac9a 起就按旧流程等「共修大厅 → #pzSolo」，而 08-11 已改
@@ -143,37 +146,20 @@ try {
   await capture(page, '01-door-6-disc-page');
 
   console.log('\n【V90 内容校正】');
-  const content = await page.evaluate(() => {
-    const read = window.__sfpRead;
-    const rules = read?.rules?.() || '';
-    const cross = read?.cross?.() || '';
-    const d1 = read?.practice?.(1) || '';
-    const d2 = read?.practice?.(2) || '';
-    const d15 = read?.practice?.(15) || '';
-    const fo15 = read?.fo15?.() || '';
-    const plain = (html) => {
-      const holder = document.createElement('div');
-      holder.innerHTML = html;
-      return holder.textContent || '';
-    };
-    return { rules, cross, crossText: plain(cross), d1, d2, d15, fo15 };
-  });
-  ok(content.rules.includes('卷第一 · 輪相表法第一') && content.rules.includes('若但有善無惡'), '玩法问答把释义与逐字原文、卷次出处分层');
-  ok(content.crossText.includes('卷第六 · 淨土橫超門總說') && content.crossText.includes('未斷見思'), '横超问答补齐两段原文与真实出处');
-  ok(content.d1.includes('置輪掌心') && !content.d1.includes('诸恶莫作'), '第一门修行说明不再借用外部偈语');
-  ok(content.d2.includes('法道流弊門「破軌則」') && !content.d2.includes('解行相应'), '第二门改用本门原文，不再把自撰提法当作引文');
-  ok(content.d15.includes('圓極果位門「佛」') && !content.d15.includes('心空及第'), '第十五门只引用本门「佛」位原文');
-  // 2026-08-12 改按义核：原条钉「原文说明 · 对读」四字，而成佛面板已于同日改接正本——
-  //   白话取 SFP_POS_BAIHUA，原文退为折叠段并改题「谱曰原文 · 卷第六」，那四字不复存在。
-  //   本条要守的从来不是段题，是「只引本门『佛』位、不借别门判词」，故改验此实。
+  // 【本节大半于 2026-08-12 随旧本地答语库一并退役】
+  //   原有六条守的是 __sfpRead 的 rules／cross／practice 三钩所吐的手写答语——
+  //   「玩法问答分层」「横超问答补齐出处」「第一门不借外部偈语」「第二门不把自撰当引文」
+  //   「第十五门只引本门佛位」「掷轮是称念不是默念」。那批答语是「问」在智能体不可靠时
+  //   的本地兜底，今问答一路归问谱（检索全书 692 块＋据文生成＋句级核验），本地那一路撤，
+  //   六条所守之物已不存在——守一个不存在的东西，不是守，是自欺。
+  //   它们防的「凭空引文／借别门原文冒充本门」今由后端 verify.js 的句级闸接手
+  //   （直引逐字回查、位名越界即丢句），验在 agent/eval/ask-eval.mjs。
+  //   唯 fo15（成佛面板）不属旧问答库，是活的界面，故此条留下。
+  const content = await page.evaluate(() => ({ fo15: window.__sfpRead?.fo15?.() || '' }));
   ok(content.fo15.includes('圓極果位門「佛」') && !content.fo15.includes('輪相表法第一'),
     '及第说明只引门十五「佛」位原文，不借别门判词');
 
-  console.log('\n【V92 内容与见闻录】');
-  // 同上改按义核：原条钉「至心称念」四字，现行文案作「长按掷钮时称念一声『南无阿弥陀佛』」，
-  //   「至心」二字已不在这一句里（站内别处仍有）。要守的是「称念出声、不是默念」这件事。
-  ok(/称念|稱念/.test(content.rules) && content.rules.includes('南无阿弥陀佛') && !content.rules.includes('默念'),
-    '掷轮操作是称念一声佛号，不作默念');
+  console.log('\n【V92 见闻录】');
   const logBefore = await page.evaluate(() => window.__lgDbg?.());
   ok(logBefore?.games >= 1 && Array.isArray(logBefore?.seen), '见闻录跨局数据结构已建立并记录开局');
   // 见闻录已并入「我的」全屏页，入口在星图右上角（⋯ 菜单只留局务两项）

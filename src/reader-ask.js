@@ -12,6 +12,10 @@
 //
 // 【会话】存 localStorage sfpr.aiSession（问答对，答存纯文本），开页回放；
 //   「新对话」清空。history 随问带末二轮，续问接得上茬（后端截四百字）。
+// 流式解析与答语排版取自共用内核 src/ask-core.js（2026-08-12 收束：
+// 此处与游戏站各写一份，是同一件事抄两遍，排版规则一改必漏其一）。
+import { streamAsk as askStream, askFormat, historyOf } from './ask-core.js';
+
 const ASK_API = '/api/ask';                       // 与游戏侧同一路（dev 由 vite 代理到 8788，prod 由主 Worker service binding 内转）
 const CHIPS = [
   ['这部谱怎么玩', '这部《选佛谱》是怎么玩的？'],
@@ -19,73 +23,7 @@ const CHIPS = [
   ['什么是横超', '什么是横超？'],
   ['见惑思惑', '见惑和思惑有什么分别？'],
 ];
-
-/* ── ndjson 流式（协议同 wenchao ai-core.streamAsk：meta / delta / done）── */
-async function streamAsk(payload, handlers, signal) {
-  const { onMeta, onDelta, onDone } = handlers || {};
-  const res = await fetch(ASK_API, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload), signal,
-  });
-  let full = '';
-  const onMsg = (m) => {
-    if (!m) return;
-    if (m.type === 'meta') { if (onMeta) onMeta(m); }
-    else if (m.type === 'delta') { full += m.text || ''; if (onDelta) onDelta(full, m.text || ''); }
-    else if (m.type === 'done') { if (onDone) onDone(m); }
-    else if (typeof m.message === 'string' && m.message) { full += m.message; if (onDelta) onDelta(full, m.message); }
-  };
-  const reader = res.body && res.body.getReader ? res.body.getReader() : null;
-  if (reader) {
-    const dec = new TextDecoder();
-    let buf = '';
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += dec.decode(value, { stream: true });
-      let nl;
-      while ((nl = buf.indexOf('\n')) >= 0) {
-        const l = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
-        if (l) try { onMsg(JSON.parse(l)); } catch { /* 半行 */ }
-      }
-    }
-    if (buf.trim()) try { onMsg(JSON.parse(buf.trim())); } catch { /* 无换行的错误体 */ }
-  } else {
-    (await res.text()).split('\n').forEach((l) => { if (l.trim()) try { onMsg(JSON.parse(l)); } catch { /* 略 */ } });
-  }
-  return full;
-}
-
-/* ── 轻量 Markdown ＋ 行内角标（承 wenchao ai-core.aiFormat 之形，裁掉本库用不到的分支）── */
-function aiFormat(esc, text, nCites) {
-  const t = esc(text).replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  let html = '', list = '', liOpen = false;
-  const closeLi = () => { if (liOpen) { html += '</li>'; liOpen = false; } };
-  const closeList = () => { closeLi(); if (list) { html += '</' + list + '>'; list = ''; } };
-  for (const raw of t.split('\n')) {
-    const ln = raw.trim();
-    if (!ln) continue;
-    let m;
-    if ((m = ln.match(/^#{1,4}\s*(.+)$/))
-      || (m = ln.match(/^(?:<strong>)?\s*((?:[一二三四五六七八九十]+、|（[一二三四五六七八九十]+）)[^<\n]{0,40})(?:<\/strong>)?$/))) {
-      closeList(); html += '<h4 class="ai-h">' + m[1] + '</h4>';
-    } else if ((m = ln.match(/^(\d+)[.、)]\s*(.+)$/))) {
-      if (list !== 'ol') { closeList(); html += '<ol>'; list = 'ol'; } else closeLi();
-      html += '<li>' + m[2]; liOpen = true;
-    } else if ((m = ln.match(/^[-*●·•]\s+(.+)$/))) {
-      if (list !== 'ul') { closeList(); html += '<ul>'; list = 'ul'; } else closeLi();
-      html += '<li>' + m[1]; liOpen = true;
-    } else {
-      closeList(); html += '<p>' + ln + '</p>';
-    }
-  }
-  closeList();
-  if (nCites > 0) {
-    html = html.replace(/\[(\d{1,2})\]/g, (mm, n) =>
-      (+n >= 1 && +n <= nCites ? `<button class="ai-cite" data-n="${n}" type="button">${n}</button>` : mm));
-  }
-  return html;
-}
+const streamAsk = (payload, handlers, signal) => askStream(ASK_API, payload, handlers, signal);
 
 /**
  * 挂载问谱抽屉。
@@ -123,7 +61,7 @@ export function mountAsk(ctx) {
       h += `<div class="ai-msg user">${esc(zh(m.u))}</div>`;
       const cites = Array.isArray(m.p) ? m.p : [];
       const body = m.a
-        ? aiFormat(esc, zh(m.a), cites.length)
+        ? askFormat(zh(m.a), cites.length)
         : `<div class="ai-loading"><i>${zh('检书中')}</i><span></span><span></span><span></span></div>`;
       h += `<div class="ai-msg bot" data-mi="${mi}">${body}${m.done ? verifyBadge(m.v, m.d) : ''}</div>`;
     });
@@ -163,8 +101,7 @@ export function mountAsk(ctx) {
     paint();
     ctl = new AbortController();
     const to = setTimeout(() => ctl.abort(), 45000);
-    // 末二轮作续问上下文（答语截四百字，后端另有一道截取）
-    const history = sess.slice(0, -1).slice(-2).filter((x) => x.a).map((x) => ({ q: x.u, a: x.a.slice(0, 400) }));
+    const history = historyOf(sess.slice(0, -1));   // 末二轮作续问上下文
     try {
       await streamAsk({ question: q, history }, {
         onMeta: (meta) => { m.p = meta.passages || []; m.d = !!meta.degraded; },

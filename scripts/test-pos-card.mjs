@@ -6,8 +6,6 @@
 import { chromium } from 'playwright-core';
 import { SFP_POS_BAIHUA } from '../src/sfp-pos-baihua.js';
 import { SFP_POS } from '../src/sfp-data.js';
-import { SFP_CANON_DOORS } from '../src/sfp-canon.js';
-import { sfpCanonVerdict, sfpQuoteKind } from '../src/sfp-verdict-canon.js';
 
 const UI_BASE = process.env.UI_BASE || 'http://localhost:5930';
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -110,60 +108,49 @@ const glsOK = glsProbe.filter((x) => x.n > 0);
 ok(glsOK.length === glsProbe.length, '位卡白话挂上名相浮标（繁体键生效）',
   glsProbe.map((x) => `${x.id}:${x.n}`).join(' '));
 
-// ── 本掷态（2026-08-12 三卡归一：详读卡撤，本掷层并入位卡）──────────────────
-// 从判词卡「详读 ›」／去向条位名／3D 行迹线进来时，位卡多一段「这一掷为什么这样判」。
-// 三件要守：① 判词逐字取自 4620 格正本；② 「谱曰／承前」判分以**出发位**位文为基准
-//（引文系于出发位，拿落处位文去比几乎全判承前）；③ 不带 toss 时本掷层根本不出。
-console.log('\n【六 位卡 · 本掷态】');
+// ── 位卡只答「这一位是什么」（2026-08-12 下午定案）────────────────────────────
+// 当日上午曾把「本掷层」并进位卡（来处 · 轮相 → 落处 · 白话说明 · 正本出处），当日下午撤。
+// 发起人点破：那几行说的是**这一掷**，判词卡上刚看过一字不差；而其中的落处位名与卡题
+// 逐字相同，一屏之内把同一个名字写了两三遍。来处链 .cChain 同理同撤。
+// 本节由「验本掷层在场」反转为「验它不再有」——若谁把它加回来，此处立刻红。
+console.log('\n【六 位卡 · 只答这一位，不复述这一掷】');
 {
-  const TOSS = { c: '那那', from: '上品十惡', to: '阿鼻地獄', evidence: null };
-  const withToss = await page.evaluate((t) => {
-    const o = window.__posCardObj('阿鼻地獄', t);
-    return o && o.toss ? { ...o.toss } : null;
-  }, TOSS);
-  const without = await page.evaluate(() => {
-    const o = window.__posCardObj('阿鼻地獄');
-    return o ? !!o.toss : null;
-  });
-  const canon = sfpCanonVerdict('上品十惡', '那那') || {};
-  const fromText = String((SFP_CANON_DOORS['1'].positions.find((x) => x.name === '上品十惡') || {}).text || '')
-    .replace(/^譜曰。/, '');
-
-  ok(!!withToss, '带 toss 时位卡对象有本掷层');
-  if (withToss) {
-    ok(withToss.plain === canon.plain, '本掷判词逐字取自 4620 格正本', (withToss.plain || '').slice(0, 28));
-    ok(withToss.quote === canon.quote, '本掷引文逐字取自同一格', (withToss.quote || '').slice(0, 28));
-    ok(withToss.kind === sfpQuoteKind(fromText, canon.quote),
-      '「谱曰／承前」判分与共用判分口一致', `${withToss.kind}`);
-    ok(withToss.from === '上品十惡' && withToss.here === '阿鼻地獄', '路由行两端＝出发位→落处');
-    ok(/〈上品十惡〉/.test(withToss.src || ''), '出处署**出发位**名（引文系于出发位，非落处）', withToss.src);
-  }
-  ok(without === false, '不带 toss 时本掷层不出（非本掷不做空槽）');
-
-  // 错配挡：toss 的落处与 pid 对不上时须丢弃（防返程闭包捕获的旧 toss）
-  const mism = await page.evaluate((t) => {
-    const o = window.__posCardObj('無間地獄', t);   // 落处是阿鼻，卡是无间
-    return o ? !!o.toss : null;
-  }, TOSS);
-  ok(mism === false, 'toss 与 pid 错配时丢弃本掷层');
-
-  // 实开卡：本掷段在文白开关**之下**（开关位置恒定是卡制 v3 明定之形）
-  const dom = await page.evaluate(async (t) => {
-    window.__openSfpNote('阿鼻地獄', t);
-    await new Promise((r) => setTimeout(r, 320));
-    const sec = document.querySelector('#cardBody .cSec');
-    const bar = sec?.querySelector('.cSwapBar');
-    const toss = sec?.querySelector('.cToss');
-    const pos = bar && toss ? (bar.compareDocumentPosition(toss) & Node.DOCUMENT_POSITION_FOLLOWING) > 0 : null;
-    const rd = [...document.querySelectorAll('#cardBtns .gbtn')].map((b) => b.textContent.trim());
+  const clean = await page.evaluate(async () => {
+    window.__openSfpNote('阿鼻地獄');
+    await new Promise((r) => setTimeout(r, 340));
+    const c = document.querySelector('#card');
+    const sec = c?.querySelector('#cardBody .cSec');
+    const r = {
+      toss: c ? c.querySelectorAll('.cToss').length : -1,
+      chain: c ? c.querySelectorAll('.cChain').length : -1,
+      kickerShown: c && getComputedStyle(c.querySelector('#cardKicker')).display !== 'none',
+      kickerText: c?.querySelector('#cardKicker')?.textContent || '',
+      meta: sec ? (c.querySelector('.cbMeta')?.innerText || '').replace(/\s+/g, ' ').trim() : '',
+      metaLines: (c.querySelector('.cbMeta')?.innerText || '').split(/\n/).filter(Boolean).length,
+      swapFirst: sec ? sec.firstElementChild?.className === 'cSwapBar' : null,
+      btns: [...document.querySelectorAll('#cardBtns .gbtn')].map((b) => b.textContent.trim()),
+    };
     document.querySelector('.overlay .ovClose')?.click();
-    await new Promise((r) => setTimeout(r, 160));
-    return { hasToss: !!toss, tossN: sec ? sec.querySelectorAll('.cToss').length : -1, barBeforeToss: pos, btns: rd };
-  }, TOSS);
-  ok(dom.hasToss, '实开卡：本掷段在场');
-  ok(dom.tossN === 1, '本掷段恰一段', String(dom.tossN));
-  ok(dom.barBeforeToss === true, '文白开关在本掷段之上（开关位置恒定，不随内容浮动）');
-  ok(dom.btns.some((b) => /读原文/.test(b)), '位卡有「读原文 ›」入阅读器（补此前的断链）', dom.btns.join(' / '));
+    await new Promise((r2) => setTimeout(r2, 160));
+    return r;
+  });
+  ok(clean.toss === 0, '本掷段已撤（.cToss 归零）', String(clean.toss));
+  ok(clean.chain === 0, '来处链已撤（.cChain 归零）', String(clean.chain));
+  ok(clean.kickerShown === false, '词眉「谱位详解」已撤（它只报卡的类别，不报这一位）', clean.kickerText);
+  ok(clean.metaLines === 1, '词头一行讲完', `${clean.metaLines} 行：${clean.meta}`);
+  ok(!/卷第/.test(clean.meta), '词头不再报卷次（原文段出处与「读原文 · 卷第X ›」钮各已说过一遍）', clean.meta);
+  ok(/第三门/.test(clean.meta), '词头仍报门名（本位身份，可点直达门卡）', clean.meta);
+  ok(clean.swapFirst === true, '文白开关仍是正文首件（位置恒定，不随内容浮动）');
+  ok(clean.btns.some((b) => /读原文/.test(b)), '位卡有「读原文 ›」入阅读器', clean.btns.join(' / '));
+
+  // 取值口也须瘦掉：posCardObj 不再收第二参，卡对象上不留 toss/chain 槽
+  const shape = await page.evaluate(() => {
+    const o = window.__posCardObj('阿鼻地獄');
+    return { keys: Object.keys(o || {}), argc: window.__posCardObj.length };
+  });
+  ok(!shape.keys.includes('toss') && !shape.keys.includes('chain'),
+    '卡对象不再有 toss／chain 槽', shape.keys.join(','));
+  ok(shape.argc === 1, 'posCardObj 只收 pid 一个参（「详读」不再是另一种开法）', String(shape.argc));
 }
 
 console.log('\n【八 位名浮标：位卡内点别位之名即换位；上限 7 仍守】');
