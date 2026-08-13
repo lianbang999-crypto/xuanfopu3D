@@ -262,6 +262,9 @@ const renderer = new THREE.WebGLRenderer({ antialias: earlyLowPerf });
 renderer.setSize(app.clientWidth, app.clientHeight);
 const isCoarse = matchMedia('(pointer:coarse)').matches; // v221 功耗治理：触屏机（手机/平板）默认省电档
 const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches; // v392 系统减弱动效：飞行缩时去跟飞、顿帧震屏皆息（防晕与无障碍）
+// v392 壁画光总开关（美术定案「石窟两极」：夜境参榆林窟西夏水月观音、净土参莫高盛唐宝池经变）——
+// 默认即壁画档；?art=cg 回旧写实档对照（光比/墨影/石青轮廓/反射/法线/绢纹六处随此旗）
+const ART_MURAL = new URLSearchParams(location.search).get('art') !== 'cg';
 renderer.setPixelRatio(Math.min(devicePixelRatio, save.settings.lowPerf ? 1 : isCoarse ? 1.6 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -288,22 +291,28 @@ controls.minDistance = 36; controls.maxDistance = 520;
 controls.maxPolarAngle = 1.52; controls.minPolarAngle = 0.06;
 controls.screenSpacePanning = false;
 
-const hemi = new THREE.HemisphereLight(0x3d5273, 0x2a3347, 0.85); // v191 压底光抬光比；开机值＝LIGHT_SCENES.saha
+const hemi = new THREE.HemisphereLight(0x3d5273, 0x2a3347, 0.85 * (ART_MURAL ? 1.25 : 1)); // v191 压底光抬光比；开机值＝LIGHT_SCENES.saha；v392 壁画档环境光抬档补直射之降（满堂平光）
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffdfae, 3.0);
+const sun = new THREE.DirectionalLight(0xffdfae, ART_MURAL ? 2.2 : 3.0); // v392 壁画光：直射压档，形体交给色阶（光比自 ~3.5:1 收向 ~1.6:1）
 sun.position.set(50, 130, 100);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.bias = -0.0004;
 sun.shadow.normalBias = 0.02; // v210：曲面阴影去痤疮（束腰山体/球珠曲面）
+sun.shadow.intensity = ART_MURAL ? 0.55 : 1; // v392 壁画光：实影化淡墨——影是晕染不是 CG 投影
 const sc = sun.shadow.camera                            ;
 sc.left = -150; sc.right = 150; sc.top = 150; sc.bottom = -150; sc.near = 10; sc.far = 400;
 scene.add(sun);
 // v191 写实化：冷色轮廓光自背面提体积（不投影，不违反单投影灯）+ RoomEnvironment 供 PBR 环境反射
-const rim = new THREE.DirectionalLight(0x8fb4e6, 0.85); // v210 轮廓光加一档：电影感体积分离
+const rim = new THREE.DirectionalLight(ART_MURAL ? 0x6f9ec9 : 0x8fb4e6, ART_MURAL ? 0.95 : 0.85); // v210 轮廓光加一档；v392 壁画光换石青（水月观音夜色托形之法），直射既降、托形略升
 rim.position.set(-130, 55, -150);
 scene.add(rim);
 
+// v392 壁画光修正案（美术定案）：风格定「石窟两极」——夜境以榆林窟西夏《水月观音》石青夜色为体，
+// 净土以莫高盛唐宝池经变为归；饱和度不降级、行「矿彩预算制」（大面低中饱和底＋小面高饱和点睛）。
+// 落地六处（皆随 ART_MURAL 旗，?art=cg 回写实档对照）：直射 3.0→2.2、环境光 ×1.25（光比压平）、
+// 影 intensity 0.55（淡墨）、rim 换石青 0x6f9ec9、环境反射 0.42→0.32、法线 ×0.65（晕染化，见 boot 段）＋桌面绢纹。
+// 三禁增补：禁纯黑纯白（暗部下限靛褐）、禁镜面高光（金玉宝性走自发光不走反射）、禁写实投影浓影。
 // v331 全局光影总纲（用户点单「统一思考规划全局光影」）：一场一预设，本表＝全局光路唯一真源。
 // 光的竖轴叙事：幽冥暗紫（日月威光不及）→娑婆夜蓝（日月星宿所照）→星盘/谱页同天色而雾薄（观照之场去遮蒍）→极乐暖金（佛光金色，不假日月）。
 // 硬红线：雾色恒等背景色（地平无缝）；全局唯一投影灯＝sun（rim/hemi 不投影）；亮度语汇走自发光阶梯（T1-T4/CHAN_HUE/SFP_BEAD_TONE）不走加灯；
@@ -319,7 +328,10 @@ function applyLight(k                           ) {
   const p = LIGHT_SCENES[k];
   scene.fog = new THREE.FogExp2(p.bg, p.fog); fogBase = p.fog;
   scene.background = new THREE.Color(p.bg);
-  hemi.color.set(p.hemiC); hemi.intensity = p.hemiI;
+  hemi.color.set(p.hemiC); hemi.intensity = p.hemiI * (ART_MURAL ? 1.25 : 1); // v392 壁画档系数一处收口（表值不动，改光仍只改表）
+  // v393 两质金（壁画光第三期）：娑婆金＝烛火金，极乐金＝琉璃金（偏白偏静，「彼土不假日月」）——
+  // UI 金随场上移半阶，一处收口在光路总入口，CSS 只认 .pureTone 换 token
+  document.documentElement.classList.toggle('pureTone', k === 'pureland');
 }
 (window       ).__lightDbg = () => ({ bg: (scene.background               ).getHex(), fog: +(scene.fog                 ).density.toFixed(5), base: fogBase, hemi: hemi.color.getHex(), hi: hemi.intensity }); // 自测钩子（只读）
 (window       ).__glowDbg = () => { // 自测钩子（只读）：全场发光体普查——加色叠层清单 + 过泛光阈(≥0.85)自发光清单
@@ -337,7 +349,7 @@ function applyLight(k                           ) {
 {
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.42; // v210 写实CG：反射抬一档，宝珠/金属吃环境更实
+  scene.environmentIntensity = ART_MURAL ? 0.32 : 0.42; // v210 写实CG：反射抬一档；v392 壁画档收一档——矿彩无镜面，宝性交给自发光阶梯
 }
 
 let composer                        = null;
@@ -569,7 +581,9 @@ function addEdges(mesh            , color = C.gold, opacity = 0.5) {
   const waterWheel = new THREE.Mesh(new THREE.CylinderGeometry(132, 126, 10, 96),
     stdMat(0x2b5e77, { roughness: 0.5, metalness: 0, envMapIntensity: 0, transparent: true, opacity: 0.66, emissive: 0x123239, emissiveIntensity: 0.35, normalMap: rippleN, normalScale: rippleNS })); // 共享活水法线随海面同滑；v217 三轮皆不反光
   waterWheel.position.y = -67; saha.add(waterWheel);
-  windWheelM = new THREE.Mesh(new THREE.CylinderGeometry(176, 168, 20, 96),
+  // v393 构图勘正（发起人：底轮偏大不协调）：风轮 176→152——仍最广（广无数之义在「最广」不在具体数），
+  // 底盘外扩自 +44 收为 +20，山与轮的画面权重回衡；厚序 5:2.5:1（v329 经义勘正）不动
+  windWheelM = new THREE.Mesh(new THREE.CylinderGeometry(152, 146, 20, 96),
     stdMat(0x2a3350, { roughness: 0.75, metalness: 0, envMapIntensity: 0, transparent: true, opacity: 0.6, emissive: 0x141d38, emissiveIntensity: 0.4, normalMap: rippleN, normalScale: new THREE.Vector2(0.8, 0.8) }));
   windWheelM.position.y = -82; saha.add(windWheelM); // v329 三轮厚序勘正（俱舶风16洛叉/水8洛叉/金3.2洛叉，5:2.5:1）：旧水14>风9颠倒，今金4/水10/风20三层相接无隙 -58..-62..-72..-92；风径176最广仍存广无数之义
   (window       ).__wheelDbg = () => [goldWheel, waterWheel, windWheelM].map(w => { const m = w.material                              ; return { e: m.emissiveIntensity, ehex: m.emissive.getHex(), c: m.color.getHex(), met: m.metalness, env: m.envMapIntensity }; }); // 自测钩子（只读）：v217 三轮不反光+金轮金山色断言
@@ -2958,6 +2972,12 @@ button:not(:disabled):active{transform:scale(.97)}
 .ladDoor i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.28);box-shadow:0 0 5px rgba(10,8,20,.5);margin-right:11px;transition:transform .22s,box-shadow .22s;flex:0 0 auto}
 .ladDoor.on b{color:#f4e6b8}
 .ladDoor .ladPeer{position:absolute;top:50%;width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 4px currentColor;transform:translateY(-50%);pointer-events:none} /* v392 联机同修现居门座色小刻 */
+/* v393 两质金（壁画光第三期）：入极乐场（applyLight('pureland') 挂 html.pureTone）UI 金上移半阶——
+   娑婆烛火金 #d7aa45/#e8c766 → 极乐琉璃金 #e8c766/#f4e6b8（偏白偏静，「彼土不假日月」佛光恒明） */
+.pureTone{--gold:#e8c766;--gold-hi:#f4e6b8}
+/* v393 夜↔晓明适应缓坡：暗夜星图上骤开石青晓浅色面板晃眼——浮层入场给视网膜 220ms 亮度坡 */
+.overlay{animation:ovDawn .22s ease-out}
+@keyframes ovDawn{from{opacity:0}}
 .ladDoor.on i{transform:scale(1.75);box-shadow:0 0 12px currentColor}
 .ladDoor.cur i{border-color:#fff;box-shadow:0 0 9px rgba(232,199,102,.9)}
 #ladName{position:absolute;right:50px;background:rgba(24,18,38,.88);border:1px solid rgba(215,170,69,.45);border-radius:8px;padding:4px 10px;font-size:var(--fs-sm);color:var(--paper);white-space:nowrap;display:none;pointer-events:none;letter-spacing:1px}
@@ -3721,6 +3741,8 @@ function closeOverlay() {
     const old = overlayEl;
     overlayEl = null;
     old.classList.add('bye');
+    old.setAttribute('aria-hidden', 'true');   // 视觉淡出 190ms，但读屏与角色查询即时退场——
+    old.setAttribute('inert', '');             // 免旧✕/旧输入框在窗口期与新层双双在场（a11y 树只留一份）
     window.setTimeout(() => old.remove(), 190);
   }
   topNavLock(false);
@@ -4009,11 +4031,12 @@ function openTitle() {
   presence.hidden = true;
   Plaza.fetchPlaza().then((data) => {
     if (gen !== titleGen || !titleOn) return;   // 已离开或已重点亮：迟到的在场句不落笔
-    const online = Number(data.onlineAll ?? data.online ?? 0); // v392 跨厅新鲜合计（旧 online 只算默认一厅且含幽灵快照）；旧服务端回退原字段
-    const recent = (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length;
-    const n = online > 0 ? online : recent;
+    // v393 在线人数合一：单机联机不再分说两句——服务端 onlineNow 已并计（旧服务端回退逐级兼容）
+    const n = Number(data.onlineNow
+      ?? Math.max(Number(data.onlineAll ?? data.online ?? 0),
+        (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length));
     if (!n) return;
-    presence.innerHTML = `${zh(`此刻 ${n} 位莲友${online > 0 ? '在座共修' : '在行谱'}`)} <i>›</i>`;
+    presence.innerHTML = `${zh(`此刻 ${n} 位莲友在线行谱`)} <i>›</i>`;
     presence.hidden = false;
     presence.onclick = () => openPlaza();
   }).catch(() => {});
@@ -8245,6 +8268,10 @@ function openSfpHelp({ backTo = null } = {}) {
     <details class="sec"><summary>蕅益大师为何作此谱</summary>
       <div class="cRead" style="margin-top:6px">蕅益大师见法友耽嗜博弈，思以选佛之图代替；五十五岁行至歙浦，十三日成谱。大师希望人在游戏之间，看见六道往还的疲苦与三乘出离要道的差别；谱中升沉去向皆依教乘，不出臆见。</div>
       <div class="verse" style="margin-top:6px"><i class="duL">敘</i>能使人即遊戲間。頓知六道往還之疲苦。三乘出要之差別。<span class="cSrc" style="display:block">《選佛譜》卷第一 · 敘選佛譜敘</span></div>
+      <!-- 二轮定本缘起（2026-08-13 发起人拍板加入）：与 sfp-data SFP_META.preface 同源——
+           一轮之隔、六轮之苦、二轮定本三折，把「为什么是您手上这两枚轮」交了底。 -->
+      <div class="cRead" style="margin-top:8px"><b>二轮定本的由来：</b>幽溪大师旧图只用一枚佛骰，“升沉迴隔”难以贯通；蕅益大师先制六轮之图，又见“六字纷陈”，粗心浮气的人每以为苦；辛卯年冬归卧灵峰，才改定为两枚轮——既容易上手，变化仍足。您此刻手中的两枚轮，正是那次改定的形制。</div>
+      <div class="verse" style="margin-top:6px"><i class="duL">大師自敘</i>爰思但用二輪。以為擲行方便。既易於行。仍多轉變。<span class="cSrc" style="display:block">《選佛譜》卷第一 · 大師自敘</span></div>
     </details>
     <details class="sec"><summary>更多操作</summary>
       <div class="cRead" style="margin-top:6px">判词里点位名可读白话与原文；点“问”可询问谱位、名相和行法；“⋯”中可回看本局升沉。桌面可用空格掷轮、回车确认“行”。</div>
@@ -10757,6 +10784,31 @@ window.addEventListener('pointerdown', function audioWake() {
   try { void renderer.compileAsync(scene, camera); } catch (e) {}
   // v392 音频提前解码：load 后空闲期即建 ctx＋解码（非手势也合法，只是 suspended）；首手势只需唤醒
   setTimeout(() => { void preloadAudio(); }, 400);
+  if (ART_MURAL) {
+    // v392 壁画光·颜料化：写实法线整体减弱成晕染（山石/殿宇/水皆是）——共享材质只乘一次
+    const seenM = new Set       ();
+    scene.traverse(o => {
+      const m = (o       ).material;
+      for (const mm of Array.isArray(m) ? m : m ? [m] : []) {
+        if (mm.normalScale && !seenM.has(mm)) { seenM.add(mm); mm.normalScale.multiplyScalar(0.65); }
+      }
+    });
+    if (!isCoarse) {
+      // 绢纹：静态一层中性噪点作底纹（overlay 混合 5%），画即有绢——移动端为省热不叠
+      const gc = document.createElement('canvas'); gc.width = gc.height = 256;
+      const gcx = gc.getContext('2d')  ;
+      const gim = gcx.createImageData(256, 256);
+      for (let i = 0; i < gim.data.length; i += 4) {
+        const v = 118 + ((Math.random() * 20) | 0);
+        gim.data[i] = gim.data[i + 1] = gim.data[i + 2] = v; gim.data[i + 3] = 255;
+      }
+      gcx.putImageData(gim, 0, 0);
+      const grain = document.createElement('div');
+      grain.id = 'silkGrain';
+      grain.style.cssText = `position:absolute;inset:0;pointer-events:none;z-index:1;opacity:.05;mix-blend-mode:overlay;background:url(${gc.toDataURL()}) repeat`;
+      app.appendChild(grain);
+    }
+  }
   applyCardTheme();
   document.documentElement.classList.toggle('bigfont', !!save.settings.bigFont);
   if (ambientNodes) (ambientNodes       ).gain.gain.value = save.settings.ambient ? 0.035 : 0;

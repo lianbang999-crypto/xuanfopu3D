@@ -240,7 +240,9 @@ export function renderStream(data, ui) {
 // 同一组数不在一屏里说两遍。「已参加 N 人」并入「共修动态」页头（那里本就有一份完整名单）。
 // 2026-08-11 再拆：静的（共修第 N 天·累计 N 掷）沉到页脚 .pzStill——数字不是大厅的主角。
 function sayHtml(data) {
-  return `<b>${num(data.online || 0)}</b> 位在座 · <b>${num(data.playingTables || 0)}</b> 室行谱中`;
+  // v393 在线人数合一（发起人点单极简）：单机行谱者从前不入「在座/行谱」两数，明明有人在玩却满屏是零——
+  // 今只报一个「在线」（服务端 onlineNow 已并计单机与联机；旧服务端回退在座数）
+  return `<b>${num(data.onlineNow ?? data.online ?? 0)}</b> 位莲友在线`;
 }
 // 页脚静数字：站史与累计，动也是一天一动，不必占顶条
 function stillHtml(data) {
@@ -374,25 +376,24 @@ export function renderSitName(code, ui) {
   const ord = TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
   const verb = rename ? '记名' : '入座';
   const p = el(`<div class="panel pzAsk pzAskName center" role="dialog" aria-modal="true" aria-labelledby="pzNameTitle">
-    <div class="askEyebrow">${rename ? '共修名号 · 记名' : `共修室${ord} · 入座前一步`}</div>
+    <div class="askEyebrow">${rename ? '共修名号' : `共修室${ord}`}</div>
     <h2 id="pzNameTitle">${rename ? (savedName() ? '改名号' : '取个共修名号') : '留下共修名号'}</h2>
     <form class="body" id="pzNameForm" novalidate>
       <div class="nameField">
         <input id="pzName" class="bigIn" maxlength="24" autocomplete="nickname" enterkeyhint="go"
           spellcheck="false" aria-label="共修名号，选填" aria-describedby="pzNameNote pzNameScope" placeholder="如「慧明」，可留空">
-        <div class="fieldMeta">
+        <div class="fieldMeta"><!-- 计数只在输入时浮现（focus-within 控 opacity，innerText 恒新以保回归断言） -->
           <span id="pzNameNote" aria-live="polite"></span>
           <span id="pzNameCount">0 / 12</span>
         </div>
       </div>
       <div class="nameChips" aria-label="名号建议">
-        <span class="chipCap">或取一枚</span>
         <button type="button" class="chip"></button><button type="button" class="chip"></button><button type="button" class="chip"></button>
         <button type="button" class="chipMore" aria-label="换一批建议名" title="换一批">↻</button>
       </div>
       <p class="scope" id="pzNameScope">${rename
-        ? '功课与成佛都记在这个名下；显示在本室名单与共修动态，只存本机。'
-        : '将显示在本室名单与共修动态；只存本机，留空即以「莲友」入座。'}</p>
+        ? '功课与成佛记在此名下 · 显示在本室名单与共修动态 · 只存本机'
+        : '将显示在本室名单与共修动态 · 只存本机 · 留空即「莲友」'}</p>
       <button class="gbtn primary big" id="pzNameSubmit" type="submit">
         <span id="pzNameGo">以「莲友」${verb}</span>
       </button>
@@ -747,7 +748,6 @@ export const PLAZA_CSS = `
 .pzAskName .nameField{display:grid;gap:7px}
 /* 建议名章（2026-08-12 极简重做）：三枚泥金小章＋一枚 ↻ 换批——两点进房的那条近路 */
 .pzAskName .nameChips{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.pzAskName .chipCap{color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:1px}
 .pzAskName .chip{min-height:34px;padding:5px 13px;border:1px solid var(--aq-goldline);border-radius:17px;
   background:rgba(255,255,255,.5);color:var(--aq-tx);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
 .pzAskName .chip:hover,.pzAskName .chip:focus-visible{background:var(--aq-goldwash)}
@@ -757,9 +757,11 @@ export const PLAZA_CSS = `
 .pzAskName .bigIn{min-height:52px;padding:13px 14px;font-size:var(--fs-xl);letter-spacing:1.5px;text-indent:0;text-align:left}
 .pzAskName .bigIn::placeholder{letter-spacing:1px}
 .pzAskName .fieldMeta{display:flex;justify-content:space-between;gap:12px;min-height:17px;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:.5px}
-.pzAskName .fieldMeta span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.pzAskName .fieldMeta span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums;
+  opacity:0;transition:opacity var(--t-fast,.18s)}   /* 计数平时不占眼，动笔才浮现 */
+.pzAskName .nameField:focus-within .fieldMeta span:last-child{opacity:.9}
 .pzAskName .fieldMeta .err{color:var(--aq-woe)}
-.pzAskName .scope{margin:0;padding:11px 0;border-top:1px solid var(--aq-line);border-bottom:1px solid var(--aq-line);
+.pzAskName .scope{margin:0;padding:9px 0;border-top:1px solid var(--aq-line);border-bottom:1px solid var(--aq-line);
   color:var(--aq-note);font-size:var(--fs-xs,11px);line-height:1.65;letter-spacing:.5px}
 .pzAskName .gbtn.big{min-height:50px;margin-top:1px}
 .pzAskName .pzAskBack{min-height:44px;border:0;background:none;color:var(--aq-note);font-family:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
@@ -781,6 +783,12 @@ export const PEER_WIN_CSS = `
   border-top:1px solid rgba(232,199,102,.45);border-bottom:1px solid rgba(232,199,102,.45);
   padding:9px 30px;color:#f4e6b8;letter-spacing:2px;font-size:var(--fs-md,14px)}
 #peerWin.show,#matchBegin.show{opacity:1;transform:translate(-50%,0)}
+/* v393 敦煌联珠纹边带（壁画光第二期）：仪式横幅上下各一行金珠，语式取自经变画装饰边带 */
+#peerWin::before,#matchBegin::before,#peerWin::after,#matchBegin::after{content:'';position:absolute;left:9%;right:9%;height:5px;
+  background-image:radial-gradient(circle at 4.5px 2.5px, rgba(232,199,102,.58) 1.3px, rgba(232,199,102,0) 1.9px);
+  background-size:9px 5px;background-repeat:repeat-x}
+#peerWin::before,#matchBegin::before{top:-9px}
+#peerWin::after,#matchBegin::after{bottom:-9px}
 #peerWin b,#matchBegin b{color:var(--gold-hi);font-weight:600;margin-right:6px}
 #peerWin i,#matchBegin i{font-style:normal;color:var(--teal);margin-left:12px;font-size:var(--fs-sm,12.5px)}
 /* #matchBegin＝共同开局金横幅（2026-08-12 批）：与同修成佛横幅同形制——开局是全局最有仪式感的一刻，

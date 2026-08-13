@@ -131,14 +131,20 @@ async function takeLeaveConfirm(page) {
 //   而 08-11 已改题屏主钮单人直开——点它是入局，不是入厅，旧写法遂空等 .pzPanel 到超时。
 //   大厅今由题屏细字行的「共修大厅」（#tiHall）入。那一行由 openTitle 重建重绑，
 //   而 openTitle 挂在首帧 rAF 之后（着色器编译可达数秒），故须先催帧等 .ready 再点。
+// 催帧改走 CDP captureScreenshot（2026-08-13 修）：page.screenshot 与 race 超时撞车时，
+// 未完成截图的 Emulation 视口覆盖悬在半途，其迟到的恢复会吞掉后续 setViewportSize——
+// 视口切换静默失效、布局断言错判。CDP 抓帧不碰视口仿真，无此竞态。
 async function pumpUntil(page, fn, rounds = 60) {
-  for (let i = 0; i < rounds; i++) {
-    if (i % 4 === 0) await Promise.race([page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
-      new Promise((r) => setTimeout(r, 1200))]).catch(() => {});
-    await page.waitForTimeout(260);
-    if (await page.evaluate(fn).catch(() => false)) return true;
-  }
-  return false;
+  const cdp = await page.context().newCDPSession(page);
+  try {
+    for (let i = 0; i < rounds; i++) {
+      if (i % 4 === 0) await Promise.race([cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 10 }),
+        new Promise((r) => setTimeout(r, 1200))]).catch(() => {});
+      await page.waitForTimeout(260);
+      if (await page.evaluate(fn).catch(() => false)) return true;
+    }
+    return false;
+  } finally { cdp.detach().catch(() => {}); }
 }
 async function enterPlaza(page) {
   const entry = page.getByRole('button', { name: '开始行谱', exact: true });

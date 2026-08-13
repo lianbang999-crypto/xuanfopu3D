@@ -69,9 +69,13 @@ try {
   // 2026-08-12 修：同 test-ui-e2e——08-11 起主钮单人直开（点它是入局，不是入厅），
   //   大厅今由题屏细字行「共修大厅」（#tiHall）入；那一行由 openTitle 在首帧 rAF 后重建重绑，
   //   故须先催帧等 .ready，否则一直停在题屏静态门面上。
+  // 催帧改走 CDP captureScreenshot（2026-08-13 修）：page.screenshot 与 race 超时撞车时，
+  // 未完成截图的 Emulation 视口覆盖悬在半途，其迟到的恢复会吞掉后续 setViewportSize——
+  // 手机段「390 视口」因此静默停在 1200，两条布局断言错判。CDP 抓帧不碰视口仿真，无此竞态。
+  const pumpCdp = await page.context().newCDPSession(page);
   const pump = async (fn, rounds = 60) => {
     for (let i = 0; i < rounds; i++) {
-      if (i % 4 === 0) await Promise.race([page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
+      if (i % 4 === 0) await Promise.race([pumpCdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 10 }),
         new Promise((r) => setTimeout(r, 1200))]).catch(() => {});
       await page.waitForTimeout(260);
       if (await page.evaluate(fn).catch(() => false)) return true;

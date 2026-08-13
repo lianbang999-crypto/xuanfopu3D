@@ -11,7 +11,10 @@ import {
 
 const ROOM_MAX = 4;                 // 原谱多人局：至多四位同修
 const CHAT_KEEP = 120;              // 聊天留存条数（重连可回看）
-const PLAYER_COLORS = ['#e8c766', '#96e1d6', '#d98873', '#b9a7e0']; // 金·青·赭·藕——四位同修珠色
+// v392 同修四矿彩（美术定案）：旧四色三处撞语义——金 #e8c766 即 --gold-hi（圣道/升），青 #96e1d6 即
+// --teal（系统提示专用），赭 #d98873 属 --woe-tx 恶趣警红族。换敦煌矿彩四色，与金/赤/teal 三族皆不撞；
+// 已入座者珠色随存档不变，新座次起用新色
+const PLAYER_COLORS = ['#7ba2dc', '#6fbf9e', '#b9a7e0', '#e5c0cf']; // 青金石·石绿·藕荷·贝粉——四位同修珠色
 // 座次只用于服务器轮流掷轮，不在前台显示方位。最先入室者为房主；
 // 房主离开后按入座次序递补，不再让用户理解“东南西北”。
 const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
@@ -407,6 +410,11 @@ export class RoomDO {
     const freshRow = [...this.state.storage.sql.exec(
       'SELECT COALESCE(SUM(live),0) AS n FROM plaza_tables WHERE ts > ?', Date.now() - LIVE_FRESH,
     )][0];
+    // v393 在线人数合一（发起人点单）：单机行谱者从前不入任何「在座/行谱」数——
+    // 在线＝联机在座 与 十分钟内有掷轮上报者 取其大（两路人群重叠无法逐人对账，取大不虚报不双计）
+    const activeRow = [...this.state.storage.sql.exec(
+      'SELECT COUNT(DISTINCT actor) AS n FROM plaza_daily_practice WHERE updated > ?', Date.now() - 10 * 60 * 1000,
+    )][0];
     return json({
       days, people, since,                       // 本站共修第 N 天 · 已参加 N 人
       tosses: this.plazaGet('tosses'),           // 全站累计掷轮（一掷一称念）
@@ -415,6 +423,7 @@ export class RoomDO {
       winsToday: this.plazaGet(`wins:${today}`),
       stream, day: today,                        // 共修动态：一人一行，时间序，无名次
       onlineAll: Number(freshRow?.n || 0),       // 全站此刻在座（新鲜窗内、跨厅）
+      onlineNow: Math.max(Number(freshRow?.n || 0), Number(activeRow?.n || 0)), // v393 在线人数（含单机行谱者）
       hall, snaps,
       halls: halls.map(h => ({ hall: h, live: hallLive[h] })),
       hallCount: Math.max(1, halls.length ? Math.max(...halls) : 1),

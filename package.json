@@ -14,6 +14,7 @@
     "api:test": "node api/build.mjs && node api/test.mjs",
     "api:deploy": "node api/build.mjs && node api/test.mjs && npx wrangler deploy --config api/wrangler.jsonc",
     "gen:docs": "node scripts/gen-worldmodel.mjs",
+    "check:color": "node scripts/check-color.mjs",
     "check:grant": "node scripts/check-grant-policy.mjs",
     "check:evidence": "node scripts/check-evidence-types.mjs",
     "check:lead": "node scripts/check-lead-canon.mjs",
