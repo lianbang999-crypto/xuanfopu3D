@@ -260,10 +260,9 @@ function playBell(base = 196, vol = 0.05) {
 }
 
 // ---------------- 渲染基础 ----------------
-// v392 画布 MSAA 只在直渲档有用：composer（默认档）把画面画进离屏 RT，最后仅一张全屏贴图落画布——
-// 画布多重采样纯付带宽（手机热源之一）。省电档（直渲）才开 AA；档位在存档里、先于渲染器建构，只能早读一眼。
-const earlyLowPerf = (() => { try { return !!(((JSON.parse(localStorage.getItem(SAVE_KEY) || 'null') || {}).settings || {}).lowPerf); } catch (e) { return false; } })();
-const renderer = new THREE.WebGLRenderer({ antialias: earlyLowPerf });
+// v393 复归默认高清（发起人定案）：AA 一律开着，不再按档关（v392 曾因「composer 路径下画布 MSAA 不生效」
+// 而只在直渲档开——省的那点带宽换不来画质上的任何好处，反落个「画质被动过」的疑）。
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(app.clientWidth, app.clientHeight);
 const isCoarse = matchMedia('(pointer:coarse)').matches; // v221 功耗治理：触屏机（手机/平板）默认省电档
 const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches; // v392 系统减弱动效：飞行缩时去跟飞、顿帧震屏皆息（防晕与无障碍）
@@ -373,7 +372,7 @@ function setupComposer() {
 }
 setupComposer();
 // v221 DPR 统一入口：省电档/触屏档/自适应降档三者合流（降档不回升，防振荡）
-let dprScale = 1;
+let dprScale = 1; // v393 恒为 1：自适应降档已撤（见主循环注），此量只留作调试钩子的读数与将来手动档的接口
 function applyDpr() {
   renderer.setPixelRatio(Math.min(devicePixelRatio, (save.settings.lowPerf ? 1 : isCoarse ? 1.6 : 2) * dprScale));
   if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(app.clientWidth, app.clientHeight); }
@@ -10613,8 +10612,7 @@ function updateLabels() {
 const ease = (t        ) => t * t * t * (t * (6 * t - 15) + 10);
 let last = performance.now();
 let elapsed = 0;
-let lastDraw = 0, perfAcc = 0, perfN = 0;
-let dprGoodWin = 0;               // v392 分辨率回升滞回：连稳窗口计数
+let lastDraw = 0;
 let ovRef                     = null, ovPz = false; // v392 遮景层是否大厅面板（每层查一次）
 let shadowPrev = '';              // v392 阴影重烘键：山体形态/各场显隐一变才重画深度图
 let morphKApplied = -1;           // v392 空间⇄心性稳态跳写
@@ -10637,18 +10635,9 @@ function frame(now        ) {
   }
   lastDraw = now;
   let dt = Math.min((now - last) / 1000, 0.05); last = now;
-  if (isCoarse) { // 自适应分辨率：撑不住 30fps（帧距>45ms 持续约 7 秒）降一档；久稳再缓升（v392 滞回带 0.034/0.045，连稳约 42s 才回半档，防旧日所惧的降升振荡）
-    perfAcc += dt; perfN++;
-    if (perfN >= 210) {
-      const avg = perfAcc / perfN;
-      // 降档静默（v393 发起人定案）：自适应本是替人省心的暗事，一句 toast 反倒把「您的机器不行」说给人听——
-      // 画质微降本就无须人知，也无从处置（省电档设置 v313 已删，自动降档即全部方案）
-      if (avg > 0.045 && dprScale > 0.7) { dprScale -= 0.15; applyDpr(); dprGoodWin = 0; }
-      else if (avg < 0.034 && dprScale < 1) { if (++dprGoodWin >= 6) { dprScale = Math.min(1, dprScale + 0.15); applyDpr(); dprGoodWin = 0; } }
-      else dprGoodWin = 0;
-      perfAcc = 0; perfN = 0;
-    }
-  }
+  // v393 自适应降分辨率已整体撤除（发起人定案）：画质是这个作品的本体，不拿它换帧——
+  // 从前撑不住 30fps 便自降 DPR（最低 0.7 档），画面一糊人却不知何故。发热改由不损画质的几路担：
+  // 静观限帧、阴影冻结、标签降频、泛光半分辨率、遮景休帧。DPR 从此恒为本档（桌面 2 / 触屏 1.6）。
   if (hitStopT > 0) { hitStopT = Math.max(0, hitStopT - dt); dt *= 0.06; } // ③ 顿帧：全世界凝一口气
   elapsed += dt;
 
