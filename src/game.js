@@ -186,7 +186,7 @@ async function preloadAudio() { // v392 提前解码：load 后即建 ctx（自�
     src.connect(filter); filter.connect(gain); gain.connect(actx.destination);
     src.start();
     ambientNodes = { gain, filter };
-    // 唱赞懒加载（v392）：开着音乐才预热——关着的用户不再白付 720KB 下载与整段 PCM 解码内存；
+    // 唱赞懒加载（v392）：开着音乐才预热——关着的用户不再白付 917KB 下载与整段 PCM 解码内存；
     // playChant 需要时会自行 startMusic()
     if (save.settings.music) void startMusic();
   } catch (e) { actx = null; }
@@ -200,8 +200,13 @@ async function startMusic() {
   if (chantLoad) return chantLoad;
   chantLoad = (async () => {
     try {
-      const r = await fetch('assets/bgm-amituofo-chant.mp3');
-      if (!r.ok) throw new Error(`唱赞资源 ${r.status}`);
+      // v393 成佛曲改《奇哉奇哉》（发起人定案）：佛陀成道初唱「奇哉奇哉！一切眾生皆具如來智慧德相」，
+      // 与成佛一刻的义理正对——旧弥陀唱赞归极乐一路，此处要的是「本自具足，今始证得」这一句。
+      // 入库走流拷贝（-c:a copy）：只剥夹带的 360×360 封面图，音频比特流原样不动——
+      // 与原件 MD5 逐字节相同（184k/48kHz 立体声，945KB→917KB）。
+      // 勿再「转码换小」：源本是有损 mp3，再编一遍即二次生成损失，音质只会更差。
+      const r = await fetch('assets/bgm-qizai.mp3');
+      if (!r.ok) throw new Error(`成佛曲资源 ${r.status}`);
       chantBuf = await actx.decodeAudioData(await r.arrayBuffer());
       return chantBuf;
     } catch (e) {
@@ -2958,6 +2963,13 @@ button:not(:disabled):active{transform:scale(.97)}
   padding:3px 9px;border-radius:9px;background:rgba(22,18,38,.84);backdrop-filter:blur(6px);
   opacity:0;transform:translateX(-6px);pointer-events:none;transition:opacity .2s,transform .2s;text-shadow:0 1px 3px rgba(10,8,20,.9)}
 .bnv:hover b,.bnv.on b{opacity:1;transform:translateX(0)}
+/* v393 菩萨道场科名全显（发起人点单）：十科签从前只在 hover／选中时现字——触屏无 hover，
+   而科色是 0x8fa2b8→0xf2f6fb 一道近乎单色的明度阶，色亦难辨，于是手机上只见十枚无名圆点。
+   今一律现字：未选者淡一档、选中者仍以字重与光点分明，层次不失而人知其名。
+   字既现即可点（旧 pointer-events:none 会让点在字上的手指穿过去落到星图上——现字而不受点，是残缺）。
+   只加 #bodhiNav：色界四禅签（#skyNav）签少色分明，不在此例。 */
+#bodhiNav .bnv b{opacity:.62;transform:none;pointer-events:auto}
+#bodhiNav .bnv:hover b,#bodhiNav .bnv.on b{opacity:1}
 /* v222 色界签禅支小字（竖杆行内缀排）；五净居金白圣色（凡圣分界） */
 .bnv .bnvSub{font-size:9px;opacity:.66;letter-spacing:1.5px;margin-left:6px;font-weight:400}
 .nlabel.pureAbode{color:#f6f0da;text-shadow:0 0 10px rgba(246,240,218,.35),0 1px 3px #000}
