@@ -598,7 +598,7 @@ function addEdges(mesh            , color = C.gold, opacity = 0.5) {
       clippable(new THREE.MeshStandardMaterial({
         color: C.cinn, emissive: 0x7a2f22, emissiveIntensity: 0.7 - i * 0.05, roughness: 0.9,
       })));
-    d.position.set(8, y, 26);
+    d.position.set(0, y, 88); // v393 随地狱锚点同迁赡部洲下（旧 8,26 在须弥山脚）
     netherScene.add(d);
   }
   // 八寒地狱（俱舍：八寒在八热之傍，亦赡部洲下）：冰青色叠层，位八热之西
@@ -608,7 +608,7 @@ function addEdges(mesh            , color = C.gold, opacity = 0.5) {
       clippable(new THREE.MeshStandardMaterial({
         color: 0x9fc4d8, emissive: 0x3a6a86, emissiveIntensity: 0.5 - i * 0.03, roughness: 0.6,
       })));
-    d.position.set(-34, y, 30);
+    d.position.set(-30, y, 82); // v393 仍居八热之西侧近旁（俱舍「八寒在八热之傍」），随八热同迁洲下
     netherScene.add(d);
   }
   // 阿修罗宫（起世经：修罗宫在须弥山北大海之下）：海下暗铜宫城，剖面可见
@@ -624,38 +624,9 @@ function addEdges(mesh            , color = C.gold, opacity = 0.5) {
     });
   }
 }
-  // 地下八热地狱示意（南赡部洲下）
-  for (let i = 0; i < 8; i++) {
-    const r = 22 - i * 1.8, y = -22 - i * 3.0;
-    const d = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1.6, 40),
-      clippable(new THREE.MeshStandardMaterial({
-        color: C.cinn, emissive: 0x7a2f22, emissiveIntensity: 0.7 - i * 0.05, roughness: 0.9,
-      })));
-    d.position.set(8, y, 26);
-    saha.add(d);
-  }
-  // 八寒地狱（俱舍：八寒在八热之傍，亦赡部洲下）：冰青色叠层，位八热之西
-  for (let i = 0; i < 8; i++) {
-    const r = 12 - i * 0.9, y = -22 - i * 3.0;
-    const d = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1.4, 32),
-      clippable(new THREE.MeshStandardMaterial({
-        color: 0x9fc4d8, emissive: 0x3a6a86, emissiveIntensity: 0.5 - i * 0.03, roughness: 0.6,
-      })));
-    d.position.set(-34, y, 30);
-    saha.add(d);
-  }
-  // 阿修罗宫（起世经：修罗宫在须弥山北大海之下）：海下暗铜宫城，剖面可见
-  {
-    const g = new THREE.Group(); g.position.set(-60, -13, -60); saha.add(g);
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(16, 3, 16),
-      clippable(new THREE.MeshStandardMaterial({ color: 0x7a4638, emissive: 0x552a20, emissiveIntensity: 0.5, roughness: 0.7, metalness: 0.3 })));
-    g.add(wall);
-    [[-5, -5], [5, 5], [-5, 5], [5, -5]].forEach(([x, z]) => {
-      const t = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2, 5, 6),
-        clippable(new THREE.MeshStandardMaterial({ color: 0x8b5140, emissive: 0x5e2f22, emissiveIntensity: 0.55, roughness: 0.65, metalness: 0.3 })));
-      t.position.set(x, 3.5, z); g.add(t);
-    });
-  }
+// v393 删旧挂：洲下诸狱与修罗宫曾有两套同坐标几何——v171「改挂 netherScene」时只加了新的，
+// 旧的这一套仍挂在 saha 未删。两套共面既 z-fighting，又在「空间⇄心性」过渡里分家
+// （saha 会缩至 0.18 并下沉 60，netherScene 不缩），故按 v171 本意删净，只留 netherScene 一套。
 
 // 须弥山（四宝四面：东白银 · 南吠琉璃 · 西颇胝迦 · 北黄金）
 {
@@ -3225,6 +3196,15 @@ function toastPump() {
     window.setTimeout(() => { toastBusy = false; toastPump(); }, 260);
   }, hold);
 }
+// v393 即刻收话：话说到一半而其所指已撤时（如门义正报着、门却被收拢），
+// 该让它当场淡去，而不是另说一句「已收拢」把它顶掉——收起本是无声的事。
+function hideToast() {
+  toastQ.length = 0;
+  if (!toastBusy) return;
+  if (toastTimer) { clearTimeout(toastTimer); toastTimer = 0; }
+  toast.style.opacity = '0';
+  window.setTimeout(() => { toastBusy = false; toastPump(); }, 260);
+}
 function showToast(msg        , ms = 2600) {
   if (toastQ.length && toastQ[toastQ.length - 1].msg === msg) return;
   toastQ.push({ msg, ms });
@@ -4530,8 +4510,10 @@ netherScene.add(netherBlock);
 netherBlock.visible = false;
 let inNether = false;
 let netherBuilt = false;
-const NETHER_R = 105, NETHER_D = 52;
-const NETHER_AZ0 = 25, NETHER_AZ1 = 145; // 剖口方位角（度，atan2(z,x) 计）：含地狱73°/畜生45°/饿鬼127°/八寒139°
+// v393 剖块半径 105→118：地狱依经归赡部洲下（z=88）后，八热层（半径 22）外缘达 112，旧壁 105 兜不住；
+// 118 仍在地体盘（半径 130）之内。赡部洲在 z=104，从此稳稳落在剖块之中而非骑在壁沿上。
+const NETHER_R = 118, NETHER_D = 52;
+const NETHER_AZ0 = 25, NETHER_AZ1 = 145; // 剖口方位角（度，atan2(z,x) 计）：含地狱90°/饿鬼90°/八寒110°/畜生45°——四趣皆在窗内
 function netherStrataTex(flip         )                      {
   const cv = document.createElement('canvas'); cv.width = 1024; cv.height = 512;
   const cx = cv.getContext('2d') ;
@@ -4604,22 +4586,22 @@ function buildNetherBlock() {
   // 饿鬼域标记：幽青光晕＋虚环（现有模型只有诸狱/修罗宫，薜荔多补一处弱标）
   {
     const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlow('150,190,160'), transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false }));
-    g.scale.setScalar(18); g.position.set(-26, -17, 34); netherBlock.add(g);
-    const r = dashedCircle(7, 0, 0x6f8f7c); r.position.set(-26, -17, 34); netherBlock.add(r);
+    g.scale.setScalar(18); g.position.set(0, -17, 96); netherBlock.add(g); // v393 随饿鬼锚点同迁洲下
+    const r = dashedCircle(7, 0, 0x6f8f7c); r.position.set(0, -17, 96); netherBlock.add(r);
   }
   // 诸狱余烬：一枚暖光晕贴八热顶层（静场，不动态）
   {
     const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlow('230,130,84'), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false }));
-    g.scale.setScalar(24); g.position.set(8, -24, 26); netherBlock.add(g);
+    g.scale.setScalar(24); g.position.set(0, -24, 88); netherBlock.add(g); // v393 随八热同迁洲下
   }
   // 阿鼻极核（v200 统一后唯一残留装饰件）：无间之底暗红极盘＋红晕，阿鼻位珠落其上——
   // 文字标识不再另造（v199 三枚静态标已撤）：三狱坐标唯一真源＝谱位珠（SFP_NETHER_LAYOUT），门观自浮位名
   {
     const abi = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 6.5, 2.2, 32),
       new THREE.MeshStandardMaterial({ color: 0x2a0f0b, emissive: 0x8b1f12, emissiveIntensity: 0.9, roughness: 0.85 }));
-    abi.position.set(8, -47.2, 26); netherBlock.add(abi);
+    abi.position.set(0, -47.2, 88); netherBlock.add(abi); // v393 随地狱同迁洲下
     const ag = new THREE.Sprite(new THREE.SpriteMaterial({ map: makeGlow('200,60,36'), transparent: true, opacity: 0.38, blending: THREE.AdditiveBlending, depthWrite: false }));
-    ag.scale.setScalar(15); ag.position.set(8, -47.2, 26); netherBlock.add(ag);
+    ag.scale.setScalar(15); ag.position.set(0, -47.2, 88); netherBlock.add(ag);
     (window       ).__netherMarks = () => netherBlock.children.filter(o => (o       ).isSprite && ((o       ).material       ).sizeAttenuation === false).length;
     (window       ).__hellBeads = () => ['阿鼻地獄', '無間地獄', '有間地獄'].map(id => { const v = sfpBeadLocal[id]; const a2 = byId['hell'].d.pos; return v ? [a2[0] + v.x, a2[1] + v.y, a2[2] + v.z] : null; }); // 自测钩子
   }
@@ -4673,7 +4655,7 @@ function enterNether(pid         , nodeId         ) {
   enterDoor(3, pid, 'none'); // 门观接驳：位珠/位名/门星照常（inNether 已立，不会回转场）
   const az = THREE.MathUtils.degToRad((NETHER_AZ0 + NETHER_AZ1) / 2);
   const dirV = new THREE.Vector3(Math.cos(az), 0, Math.sin(az));
-  const tgt = new THREE.Vector3(4, -20, 30); // 三涂重心偏地狱一侧
+  const tgt = new THREE.Vector3(14, -20, 78); // 三涂重心偏地狱一侧（v393 依经正位后地狱/饿鬼南移至洲下，重心随之南移）
   camera.position.copy(tgt.clone().addScaledVector(dirV, 178).add(new THREE.Vector3(0, 94, 0)));
   controls.target.copy(tgt);
   if (pid && doorPlanets[pid]) { const v = doorViewFor(pid); flyTo(v.pos, v.target, 2.0); }
@@ -5808,7 +5790,7 @@ function doorTap(dno        , isDbl         , wp               ) {
     playSfx('sfx-tap', 0.25); return;
   }
   if (inDoor === dno) { exitDoor(true); playSfx('sfx-tap', 0.25); return; } // 门观中再点本门＝出门观全图（免收拢/门观状态错位）
-  if (browseDoor === dno) { setBrowseDoor(0); showToast(`「${SFP_DOOR_BY[dno].title}」位次已收拢`); }
+  if (browseDoor === dno) { setBrowseDoor(0); hideToast(); } // v393 同签栏一例：收拢无声，门义那条话随门收去
   else {
     setBrowseDoor(dno);
     const dir2 = camera.position.clone().sub(wp).setY(0); if (dir2.lengthSq() < 1) dir2.set(1, 0, 1); dir2.normalize();
@@ -6129,8 +6111,12 @@ function cometUpdate(dt        ) {
   // 乘光随行：相机在光点后上方跟飞，把每一掷变成一段小飞行
   if (!rideAbort) {
     _rd.subVectors(b, a).normalize();
-    const back = THREE.MathUtils.clamp(span * 0.6, 18, 78); // v361 长途放宽（旧封顶 42 使跨界飞行贴太近，弧顶出画）：随跨距退到 78
-    const hOff = comet.dir === 'down' ? 16 : (comet.dir === 'up' || comet.dir === 'start') ? 8 : 11;
+    // v393 潜行改俯瞰：落点没入海面/地下时（修罗 −5.4、诸狱更深），旧式平视镜头终点恰在 y≈+1——
+    // 贴着海皮看，剖窗被压成一条线，珠虽在窗内也看不见（发起人报「跳到修罗界要自己挪图才看得到」）。
+    // 今依没入深度抬镜并收近，落地即成一个能望进窗里的俯角。
+    const sink = Math.max(0, -_cp.y);
+    const back = THREE.MathUtils.clamp(span * 0.6, 18, 78) * (sink > 1 ? 0.62 : 1); // v361 长途放宽；v393 潜行收近以拔仰角
+    const hOff = (comet.dir === 'down' ? 16 : (comet.dir === 'up' || comet.dir === 'start') ? 8 : 11) + sink * 2.2;
     _rd.set(_cp.x - _rd.x * back, _cp.y - _rd.y * back * 0.4 + hOff, _cp.z - _rd.z * back);
     camera.position.lerp(_rd, 1 - Math.exp(-2.6 * dt)); // v392 帧率无关跟随：30/120fps 松紧一致
   }
@@ -6978,7 +6964,9 @@ function railDoorTap(dno        , dbl         ) {
   }
   if (dbl) { enterDoor(dno, sfpS.pos && SFP_BY[sfpS.pos].door === dno ? sfpS.pos : undefined, 'fly', true); return; } // 主动观门（门梯点击）
   if (inDoor === dno) { exitDoor(true); return; }
-  if (browseDoor === dno) { setBrowseDoor(0); showToast(`「${SFP_DOOR_BY[dno].title}」已收拢`); return; }
+  // 再点即收（v393 发起人定案）：门义那条话随门一并收去，不另报「已收拢」——
+  // 收起是自明之事，画面上门已暗、位珠已隐，无须再用一句话复述一遍
+  if (browseDoor === dno) { setBrowseDoor(0); hideToast(); return; }
   if (inPure) returnSaha();
   if (inSky && dno !== 5 && dno !== 8) returnSaha(); // 色界两门在场内看亦通，余门先回娑婆
   setBrowseDoor(dno);
@@ -7536,7 +7524,10 @@ function sfpFlyAnchor(p     ) {
       const bd = camera.position.clone().sub(wp).setY(0);
       if (bd.lengthSq() < 1) bd.set(0.5, 0, 1);
       bd.normalize();
-      flyTo(wp.clone().addScaledVector(bd, 14).add(new THREE.Vector3(0, 5.5, 0)), wp, 1.4);
+      // v393 水下/地下位加抬：旧固定抬 5.5，落到修罗（−5.4）时镜头恰卡在海面（y≈0.1）——
+      // 与海皮齐平便望不进剖窗。今按没入深度补抬，务使镜头出水、俯角看得进去。
+      const lift = 5.5 + Math.max(0, -wp.y) * 0.9;
+      flyTo(wp.clone().addScaledVector(bd, 14).add(new THREE.Vector3(0, lift, 0)), wp, 1.4);
     }
     return;
   }
