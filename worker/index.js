@@ -27,6 +27,7 @@ const PRACTICE_DAILY_CAP = 10000; // 功课榜是随喜记录；单身份日上�
 // 桌位快照保鲜期：桌 DO 若因驱逐/发版等原因没能报「已离席」，快照会挂着假在座者。
 // 超期即视为失效并清掉；在座者只要还在掷轮就会续报，不会被误清。
 const TABLE_TTL = 20 * 60 * 1000;
+const LIVE_FRESH = 6 * 60 * 1000;   // v392 题屏「此刻在座」新鲜窗：桌报漏发 live=0 时幽灵最多活到窗关（题屏宁少报不虚报）
 const REPORT_REFRESH = 5 * 60 * 1000; // 行棋时若距上次上报超过此值就续报一次，保住新鲜度
 // 桌号 H{厅}T{桌}（如 H1T9）：厅满自动开下一厅，桌数每厅固定 9——
 // 与旧的 4 位纯数字房号天然不撞，沿用现有 /api/room/:code/ws 路由，无需改路由正则。
@@ -401,6 +402,11 @@ export class RoomDO {
     const open = halls.filter(h => hallLive[h] < cap).sort((a, b) => hallLive[b] - hallLive[a]);
     const hall = open[0] || (halls.length ? Math.max(...halls) + 1 : 1);
 
+    // v392 题屏「此刻在座」跨厅合计＋新鲜窗：旧 online 只算默认一厅（跨厅漏计）；
+    // 新鲜窗（6 分钟）内的 live 才计——断线终报若失、幽灵不再挂满 20 分钟 TTL
+    const freshRow = [...this.state.storage.sql.exec(
+      'SELECT COALESCE(SUM(live),0) AS n FROM plaza_tables WHERE ts > ?', Date.now() - LIVE_FRESH,
+    )][0];
     return json({
       days, people, since,                       // 本站共修第 N 天 · 已参加 N 人
       tosses: this.plazaGet('tosses'),           // 全站累计掷轮（一掷一称念）
@@ -408,6 +414,7 @@ export class RoomDO {
       wins: this.plazaGet('wins'),
       winsToday: this.plazaGet(`wins:${today}`),
       stream, day: today,                        // 共修动态：一人一行，时间序，无名次
+      onlineAll: Number(freshRow?.n || 0),       // 全站此刻在座（新鲜窗内、跨厅）
       hall, snaps,
       halls: halls.map(h => ({ hall: h, live: hallLive[h] })),
       hallCount: Math.max(1, halls.length ? Math.max(...halls) : 1),
@@ -1716,6 +1723,9 @@ export class RoomDO {
         const text = String(msg.text || '').trim().slice(0, 200);
         if (!text) return;
         p.chatAt = now;
+        // v392 等候室保鲜：干坐聊天的房从前没有任何续报事件，快照过期即从广场消失（反向漏人）——
+        // 聊天也按 REPORT_REFRESH 节流续报一次
+        if (now - Number(this.meta.reportedAt || 0) > REPORT_REFRESH) this.state.waitUntil(this.plazaReport());
         const entry = { id: p.id, name: p.name, color: p.color, text, ts: now };
         this.chat.push(entry);
         if (this.chat.length > CHAT_KEEP) this.chat = this.chat.slice(-CHAT_KEEP);

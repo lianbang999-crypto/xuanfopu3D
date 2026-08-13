@@ -255,7 +255,10 @@ function playBell(base = 196, vol = 0.05) {
 }
 
 // ---------------- 渲染基础 ----------------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// v392 画布 MSAA 只在直渲档有用：composer（默认档）把画面画进离屏 RT，最后仅一张全屏贴图落画布——
+// 画布多重采样纯付带宽（手机热源之一）。省电档（直渲）才开 AA；档位在存档里、先于渲染器建构，只能早读一眼。
+const earlyLowPerf = (() => { try { return !!(((JSON.parse(localStorage.getItem(SAVE_KEY) || 'null') || {}).settings || {}).lowPerf); } catch (e) { return false; } })();
+const renderer = new THREE.WebGLRenderer({ antialias: earlyLowPerf });
 renderer.setSize(app.clientWidth, app.clientHeight);
 const isCoarse = matchMedia('(pointer:coarse)').matches; // v221 功耗治理：触屏机（手机/平板）默认省电档
 const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches; // v392 系统减弱动效：飞行缩时去跟飞、顿帧震屏皆息（防晕与无障碍）
@@ -4006,7 +4009,7 @@ function openTitle() {
   presence.hidden = true;
   Plaza.fetchPlaza().then((data) => {
     if (gen !== titleGen || !titleOn) return;   // 已离开或已重点亮：迟到的在场句不落笔
-    const online = Number(data.online || 0);
+    const online = Number(data.onlineAll ?? data.online ?? 0); // v392 跨厅新鲜合计（旧 online 只算默认一厅且含幽灵快照）；旧服务端回退原字段
     const recent = (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length;
     const n = online > 0 ? online : recent;
     if (!n) return;
@@ -10517,6 +10520,7 @@ let last = performance.now();
 let elapsed = 0;
 let lastDraw = 0, perfAcc = 0, perfN = 0;
 let dprGoodWin = 0;               // v392 分辨率回升滞回：连稳窗口计数
+let dprHintDone = false;          // v392 降档触底只提点一次省电档
 let ovRef                     = null, ovPz = false; // v392 遮景层是否大厅面板（每层查一次）
 let shadowPrev = '';              // v392 阴影重烘键：山体形态/各场显隐一变才重画深度图
 let morphKApplied = -1;           // v392 空间⇄心性稳态跳写
@@ -10532,7 +10536,10 @@ function frame(now        ) {
     const busy = flyAnim || sfpTransit || comet || hitStopT > 0 || sfpS.rolling || starView
       || (flightOn && (flyKeys.size > 0 || joyVec.x !== 0 || joyVec.y !== 0)) // 神足默认常开：只在真有输入时才算动势
       || secAnimTo !== null || Math.abs(modeTarget - modeT) > 0.0005 || now < perfBoostUntil || netBusy();
-    if (!busy && now - lastDraw < 31) return;
+    if (!busy) {
+      const deep = isCoarse && now > perfBoostUntil + 8000; // v392 深静观：触屏静置九秒后 15fps 入定——静观重绘正是发热大头，一碰即满帧
+      if (now - lastDraw < (deep ? 66 : 31)) return;
+    }
   }
   lastDraw = now;
   let dt = Math.min((now - last) / 1000, 0.05); last = now;
@@ -10540,7 +10547,10 @@ function frame(now        ) {
     perfAcc += dt; perfN++;
     if (perfN >= 210) {
       const avg = perfAcc / perfN;
-      if (avg > 0.045 && dprScale > 0.7) { dprScale -= 0.15; applyDpr(); dprGoodWin = 0; }
+      if (avg > 0.045 && dprScale > 0.7) {
+        dprScale -= 0.15; applyDpr(); dprGoodWin = 0;
+        if (dprScale <= 0.7 && !dprHintDone) { dprHintDone = true; showToast(zh('本机撑高清有些吃力——已自动调低渲染精度，发热与耗电随之立减'), 5200); } // v392 触底告知一次（省电档设置 v313 已删，自动降档即全部方案）
+      }
       else if (avg < 0.034 && dprScale < 1) { if (++dprGoodWin >= 6) { dprScale = Math.min(1, dprScale + 0.15); applyDpr(); dprGoodWin = 0; } }
       else dprGoodWin = 0;
       perfAcc = 0; perfN = 0;

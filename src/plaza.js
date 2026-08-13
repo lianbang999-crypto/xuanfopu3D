@@ -49,12 +49,15 @@ function setPending(n) {
 
 // ---------------- 上报 ----------------
 
-// 掷轮计数：只在轮落定时调用一次；攒够一批或强制时才发请求
+// 掷轮计数：只在轮落定时调用一次；攒够一批或强制时才发请求。
+// v392 加时间闸：批量之外三分钟必送——题屏「10 分钟内在行谱」靠 updated 新鲜度才立得住
+// （旧式攒满十掷才报，慢掷的人在广场上永远「不在场」，刚离开的人反而算在场）
 let sending = false;
+let lastFlushAt = 0;
 export async function tick(n = 1, force = false) {
   setPending(pending() + n);
   if (sending) return;
-  if (!force && pending() < TICK_BATCH) return;
+  if (!force && pending() < TICK_BATCH && Date.now() - lastFlushAt < 180000) return;
   await flush();
 }
 
@@ -79,7 +82,7 @@ export async function flush() {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ n: send, actor: practiceId(), name: practiceName() }),
     });
-    if (r.ok) setPending(pending() - send);
+    if (r.ok) { setPending(pending() - send); lastFlushAt = Date.now(); }
   } catch (e) { /* 送不出就留着，下次再送 */ }
   finally { sending = false; }
 }
