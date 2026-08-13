@@ -65,9 +65,11 @@ canvas{display:block;touch-action:none}
 #bootGo:hover{filter:brightness(1.06)}
 #bootGo b{letter-spacing:5px;font-size:16px}
 #bootGo span{font-size:11px;letter-spacing:1px;opacity:.82;font-weight:400}
-/* 在场句：就绪且有真人才浮现（不留空盒，不假装热闹） */
+/* 在场一行（v393 重择位次）：题名→副题→「此刻谁在」，三行同属上方身份区；
+   主钮带 margin-top:auto，这一行的高度由那道自动留白吸收——题名与主钮零位移，异步到达也不跳版。
+   就绪且有真人才浮现（不留空盒、不报零、不假装热闹） */
 #bootPresence{display:none}
-#boot.ready #bootPresence:not([hidden]){display:block;animation:bIn .3s ease-out both}
+#boot.ready #bootPresence:not([hidden]){display:flex;animation:bIn .3s ease-out both}
 /* 细字行：静态即出（先展示后交互）——未就绪半暗禁点，就绪后 openTitle 换成可点版并亮起 */
 #bootLinks{display:flex;justify-content:center;gap:24px;margin-top:20px;flex-wrap:wrap;
   font-size:13px;letter-spacing:.15em;color:#e9dcba;text-shadow:0 1px 8px rgba(3,20,24,.95);transition:opacity .4s}
@@ -151,8 +153,8 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
 <div id="boot" aria-hidden="false"><div class="bGroup">
   <div id="bootName" data-t="選佛譜">选佛谱</div>
   <div id="bootSub" data-t="一人或與蓮友共修 · 行十法界 · 直至成佛">一人或与莲友共修 · 行十法界 · 直至成佛</div>
+  <div id="bootPresence" hidden></div>
   <button id="bootGo" type="button"><b data-t="開始行譜">开始行谱</b></button>
-  <button id="bootPresence" type="button" hidden></button>
   <div id="bootLinks"><span data-t="玩法">玩法</span><span data-t="共修大廳">共修大厅</span><span data-t="我的">我的</span><span data-t="分享">分享</span></div>
 </div>
 <div id="bootSeat" data-nozh>南無阿彌陀佛</div>

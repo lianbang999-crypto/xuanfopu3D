@@ -2134,10 +2134,17 @@ html.paperCards .panel{box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 18px 48p
    不透山的自足设计底，样式主体连同两屏向版式在 index.html 内联）。
    此处只持就绪态交互区的主题化——在场句、细字 hover、✕ hover（依赖主包变量或悬停语言）。
    主钮样式已归内联自足（第一毫秒即金钮），此处不再重复定义。 */
-#bootPresence{margin-top:16px;border:0;background:none;padding:6px 12px;cursor:pointer;font:inherit;
-  color:#cbbb8d;font-size:var(--fs-sm);letter-spacing:1.5px}
-#bootPresence:hover,#bootPresence:focus-visible{color:#f0dfa8}
-#bootPresence i{font-style:normal;margin-left:4px}
+/* v393 在场一行改静示（发起人定案）：只报「多少人在线」，不点、不跳转、不带去处箭头——
+   知道有人同在即可。位次已移至副题下（见 index.html 布局注）。 */
+/* 这一行落在殿脊斗栱一带（画最繁处），与副题同境——故用与副题同一套三层影（近影托边·中影分离·远影压底）；
+   字色取落款档（较副题暗一阶）：读得清，又不与题名副题争先后 */
+#bootPresence{margin-top:13px;align-items:center;gap:7px;
+  color:#e9dcba;font-size:var(--fs-xs);letter-spacing:2px;
+  text-shadow:0 1px 3px rgba(3,20,24,1),0 2px 14px rgba(3,20,24,.95),0 0 30px rgba(3,20,24,.75)}
+#bootPresence i{width:6px;height:6px;border-radius:50%;background:var(--teal);
+  box-shadow:0 0 7px var(--teal);animation:bootLive 2.4s ease-in-out infinite}
+@keyframes bootLive{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){#bootPresence i{animation:none}}
 #bootX:hover{color:#f0dfa8;border-color:rgba(232,199,102,.62)}
 /* v196 题屏极简：次级操作收为细字行 */
 .tlink{color:var(--note);font-size:var(--fs-sm);letter-spacing:2px;cursor:pointer;padding:8px 4px;user-select:none;-webkit-user-select:none;transition:color .2s}
@@ -4035,10 +4042,9 @@ function openTitle() {
     const n = Number(data.onlineNow
       ?? Math.max(Number(data.onlineAll ?? data.online ?? 0),
         (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length));
-    if (!n) return;
-    presence.innerHTML = `${zh(`此刻 ${n} 位莲友在线行谱`)} <i>›</i>`;
+    if (!n) return;                                   // 无人则整行不出——不报零
+    presence.innerHTML = `<i></i>${zh(`${n} 位莲友在线`)}`;
     presence.hidden = false;
-    presence.onclick = () => openPlaza();
   }).catch(() => {});
   (b.querySelector('#bootX')               ).onclick = () => titleHide(); // ✕＝收题屏观照全图（原 ovClose 语义）
   b.classList.remove('bye');
