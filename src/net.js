@@ -1,7 +1,22 @@
 // 共修室 · 真人共同对局客户端
 // 职责：连接/重连、准备与轮次状态、服务器权威掷轮、共同结算、密码邀请和聊天。
 // 3D 棋珠与轮动画仍由 game.js 呈现；本模块不在客户端裁定棋况。
+//
+// ── 称谓规矩（2026-08-13 发起人定案，全项目通行；本处为正本，他处援引） ──
+// 判准只一条：这个人此刻与我在不在同一局。
+//   好友＝站外的人（尚不是莲友，是您请进来的）——只用于邀请：「邀请好友，同修」。
+//   莲友＝站上的人，不论在不在局中——题屏与大厅一律称此：「N 位莲友在线」「候莲友」「莲友茶寮」；
+//         莲号前缀、留空默认名亦是。净土宗专称，本谱归宿在净土、题屏落款即六字名号，
+//         故以此为全站「人」字，不可换作通用词。
+//   同修＝同在一局／一室共修的人——局中语一律称此：「同修行谱中」「有效同修不足两位」
+//         「四位同修」「同修珠」，面板题即「同修」。其动词义（共同修行）出自本谱所依教典
+//         《教觀綱宗》「而同修析觀、同斷見思」，「邀请好友，同修」用的正是这一义。
+//   例外：施受、让座一类人情动作保留「莲友」（「请择一位莲友受之」「施与同席莲友」）——
+//         布施之语宜温，且「同席同修」两「同」相叠拗口。
+// 动线即称谓：好友（站外）→ 莲友（站上）→ 同修（局中），一步步走近，词也一步步变亲。
+// 副题「一人或与莲友共修 · 行十法界 · 直至成佛」是本规矩的范本：莲友指人，共修指事。
 import { quickShare, shareUrl } from './share.js';
+import { ico } from './icons.js'; // 头两枚钮走内联 SVG 图标层（旧用文本字形 ⤢，冷僻符在多数安卓/Windows 字体栈里掉豆腐块）
 import { SFP_PROTOCOL_VERSION } from './sfp-engine.js';
 
 const NET_KEY = 'sm10.net.v2';
@@ -94,6 +109,8 @@ export const Net = {
   _connState: 'ok',
   _lastFocused: null,
   _seatSnap: null,   // 上一拍在座名单（id→name）：来人/离席差分播报用；离房清空
+  justLeft: null,    // 刚离的席（{code,name,at}）：离席请求与大厅快照赛跑，快照未及更新时
+                     // 大厅按此先行抹去自己（见 plaza.js updatePlaza 的离席遮罩，12 秒窗口）
   _joinPromise: null,
   _joinCode: '',
   _joinSeq: 0,
@@ -355,6 +372,9 @@ export const Net = {
     this._joinSeq++;
     this._joinPromise = null;
     this._joinCode = '';
+    // 记下「刚离的席」（清态前取值）：服务器处理离席与大厅首拍快照是两条腿在跑，
+    // 大厅先到就会看见自己还坐在桌上——前台凭此先抹，服务器快照一到即为准。
+    if (this.code) this.justLeft = { code: this.code, name: this.myName, at: Date.now() };
     this._send({ type: 'leave', requestId: requestId('leave') }, false);
     const old = this.ws;
     // 换室需要确认旧连接已经由服务器关闭，不能再猜一个固定的 260ms。
@@ -717,8 +737,13 @@ export const Net = {
   font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif}
 #netHead .code{margin-left:auto;border:0;background:none;font:inherit;color:var(--aq-green);letter-spacing:.5px;cursor:pointer;font-size:var(--fs-sm);padding:8px 4px}
 #netHead .code:hover,#netHead .code:focus-visible{color:var(--aq-green)}
-#netMinBtn,#netFullBtn{width:40px;height:40px;flex:none;border:0;background:transparent;color:var(--aq-note);border-radius:10px;cursor:pointer;font-size:var(--fs-xl)}
-#netMinBtn:hover,#netFullBtn:hover{background:rgba(57,50,42,.06);color:var(--aq-tx)}
+/* 头两枚钮（v393 极简）：只余线形本身——去圆角底片、去悬停灰块（皆是装饰），
+   触达仍是 40 见方（够指腹），可见的只有一道笔画；态别只由色深浅表 */
+#netMinBtn,#netFullBtn{width:40px;height:40px;flex:none;display:flex;align-items:center;justify-content:center;
+  border:0;background:none;padding:0;color:var(--aq-note);cursor:pointer;font-size:var(--fs-md);
+  transition:color var(--t-fast,.18s) var(--ease-out,ease)}
+#netMinBtn:hover,#netFullBtn:hover,#netMinBtn:focus-visible,#netFullBtn:focus-visible{color:var(--aq-tx)}
+#netMinBtn .ico,#netFullBtn .ico{width:19px;height:19px;stroke-width:1.6} /* 头部字号小，描边随之收一线，免得两枚钮比室名还重 */
 #netRoomState{flex:none;padding:8px 12px;color:var(--aq-tx);line-height:1.5}
 #netRoomState b{color:var(--aq-strong)}
 /* 面板是定高的：名单、指引、聊天三处可压缩（flex:0 1 auto + min-height:0），
@@ -851,7 +876,7 @@ export const Net = {
 
     this.$panel = el(`<section id="netPanel" role="dialog" aria-modal="false" aria-label="真人共修室">
       <div id="netGrab" title="上滑全屏 · 下滑收起"></div>
-      <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netFullBtn" aria-label="聊天全屏" title="全屏／还原">⤢</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">⌄</button></div>
+      <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netFullBtn" aria-label="放大共修面板" aria-pressed="false" title="放大／还原">${ico('expand')}</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">${ico('chevronDown')}</button></div>
       <div id="netRoomState" aria-live="polite"></div>
       <div id="netRoster" aria-label="本室成员"></div>
       <div id="netRoundActions"><button id="netReadyBtn"></button><button id="netStartBtn" class="pri"></button></div>
@@ -877,7 +902,15 @@ export const Net = {
     });
     this.$panel.querySelector('#netMinBtn').addEventListener('click', () => this.closePanel());
     // ⤢ 全屏/还原（批B W2）：桌面无抓手，这枚钮是唯一放大手段；手机与上滑同义
-    this.$panel.querySelector('#netFullBtn').addEventListener('click', () => this.$panel.classList.toggle('full'));
+    // ⤢ 改图标层后顺手带态（v393 极简）：放大时换「界角向内」，一眼知再点即还原——
+    // 从前一个字形通吃两态，人点开了不知怎么退回去
+    this.$panel.querySelector('#netFullBtn').addEventListener('click', (event) => {
+      const full = this.$panel.classList.toggle('full');
+      const button = event.currentTarget;
+      button.innerHTML = ico(full ? 'shrink' : 'expand');
+      button.setAttribute('aria-pressed', full ? 'true' : 'false');
+      button.setAttribute('aria-label', this.zh(full ? '还原共修面板' : '放大共修面板'));
+    });
 
     const grab = this.$panel.querySelector('#netGrab');
     let grabY = null;
@@ -1287,9 +1320,9 @@ export const Net = {
     if (waiting) {
       const openIn = Math.ceil((Number(this.room.startOpenAt || 0) - Date.now()) / 1000);
       if (readyPending) hint.textContent = this.zh(readyTarget ? '正在确认您的准备状态…' : '正在取消准备，请稍候…');
-      else if (aloneRoom) hint.textContent = this.zh('室内暂只有您——邀请莲友入座，两位准备即可开局。');
+      else if (aloneRoom) hint.textContent = this.zh('室内暂只有您——邀请好友入座，两位准备即可开局。'); // 与同屏那枚「邀请好友，同修」同口径：邀的是站外的人
       else if (!me?.ready) hint.textContent = this.zh('先准备；两位准备即可共同开局。');
-      else if (readyCount < 2) hint.textContent = this.zh('已准备，再候一位莲友即可开局。');
+      else if (readyCount < 2) hint.textContent = this.zh('已准备，再候一位同修即可开局。'); // 此句只在室内已有二人以上时出现：等的是同室者点准备，非等人来
       else if (mayStart) {
         hint.textContent = this.zh(this.isHost() ? '人员已齐，可以共同开局。' : '房主久未开局，您也可以开局。');
       } else if (openIn > 0) hint.textContent = this.zh(`已准备，候房主开局；${openIn} 秒后您也可以开局。`);

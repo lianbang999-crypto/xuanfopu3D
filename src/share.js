@@ -98,7 +98,7 @@ export function openShareCard({ code = '', zh = (s) => s, toast = () => {} } = {
     if (!wx && navigator.share) {
       try { await navigator.share({ title: zh('选佛谱'), text, url }); return; } catch (e) { /* 取消则留卡 */ }
     }
-    try { await navigator.clipboard.writeText(`${text}${url}`); toast(zh(code ? '邀请文案已复制——发给莲友，点开即入' : '已复制——发给莲友即可')); }
+    try { await navigator.clipboard.writeText(`${text}${url}`); toast(zh(code ? '邀请文案已复制——发给好友，点开即入座' : '已复制——发给好友即可')); } // v393 与「邀请好友，同修」一钮同口径：邀的是站外的人
     catch (e) { toast(zh('复制未成，请长按链接手动复制')); }
   });
   document.body.appendChild(d);

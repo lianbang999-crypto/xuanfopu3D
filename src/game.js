@@ -3617,6 +3617,11 @@ function renderCard() {
     go.addEventListener('click', () => enterPureTransit());
     cardBtns.appendChild(go);
   }
+  if (d.id === 'bodhi' && !inBodhi) { // 2026-08-13 单击改开卡后，卡上须有「进入」——与色界/极乐同例
+    const go = el('<button class="gbtn primary">进入菩萨道场</button>');
+    go.addEventListener('click', () => enterBodhiTransit());
+    cardBtns.appendChild(go);
+  }
   // 关联段「此处谱位」：锚在本节点的谱位，点芯片卡内就地展开譜曰，不跳转。
   // v365 极简：多位锚（菩萨法界 66 位）芯片区限高内滚（.chipScroll），免一段吃掉整卡
   const posHere = (SFP_AT[d.id] || [])         ;
@@ -3984,6 +3989,8 @@ function openSettings(backTo        ) { // backTo：同路往返（如「我的�
 // 主钮三态、在场句、细字行、✕。回题屏＝再点亮，离开＝titleHide 淡出（不移除，还要回来）。
 let titleOn = false;
 let titleGen = 0;   // 点亮代号：连开两次时旧一代的在场句 fetch 迟到不落笔
+let titlePresenceT = 0;        // 在场句轻刷定时器：题屏亮着才走，titleHide 即停
+let titlePresencePaint = null; // 当代在场句画笔：回前台立即补一拍（见启动段 visibilitychange）
 function openTitle() {
   const b = document.getElementById('boot');
   if (!b) return;
@@ -4032,20 +4039,37 @@ function openTitle() {
   };
   (links.querySelector('#tiShare')               ).onclick = () =>
     quickShare({ code: Net.active ? Net.code : '', zh, toast: showToast }); // 荐游戏；已在房则荐的即邀请
-  // 在场一句（活封面）：在座优先说在座（可入座同修），无在座再说 10 分钟内在行谱的人（单人也算在场）；
-  // 没人时整句不出现——不留空盒，也不假装热闹
+  // 在场一句（活封面）：没人时整句不出现——不留空盒，也不假装热闹。
+  // 显示方案三改（2026-08-13 用户点单优化）：
+  //   ① 去己——本机心跳在服务端 presence 窗内时自减一（Plaza.selfOnline）：「莲友」专指同修他人，
+  //      独自在站整句不出，不再见「1 位莲友在线」的假热闹（那一位就是自己）；
+  //   ② 常新——题屏亮着每 60 秒轻刷一拍（后台页不拉，回前台由启动段补拍）：
+  //      从前只在点亮那一刻取一次，在题屏停留多久数字就死多久；
+  //   ③ 不闪——回题屏不再先藏后现，旧句原位换字（dataset.raw 比对，同值不动 DOM），
+  //      无→有才走入场动画，拉取失败保持上一句不清空。
   const presence = b.querySelector('#bootPresence')               ;
-  presence.hidden = true;
-  Plaza.fetchPlaza().then((data) => {
-    if (gen !== titleGen || !titleOn) return;   // 已离开或已重点亮：迟到的在场句不落笔
-    // v393 在线人数合一：单机联机不再分说两句——服务端 onlineNow 已并计（旧服务端回退逐级兼容）
-    const n = Number(data.onlineNow
-      ?? Math.max(Number(data.onlineAll ?? data.online ?? 0),
-        (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length));
-    if (!n) return;                                   // 无人则整行不出——不报零
-    presence.innerHTML = `<i></i>${zh(`${n} 位莲友在线`)}`;
-    presence.hidden = false;
-  }).catch(() => {});
+  const paintPresence = () => {
+    // 首拍在 titleOn 置真之前同步发出，此处不查 titleOn（查了首拍必被自己拦下，
+    // 在场句要空等 60 秒）；题屏已收的迟到回包由 .then 里的双守卫拦。
+    if (gen !== titleGen || document.hidden) return;
+    Plaza.fetchPlaza().then((data) => {
+      if (gen !== titleGen || !titleOn) return;   // 已离开或已重点亮：迟到的在场句不落笔
+      // v393 在线人数合一：单机联机不再分说两句——服务端 onlineNow 已并计（旧服务端回退逐级兼容）
+      const raw = Number(data.onlineNow
+        ?? Math.max(Number(data.onlineAll ?? data.online ?? 0),
+          (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length));
+      const n = raw - (Plaza.selfOnline() ? 1 : 0);
+      const html = n > 0 ? `<i></i>${zh(`${n} 位莲友在线`)}` : ''; // 无人则整行不出——不报零
+      if (presence.dataset.raw === html) return;
+      presence.dataset.raw = html;
+      presence.innerHTML = html;
+      presence.hidden = !html;
+    }).catch(() => {});
+  };
+  paintPresence();
+  titlePresencePaint = paintPresence;
+  if (titlePresenceT) clearInterval(titlePresenceT);
+  titlePresenceT = window.setInterval(paintPresence, 60000);
   (b.querySelector('#bootX')               ).onclick = () => titleHide(); // ✕＝收题屏观照全图（原 ovClose 语义）
   b.classList.remove('bye');
   b.classList.add('ready');
@@ -4061,6 +4085,8 @@ function titleHide() {
   titleOn = false;
   topNavLock(false);
   controls.autoRotate = false;
+  if (titlePresenceT) { clearInterval(titlePresenceT); titlePresenceT = 0; } // 在场句随题屏同休
+  titlePresencePaint = null;
   if (b) { b.classList.add('bye'); b.setAttribute('aria-hidden', 'true'); }
 }
 
@@ -4138,14 +4164,17 @@ function enterPureTransit() {
   fadeTransit(() => { enterPure(); setTransit(false); }, true, 900);
 }
 (window       ).__pureGo = (on         ) => on ? enterPure() : returnSaha(); // 自测钩子：出入净土（音乐已撤，钩子留着自测用）
-// 极乐星点击专拍（题字与星体共用）：单击开介绍卡但缓 340ms 才开——
+// 极乐星点击专拍（题字与星体共用）：单击开门义卡但缓 360ms 才开——
 // 否则卡一弹出就盖住星体，第二击永远落不到星上，双击直入形同虚设；
-// 窗口内再点一下＝取消开卡、星河转金径入极乐
+// 窗口内再点一下＝取消开卡、星河转金径入极乐。
+// v163 曾改「单击即入」；2026-08-13 用户定案改回：单击＝门义卡（卡上有「进入」钮），双击方转场。
 let gateCardT = 0;
-function gateTap(_dbl         ) { // v163 用户定案：单击即入极乐（与道场同手感）；总星谱注从搜索/谱卡互链仍可读
+function gateTap(dbl         ) {
   if (inPure) return;
   if (gateCardT) { clearTimeout(gateCardT); gateCardT = 0; }
-  enterPureTransit(); playSfx('sfx-tap', 0.25);
+  if (dbl) { enterPureTransit(); playSfx('sfx-tap', 0.25); return; }
+  gateCardT = window.setTimeout(() => { gateCardT = 0; selectNode('gate', false); }, 360);
+  playSfx('sfx-tap', 0.2);
 }
 // ---------------- 色界观照场（v140：与极乐同一套语法）----------------
 function enterSky() {
@@ -4192,13 +4221,16 @@ function enterSkyTransit() {
   if (inSky || fadeEl.style.opacity === '1') return;
   fadeTransit(() => { enterSky(); setTransit(false); }, true, 900);
 }
-// 色界总星专拍（同极乐星 gateTap）：单击缓 340ms 开介绍卡留双击窗口，双击星河转金径入色界场
+// 色界总星专拍（同极乐星 gateTap）：单击缓 360ms 开门义卡留双击窗口，双击星河转金径入色界场
+// （v163 曾改「单击即入」；2026-08-13 用户定案改回：单击＝卡，双击方转场）
 let rupaCardT = 0;
 let skyEnterAt = 0, bodhiEnterAt = 0; // v208 交互总纲：场内再点本星＝出，入场 900ms 冷却防误触
-function rupaTap(_dbl         ) { // v163 用户定案：单击即入色界诸天
+function rupaTap(dbl         ) {
   if (inSky) return;
   if (rupaCardT) { clearTimeout(rupaCardT); rupaCardT = 0; }
-  enterSkyTransit(); playSfx('sfx-tap', 0.25);
+  if (dbl) { enterSkyTransit(); playSfx('sfx-tap', 0.25); return; }
+  rupaCardT = window.setTimeout(() => { rupaCardT = 0; selectNode('rupa', false); }, 360);
+  playSfx('sfx-tap', 0.2);
 }
 // ===== 因地星盘专场（v314 用户定案：门1「發始因地」廿一位排成安位星环，点门转场专观）=====
 // 与色界/道场同语法：单击门1直入、Esc/「全图」返回、行棋起手自动退场；安位表行法数据不动，
@@ -4871,12 +4903,15 @@ function enterBodhiTransit() {
   if (inBodhi || fadeEl.style.opacity === '1') return;
   fadeTransit(() => { enterBodhi(); setTransit(false); }, true, 900);
 }
-// 菩萨星专拍（同极乐/色界成例）：单击缓 340ms 开卡留双击窗口，双击转场入道场
+// 菩萨星专拍（同极乐/色界成例）：单击缓 360ms 开门义卡留双击窗口，双击转场入道场
+// （v162 曾改「单击即入」；2026-08-13 用户定案改回：单击＝卡，双击方转场）
 let bodhiCardT = 0;
-function bodhiTap(_dbl         ) { // v162 用户定案：单击即入道场（双击难发现）；谱卡入场后点主星可读
+function bodhiTap(dbl         ) {
   if (inBodhi) return;
   if (bodhiCardT) { clearTimeout(bodhiCardT); bodhiCardT = 0; }
-  enterBodhiTransit(); playSfx('sfx-tap', 0.25);
+  if (dbl) { enterBodhiTransit(); playSfx('sfx-tap', 0.25); return; }
+  bodhiCardT = window.setTimeout(() => { bodhiCardT = 0; selectNode('bodhi', false); }, 360);
+  playSfx('sfx-tap', 0.2);
 }
 // 一层一坛城（v135，用户点单）：色界四禅逐层收拢——默认只见四禅天主星（坛心），
 // 单击主星＝绽开该层星环（互斥单展，再点收拢），双击＝凑近并开层卡；
@@ -5961,7 +5996,7 @@ function syncRollGlow() {
     txt.textContent = (verdictEl.querySelector('#vGoTxt')               ).textContent || zh('行 ▸');
   } else if (!sfpS.rolling && !sfpTransit) {
     let label = terminal
-      ? (Net.active && !Net.isFinished() ? '本座已达本局终位 · 莲友行谱中' : '本局已结束')
+      ? (Net.active && !Net.isFinished() ? '本座已达本局终位 · 同修行谱中' : '本局已结束') // v393 称谓规矩：局中语称同修（见文案约定）
       : (waiting ? Net.turnHint() : '长按掷轮');
     if (canRoll && Net.active) {
       const left = netTurnLeft();                       // 只在快到点时提示，平时不催人
@@ -6908,7 +6943,7 @@ function showDoorTip(dno        ) {
   showToast(txt, Math.min(9000, 2200 + txt.length * 90));
 }
 // 签栏点门：单击＝本门全亮（镜头框位珠云、无关题字全隐），再点＝收拢；双击＝入门内观照；净土门＝极乐链路
-let railLT = 0, railLD = 0;
+let railLT = 0, railLD = 0, railCardT = 0;
 function railDoorTap(dno        , dbl         ) {
   playSfx('sfx-tap', 0.22);
   if (DISC_DOORS.has(dno)) { // v315/v322 谱页专场：签栏点门同样转场；场内再点本门＝出，点他页门＝就地换页
@@ -6920,8 +6955,13 @@ function railDoorTap(dno        , dbl         ) {
     enterDiscTransit(dno);
     return;
   }
-  if (dno === 14) { // 净土门签＝入极乐并亮十三正因；场内再点＝收/展（场即其门）
-    if (!inPure) { if (inSky || inBodhi) returnSaha(); enterPureTransit(); setBrowseDoor(14); }
+  if (dno === 14) { // 净土门签（2026-08-13 用户定案）：单击＝门义卡缓一拍留双击窗口（卡上有「进入极乐世界」钮），
+    // 双击方转场入极乐并亮十三正因——从前单击即转场，想读门义反而无处下手；场内再点＝收/展（场即其门）
+    if (railCardT) { clearTimeout(railCardT); railCardT = 0; }
+    if (!inPure) {
+      if (dbl) { if (inSky || inBodhi) returnSaha(); enterPureTransit(); setBrowseDoor(14); return; }
+      railCardT = window.setTimeout(() => { railCardT = 0; openDoor(14); }, 360);
+    }
     else if (browseDoor === 14) setBrowseDoor(0); else setBrowseDoor(14);
     return;
   }
@@ -8983,6 +9023,7 @@ function plazaRender(data) {
   const p = Plaza.renderPlaza(data, {
     el, esc, zh,
     seatedAt: Net.active ? Net.code : '',
+    justLeft: Net.justLeft, // 离席遮罩：快照未及更新时先抹掉桌上自己（见 plaza.js scrubJustLeft）
     backText: sfpS.active ? '回到局中' : '回题屏', // 钮上写去处（✕ 同去向）：无局关大厅回题屏，不落裸场景
     // onSolo 已撤（2026-08-11 大厅重排）：「一人行谱」卡不再立于大厅——单人入口在题屏主钮；
     // 大厅连不上时的兜底「一人行谱」钮（pzSolo2）自带同套护栏，不经此处。
@@ -9061,6 +9102,7 @@ async function openPlaza() {
         Plaza.updatePlaza(panel, data, {
           ...panel._plazaUi,
           seatedAt: Net.active ? Net.code : '',
+          justLeft: Net.justLeft, // 每拍带最新值：遮罩窗口过期或重新入座即自然失效
           backText: sfpS.active ? '回到局中' : '回题屏', // 钮上写去处（✕ 同去向）：无局关大厅回题屏，不落裸场景
         });
         zhDom(panel);
@@ -9091,6 +9133,11 @@ async function openPlaza() {
   await draw();
   if (gen !== plazaGen) return;                     // 转场/重入已发生：定时器归新代管
   plazaTimer = window.setInterval(draw, 8000);      // 桌况随人来人往变，八秒一refresh
+  // 刚离席进来的这一趟：首拍多半还跑在服务器处理离席之前（前台有遮罩顶着），
+  // 两秒半后补拉一拍拿服务器真况，不必干等八秒——遮罩窗口一过即以真况为准
+  if (Net.justLeft && Date.now() - Net.justLeft.at < 10000) {
+    window.setTimeout(() => { if (gen === plazaGen) void draw(); }, 2500);
+  }
   // 切回页面立即刷一拍（比缩短轮询省）：手机切走再回，桌况最多陈旧 8 秒也嫌久。
   // 监听自清理：代号不符或大厅已不在场，第一次触发即自摘，不必与关厅路径缠绕。
   const onVis = () => {
@@ -9401,6 +9448,7 @@ function openDoor(dn        , opts      = {}) {
     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
       <button class="gbtn" id="dcLib" style="flex:1">所据经论</button>
       ${DISC_PAGES[dn] ? '<button class="gbtn" id="dcDisc" style="flex:1">本门谱页</button>' : ''}
+      ${dn === 14 && !inPure ? '<button class="gbtn" id="dcPure" style="flex:1">进入极乐世界</button>' : ''}
       <button class="gbtn primary" id="dcOk" style="flex:1 0 100%">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
   // 门义走统一出口（词头·正文），文白就地切换；逐字总说由 paintEntry 内的 fillRaw 占位回填
   paintEntry(inner.querySelector('#dcEntry')       , doorCardObj(dn)         );
@@ -9429,6 +9477,8 @@ function openDoor(dn        , opts      = {}) {
   (inner.querySelector('#dcLib')               ).addEventListener('click', () => { overlayOnClose = null; closeOverlay(); openLibrary(); });
   { const dd = inner.querySelector('#dcDisc')                      ; // v364 谱页深读入口（220 位已全在主图，谱页转为可选一览）
     if (dd) dd.addEventListener('click', () => { overlayOnClose = null; closeOverlay(); enterDiscTransit(dn); }); }
+  { const dp = inner.querySelector('#dcPure')                      ; // 2026-08-13 单击门签改开卡后，入极乐的门路随卡呈
+    if (dp) dp.addEventListener('click', () => { overlayOnClose = null; closeOverlay(); if (inSky || inBodhi) returnSaha(); enterPureTransit(); setBrowseDoor(14); }); }
   (inner.querySelector('#dcOk')               ).addEventListener('click', () => {
     if (sfpS.active) overlayOnClose = null;      // 题「回到局中」时要真回局中，解除 backTo；题「关闭」时仍同路往返
     closeOverlay();
@@ -10253,7 +10303,7 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   if (isects.length) {
     const nid = (isects[0].object.userData       ).nodeId;
     if (nid === 'gate' && !inPure) { gateTap(isDbl); return; } // 极乐星专拍：缓开卡留双击直入窗口
-    if (nid === 'rupa' && !inSky) { rupaTap(isDbl); return; } // 色界总星专拍：单击转场入色界场
+    if (nid === 'rupa' && !inSky) { rupaTap(isDbl); return; } // 色界总星专拍：缓开卡留双击直入窗口
     if (nid === 'rupa' && inSky) { // v208 交互总纲：场内再点本星＝出（与「场内再点本门＝出」同法，900ms 冷却）
       if (performance.now() - skyEnterAt > 900) { returnSaha(); playSfx('sfx-tap', 0.2); }
       return;
@@ -10553,7 +10603,6 @@ let last = performance.now();
 let elapsed = 0;
 let lastDraw = 0, perfAcc = 0, perfN = 0;
 let dprGoodWin = 0;               // v392 分辨率回升滞回：连稳窗口计数
-let dprHintDone = false;          // v392 降档触底只提点一次省电档
 let ovRef                     = null, ovPz = false; // v392 遮景层是否大厅面板（每层查一次）
 let shadowPrev = '';              // v392 阴影重烘键：山体形态/各场显隐一变才重画深度图
 let morphKApplied = -1;           // v392 空间⇄心性稳态跳写
@@ -10580,10 +10629,9 @@ function frame(now        ) {
     perfAcc += dt; perfN++;
     if (perfN >= 210) {
       const avg = perfAcc / perfN;
-      if (avg > 0.045 && dprScale > 0.7) {
-        dprScale -= 0.15; applyDpr(); dprGoodWin = 0;
-        if (dprScale <= 0.7 && !dprHintDone) { dprHintDone = true; showToast(zh('本机撑高清有些吃力——已自动调低渲染精度，发热与耗电随之立减'), 5200); } // v392 触底告知一次（省电档设置 v313 已删，自动降档即全部方案）
-      }
+      // 降档静默（v393 发起人定案）：自适应本是替人省心的暗事，一句 toast 反倒把「您的机器不行」说给人听——
+      // 画质微降本就无须人知，也无从处置（省电档设置 v313 已删，自动降档即全部方案）
+      if (avg > 0.045 && dprScale > 0.7) { dprScale -= 0.15; applyDpr(); dprGoodWin = 0; }
       else if (avg < 0.034 && dprScale < 1) { if (++dprGoodWin >= 6) { dprScale = Math.min(1, dprScale + 0.15); applyDpr(); dprGoodWin = 0; } }
       else dprGoodWin = 0;
       perfAcc = 0; perfN = 0;
@@ -10795,7 +10843,8 @@ window.addEventListener('pointerdown', function audioWake() {
   const presenceBeat = () => { if (!document.hidden) void Plaza.pushName(); };
   setTimeout(presenceBeat, 12000);
   setInterval(presenceBeat, 180000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) presenceBeat(); });
+  // 回前台：补一记心跳，题屏亮着则顺手把在场句刷新（后台期间它不拉数）
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { presenceBeat(); titlePresencePaint?.(); } });
   if (ART_MURAL) {
     // v392 壁画光·颜料化：写实法线整体减弱成晕染（山石/殿宇/水皆是）——共享材质只乘一次
     const seenM = new Set       ();

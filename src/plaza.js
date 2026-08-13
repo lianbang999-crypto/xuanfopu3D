@@ -61,13 +61,22 @@ export async function tick(n = 1, force = false) {
   await flush();
 }
 
+// 本机最近一次「在场」上报成功的时刻：tick/pushName 都带莲号，服务端皆记一笔 presence——
+// 在此窗口内，服务端的在线数必然含本机一票。在线人数展示凭 selfOnline() 自减，
+// 免得独自在站还见「1 位莲友在线」（那一位就是自己）——与「不假装热闹」同一条家法。
+let lastBeatOk = 0;
+export function selfOnline() {
+  return Date.now() - lastBeatOk < 8 * 60 * 1000; // ＝服务端 presence 新鲜窗（8 分钟）
+}
+
 // 改名后即便无待送掷数，也发一次空报让榜上那一行换名（服务端只认 actor，不改计数）
 export async function pushName() {
   try {
-    await fetch('/api/plaza/tick', {
+    const r = await fetch('/api/plaza/tick', {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ n: 0, actor: practiceId(), name: practiceName() }),
     });
+    if (r.ok) lastBeatOk = Date.now();
   } catch (e) {}
 }
 
@@ -82,7 +91,7 @@ export async function flush() {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ n: send, actor: practiceId(), name: practiceName() }),
     });
-    if (r.ok) { setPending(pending() - send); lastFlushAt = Date.now(); }
+    if (r.ok) { setPending(pending() - send); lastFlushAt = Date.now(); lastBeatOk = Date.now(); }
   } catch (e) { /* 送不出就留着，下次再送 */ }
   finally { sending = false; }
 }
@@ -243,7 +252,9 @@ function sayHtml(data) {
   // v393 在线人数合一（发起人点单极简）：单机行谱者从前不入「在座/行谱」两数，明明有人在玩却满屏是零——
   // 今只报一个「在线」（服务端 onlineNow＝页面开着的人，心跳制并计单机与联机；旧服务端回退在座数）；
   // 无人则整句不出——不展示数字 0，与题屏「不假装热闹」同一条家法
-  const n = Number(data.onlineNow ?? data.online ?? 0);
+  // 2026-08-13 去己：本机心跳在窗内时自减一——「莲友」指同修他人，独自在站不再见
+  // 「1 位莲友在线」的假热闹（那一位就是自己）
+  const n = Number(data.onlineNow ?? data.online ?? 0) - (selfOnline() ? 1 : 0);
   return n > 0 ? `<b>${num(n)}</b> 位莲友在线` : '';
 }
 // 页脚静数字：站史与累计，动也是一天一动，不必占顶条
@@ -258,13 +269,31 @@ function tickerHtml(data, esc) {
     `<span>${esc(r.name)}<i>${when(r.at)}</i></span>`).join('')}</span>`;
 }
 
+// 离席遮罩（2026-08-13 用户报「点离席后大厅桌面还挂着」）：离席请求与大厅快照赛跑，
+// 快照未及更新时桌上还挂着自己的名号（八秒一刷才自愈）。凭 Net 记下的「刚离的席」
+// 先按已离席呈现——只抹本机那一票、只在 12 秒窗口内，服务器快照一到即为准；
+// 若已另坐一桌（here 有值且同码），说明是重入而非离席，遮罩不生效。
+function scrubJustLeft(tables, jl, here) {
+  if (!jl || Date.now() - jl.at > 12000 || !jl.code || jl.code === here) return tables;
+  return tables.map(t => {
+    if (t.code !== jl.code) return t;
+    const seats = (t.seats || []).filter(s => s.name !== jl.name);
+    const live = seats.filter(s => s.online).length;
+    // 桌况按服务端同一把尺就地重判（tableState 的三段：占满／无人在线／行谱或候人）
+    const state = seats.length >= t.max ? 'full'
+      : (live === 0 ? 'empty'
+        : (seats.some(s => s.online && s.roomStatus === 'playing') ? 'playing' : 'waiting'));
+    return { ...t, seats, live, state };
+  });
+}
+
 // 只补写会变化的桌况与数字，不销毁大厅本身；保住滚动、焦点和已打开的功课榜。
 export function updatePlaza(p, data, ui) {
-  p._plazaData = data;
   p._plazaUi = ui || p._plazaUi;
   const activeUi = p._plazaUi;
-  const tables = data.tables || [];
   const here = activeUi.seatedAt;
+  const tables = scrubJustLeft(data.tables || [], activeUi.justLeft, here);
+  p._plazaData = { ...data, tables }; // 「随喜入座」等读的也是遮罩后的桌况，与眼见一致
   // 九宫格恒定按室号排，不按人数重排——八秒一刷，若照人数排序，
   // 房间会在眼皮底下跳来跳去，正想点的那间恰好挪开。
   const grid = p.querySelector('.pzGrid');
