@@ -653,6 +653,17 @@ export const Net = {
     this._leaseTimer = window.setInterval(() => this._touchLocalRoom(), 5000);
     window.addEventListener('pagehide', () => this._releaseLocalRoom());
     this._buildUi();
+    // v392 断线自愈的另一半：指数退避只顾后台节奏，人回前台/网络恢复那一拍应立即重试并清退避计数——
+    // 后台标签页的定时器被浏览器压住，切走再回常常还挂在「重连中」白等；lost 态也借此自动复活
+    const revive = () => {
+      if (!this.active || this._manualLeave || this._joinPromise) return;
+      if (this._connState !== 'reconnecting' && this._connState !== 'lost') return;
+      this._retry = 0;
+      this._setConnState('reconnecting');
+      this.joinRoom(this.code, this.myName, this.myId, this.key).catch(() => {});
+    };
+    window.addEventListener('online', revive);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') revive(); });
     const match = location.hash.match(/^#r=([A-Za-z0-9]{4,8})(?:\.(\d{4}))?$/);
     this.invited = match ? { code: match[1].toUpperCase(), key: match[2] || '' } : null;
   },
@@ -1110,7 +1121,13 @@ export const Net = {
   _pillSync() {
     const html = this.players.map((player) =>
       `<span class="pd${player.online ? '' : ' off'}${this.room.turnId === player.id ? ' turn' : ''}" style="color:${player.color}" title="${esc(player.name)}"></span>`).join('');
-    document.querySelectorAll('.netDots').forEach((dots) => { dots.innerHTML = html; });
+    // v392 变了才重绘：每拍全量 innerHTML 既是白付的 DOM churn，也会把 .flash 闪记（远端掷轮）中途吞掉；
+    // 逐容器记摘要，后挂载的容器（面板重开）靠各自空摘要照常补绘
+    document.querySelectorAll('.netDots').forEach((dots) => {
+      if (dots.dataset.pill === html) return;
+      dots.dataset.pill = html;
+      dots.innerHTML = html;
+    });
     // 局中主视图原先只有几枚 8px 小点表示「轮到谁」，太隐晦。
     // 借这枚钮已有的字位报当前操作者，不新增控件（§一1 中央永远留给星图）。
     const turn = this.turnPlayer();

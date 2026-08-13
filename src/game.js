@@ -64,7 +64,8 @@ const save = {
   settings: { sfx: true, ambient: true, music: true, lowPerf: false, bigFont: false, moveFx: true }, // music：成佛时唱赞一遍；moveFx：行棋乘光飞行特效；关＝直达落位
 };
 function applyCardTheme() { document.documentElement.classList.toggle('paperCards', save.cardTheme === 'paper'); }
-function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (e) {} }
+let persistLast = ''; // v392 脏比对：定时兜底存档没变就不写（localStorage 写是同步 IO）
+function persist() { try { const s = JSON.stringify(save); if (s !== persistLast) { persistLast = s; localStorage.setItem(SAVE_KEY, s); } } catch (e) {} }
 function loadSave() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
@@ -157,7 +158,7 @@ let chantBuf = null;
 let chantLoad = null;
 let chantUntil = 0;
 window.__musicProbe = () => ({ chant: !!chantBuf, duration: chantBuf ? chantBuf.duration : 0, enabled: !!save.settings.music });
-async function initAudio() {
+async function preloadAudio() { // v392 提前解码：load 后即建 ctx（自动播放策略下为 suspended，解码照常）——首掷不再因解码未毕而无声
   if (actx) return;
   try {
     actx = new AudioContext();
@@ -185,8 +186,14 @@ async function initAudio() {
     src.connect(filter); filter.connect(gain); gain.connect(actx.destination);
     src.start();
     ambientNodes = { gain, filter };
-    void startMusic();
+    // 唱赞懒加载（v392）：开着音乐才预热——关着的用户不再白付 720KB 下载与整段 PCM 解码内存；
+    // playChant 需要时会自行 startMusic()
+    if (save.settings.music) void startMusic();
   } catch (e) { actx = null; }
+}
+function initAudio() { // 首手势：预载已就绪只需唤醒；极早点击或预载未跑/失败则当场建（手势内新建即 running）
+  if (!actx) { void preloadAudio(); return; }
+  if (actx.state === 'suspended') actx.resume().catch(() => {});
 }
 async function startMusic() {
   if (!actx || chantBuf) return chantBuf;
@@ -251,9 +258,14 @@ function playBell(base = 196, vol = 0.05) {
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(app.clientWidth, app.clientHeight);
 const isCoarse = matchMedia('(pointer:coarse)').matches; // v221 功耗治理：触屏机（手机/平板）默认省电档
+const REDUCED_MOTION = matchMedia('(prefers-reduced-motion: reduce)').matches; // v392 系统减弱动效：飞行缩时去跟飞、顿帧震屏皆息（防晕与无障碍）
 renderer.setPixelRatio(Math.min(devicePixelRatio, save.settings.lowPerf ? 1 : isCoarse ? 1.6 : 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// v392 阴影冻结：投影体全是静态山体殿宇（castShadow 清单尽在建山段），日灯亦不动——
+// 深度图只在山体形态/各场显隐变化时重烘一帧（键控见主循环 shadowPrev），静观期省掉整个 shadow pass
+renderer.shadowMap.autoUpdate = false;
+renderer.shadowMap.needsUpdate = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.22; // v210 写实CG：曝光再抬一线（ACES 曲线下亮部更透）
 renderer.localClippingEnabled = true;
@@ -1244,7 +1256,7 @@ const SFP_PURE_LAYOUT                                           = {
 {
   // 极乐远景：西方三圣海会图（v192 用户上传定案）；竖幅 3:4 比例跟图，四边已羽化融入场底色
   const bg = new THREE.Mesh(new THREE.PlaneGeometry(174, 232),
-    new THREE.MeshBasicMaterial({ map: loadTex('assets/bg-pureland-sanhui.png'), fog: false, transparent: true, depthWrite: false }));
+    new THREE.MeshBasicMaterial({ map: loadTex('assets/bg-pureland-sanhui.webp'), fog: false, transparent: true, depthWrite: false })); // v392 转 WebP：2.45MB→399KB，肉眼无差（原 PNG 存 outputs/assets-orig）
   bg.position.set(-82, 96, -137); bg.rotation.y = 0.54; pureLand.add(bg); // 对正入场镜位：沿默认视线方向立在池后，面向入场相机
   (window       ).__pureBgDbg = () => { const m = bg.material                           ; const im      = m.map?.image; return { src: im && im.src ? String(im.src).split('/').pop() : null, w: im?.width || 0, h: im?.height || 0 }; }; // 自测钩子
   const ground = new THREE.Mesh(new THREE.CylinderGeometry(120, 120, 6, 64),
@@ -2072,7 +2084,7 @@ html.bigfont{--fs-xs:12.5px;--fs-sm:14px;--fs-md:16px;--fs-lg:18px;--fs-xl:21px;
 /* 展示级题字（面板标题/落位大字/门介/途经字幕）：得意黑未就绪时回退宋体系，气质不塌 */
 .panel h2,#posReveal,#doorIntro b,#transitCap b{font-family:var(--f-display)}
 #labels{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:5}
-.nlabel{position:absolute;transform:translate(-50%,-140%);pointer-events:auto;cursor:pointer;
+.nlabel{position:absolute;left:0;top:0;transform:translate(-50%,-140%);pointer-events:auto;cursor:pointer; /* v392 定位改走 translate 属性（合成器），left/top 归零作原点 */
   font:var(--fs-sm)/1.4 var(--f-ui);color:rgba(239,224,180,.92);
   background:rgba(23,20,38,.72);border:1px solid rgba(215,170,69,.4);border-radius:3px;padding:2px 7px;
   white-space:nowrap;letter-spacing:1px}
@@ -2113,6 +2125,10 @@ html.paperCards .panel{box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 18px 48p
 /* v196 题屏极简：次级操作收为细字行 */
 .tlink{color:var(--note);font-size:var(--fs-sm);letter-spacing:2px;cursor:pointer;padding:8px 4px;user-select:none;-webkit-user-select:none;transition:color .2s}
 .tlink:hover,.tlink:active{color:var(--paper)}
+/* 移动端系统点按高亮关（2026-08-12 用户报「点一下蓝框一闪」）：安卓/iOS WebView 对可点元素
+   自带半透明高亮框；属性可继承，根上一处即全站——按压反馈已由 :active 轻缩承担，
+   键盘用户的 :focus-visible 金圈不受此影响。 */
+html{-webkit-tap-highlight-color:transparent}
 button.gbtn{background:rgba(215,170,69,.08);border:1px solid rgba(215,170,69,.34);color:var(--paper);border-radius:9px;
   padding:9px 14px;font-size:var(--fs-md);font-family:inherit;cursor:pointer;letter-spacing:1px;min-height:40px}
 button.gbtn:active{background:rgba(215,170,69,.35)}
@@ -2938,6 +2954,7 @@ button:not(:disabled):active{transform:scale(.97)}
 .ladDoor b{font-weight:400;font-size:var(--fs-xs);color:var(--note);letter-spacing:0;white-space:nowrap;transition:color .2s;text-shadow:0 0 6px rgba(10,8,20,.95),0 0 2px #000,0 1px 3px rgba(10,8,20,.8)} /* 四向暗晕：窄屏亮金光带/轨道虚线上门号仍可辨 */
 .ladDoor i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.28);box-shadow:0 0 5px rgba(10,8,20,.5);margin-right:11px;transition:transform .22s,box-shadow .22s;flex:0 0 auto}
 .ladDoor.on b{color:#f4e6b8}
+.ladDoor .ladPeer{position:absolute;top:50%;width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 4px currentColor;transform:translateY(-50%);pointer-events:none} /* v392 联机同修现居门座色小刻 */
 .ladDoor.on i{transform:scale(1.75);box-shadow:0 0 12px currentColor}
 .ladDoor.cur i{border-color:#fff;box-shadow:0 0 9px rgba(232,199,102,.9)}
 #ladName{position:absolute;right:50px;background:rgba(24,18,38,.88);border:1px solid rgba(215,170,69,.45);border-radius:8px;padding:4px 10px;font-size:var(--fs-sm);color:var(--paper);white-space:nowrap;display:none;pointer-events:none;letter-spacing:1px}
@@ -4338,19 +4355,19 @@ function updateDiscLabels() {
     const ly = pr ? pr.y + dyPx : 0; // 签一律珠下
     if (!pr || !fit(pr.x, ly + bh / 2, w, bh)) { if (e2.style.display !== 'none') e2.style.display = 'none'; continue; }
     e2.style.display = '';
-    e2.style.left = pr.x + 'px'; e2.style.top = ly + 'px';
+    e2.style.translate = `${pr.x}px ${ly}px`; // v392 合成器定位
     e2.classList.toggle('cur', b2.pid === curPid);
   }
   discCatEls.forEach(e2 => {
     const pr = discProject((e2       )._wp);
     if (!pr) { if (e2.style.display !== 'none') e2.style.display = 'none'; return; }
     e2.style.display = '';
-    e2.style.left = pr.x + 'px'; e2.style.top = pr.y + 'px';
+    e2.style.translate = `${pr.x}px ${pr.y}px`; // v392 合成器定位
   });
   if (discCenterEl) { // 题签悬于阵顶上方（v328 随每页实际顶行，短页不再飘远）
     const pr = discProject(_discApex.copy(DISC_C).setY(DISC_C.y + discVTop + 6));
     if (!pr) { if (discCenterEl.style.display !== 'none') discCenterEl.style.display = 'none'; }
-    else { discCenterEl.style.display = ''; discCenterEl.style.left = pr.x + 'px'; discCenterEl.style.top = (pr.y - 30) + 'px'; }
+    else { discCenterEl.style.display = ''; discCenterEl.style.translate = `${pr.x}px ${pr.y - 30}px`; } // v392 合成器定位
   }
   if (discLandSp) { // 落珠金光：一闪润开即逸
     const lt = discLandUntil - performance.now();
@@ -4747,7 +4764,7 @@ function updateBodhiCaps() { // v159：教名并入右栏导航，场内轴心�
     const x = (_bcV.x * 0.5 + 0.5) * app.clientWidth, y = (-_bcV.y * 0.5 + 0.5) * app.clientHeight;
     if (x < -40 || x > app.clientWidth + 40 || y < -20 || y > app.clientHeight + 20) { e2.style.display = 'none'; return; }
     e2.style.display = '';
-    e2.style.left = x + 'px'; e2.style.top = y + 'px';
+    e2.style.translate = `${x}px ${y}px`; // v392 合成器定位
     e2.classList.add('bcap');
     e2.classList.toggle('on', bodhiGrp === BODHI_CAP_GRP[i]);
     e2.style.color = '#' + BODHI_GRPS[BODHI_CAP_GRP[i]].color.toString(16).padStart(6, '0');
@@ -5775,7 +5792,7 @@ function updateTier12() {
     const x = (tier12V.x * 0.5 + 0.5) * app.clientWidth, y = (-tier12V.y * 0.5 + 0.5) * app.clientHeight;
     if (x < -40 || x > app.clientWidth + 40 || y < -20 || y > app.clientHeight + 20) { e2.style.display = 'none'; return; }
     e2.style.display = '';
-    e2.style.left = x + 'px'; e2.style.top = y + 'px';
+    e2.style.translate = `${x}px ${y}px`; // v392 合成器定位
     e2.classList.toggle('bcap', inBodhi);
     e2.classList.toggle('on', inBodhi && bodhiGrp === 3 + t);
     e2.style.color = inBodhi ? '#' + BODHI_GRPS[3 + t].color.toString(16).padStart(6, '0') : '';
@@ -5806,7 +5823,7 @@ function updateDoorLabels() {
     if (hit) { le.style.display = 'none'; return; }
     placed.push([x, y, lw, lh]);
     le.style.display = '';
-    le.style.left = x + 'px'; le.style.top = y + 'px';
+    le.style.translate = `${x}px ${y}px`; // v392 合成器定位
     le.classList.toggle('cur', pt.pid === sfpS.pos);
   });
 }
@@ -5871,6 +5888,7 @@ function setTransit(v         ) {
 // 服务器给每一手 turnDeadline（在线一分钟、断线三十秒、判词兜底一分钟、择人三十秒），
 // 逾时即代为跳手或交轮。从前这个刻度前台一处都没用，人读着谱注忽然就被跳了，事后才在聊天里看到一行。
 let netClockTimer = 0;
+let vClockWarned = false; // v392 末十秒预警只响一记
 function netTurnLeft() {
   if (!Net.active || !Net.isPlaying()) return -1;
   const deadline = Number(Net.room.turnDeadline || 0);
@@ -5883,9 +5901,12 @@ function netVerdictClock() {
   const mine = verdictFn && Net.active && Net.isPlaying()
     && Net.room.phase === 'resolving' && Net.room.turnId === Net.myId;
   const left = mine ? netTurnLeft() : -1;
-  if (left < 0 || left > 30) { clock.textContent = ''; clock.classList.remove('warn'); return; }
+  if (left < 0 || left > 30) { clock.textContent = ''; clock.classList.remove('warn'); vClockWarned = false; return; }
   clock.textContent = zh(`剩 ${left} 秒`);
-  clock.classList.toggle('warn', left <= 10);
+  const warn = left <= 10;
+  clock.classList.toggle('warn', warn);
+  if (warn && !vClockWarned) { vClockWarned = true; playBell(660, 0.04); vib(20); } // 末十秒一记轻磬＋短振：低头读谱注的人也知快到点（v392）
+  if (!warn) vClockWarned = false;
 }
 function netClockSync() {
   const on = Net.active && Net.isPlaying() && sfpS.active;
@@ -5914,7 +5935,9 @@ function syncRollGlow() {
       const left = netTurnLeft();                       // 只在快到点时提示，平时不催人
       if (left >= 0 && left <= 20) label = `${label} · 剩 ${left} 秒`;
     }
-    txt.textContent = zh(label);
+    const tp = waiting ? Net.turnPlayer() : null;       // v392 候轮带座色小点：名·色·珠三者互认
+    if (tp && tp.color) txt.innerHTML = `<i style="font-style:normal;color:${esc(tp.color)}">●</i> ${zh(esc(label))}`;
+    else txt.textContent = zh(label);
   }
   const bn = sfpBar.querySelector('#rollBn')               ;
   const on = sfpS.active && sfpBonusLeft > 0;
@@ -5997,12 +6020,12 @@ function cometUpdate(dt        ) {
   }
   comet.t += dt / comet.dur;
   const k = Math.min(comet.t, 1);
-  if (comet.via && comet.via.length) { // 途经字幕随飞行进度逐门切换
+  const e = comet.dir === 'down' ? Math.pow(k, 2.05) : k * k * k * (k * (6 * k - 15) + 10);
+  if (comet.via && comet.via.length) { // 途经字幕随飞行进度逐门切换（v392 按缓动 e 对拍：字幕与实际所过之门空间对齐，不再按线性 k 抢先/滞后）
     const n = comet.via.length;
-    const idx = Math.min(n - 1, Math.floor(k * n));
+    const idx = Math.min(n - 1, Math.floor(e * n));
     if (idx !== comet.viaIdx) { comet.viaIdx = idx; showTransitCap(comet.via[idx]); }
   }
-  const e = comet.dir === 'down' ? Math.pow(k, 2.05) : k * k * k * (k * (6 * k - 15) + 10);
   const a = comet.fromNv.marker.localToWorld(_ca.copy(comet.fromLp));
   const b = comet.toNv.marker.localToWorld(_cb.copy(comet.toLp));
   const span = a.distanceTo(b);
@@ -6031,7 +6054,7 @@ function cometUpdate(dt        ) {
     const back = THREE.MathUtils.clamp(span * 0.6, 18, 78); // v361 长途放宽（旧封顶 42 使跨界飞行贴太近，弧顶出画）：随跨距退到 78
     const hOff = comet.dir === 'down' ? 16 : (comet.dir === 'up' || comet.dir === 'start') ? 8 : 11;
     _rd.set(_cp.x - _rd.x * back, _cp.y - _rd.y * back * 0.4 + hOff, _cp.z - _rd.z * back);
-    camera.position.lerp(_rd, Math.min(1, dt * 2.6));
+    camera.position.lerp(_rd, 1 - Math.exp(-2.6 * dt)); // v392 帧率无关跟随：30/120fps 松紧一致
   }
   for (let i = TRAIL_N - 1; i > 0; i--) {
     trailPos[i * 3] = trailPos[(i - 1) * 3];
@@ -6045,7 +6068,7 @@ function cometUpdate(dt        ) {
     trailGlows[i].position.set(trailPos[j * 3], trailPos[j * 3 + 1], trailPos[j * 3 + 2]);
     trailGlows[i].scale.setScalar(1.7);
   }
-  controls.target.lerp(_cp, 0.12);
+  controls.target.lerp(_cp, 1 - Math.exp(-7.2 * dt)); // v392 帧率无关（旧 0.12/帧在 60fps ≈ λ7.2，高低刷新率取景不再松紧不一）
   if (comet.t >= 1) {
     const done = comet.onDone; comet = null;
     cometSprite.visible = false;
@@ -6065,6 +6088,7 @@ function cometStart(fromNv          , fromLp               , toNv          , toL
   if (via && via.length) dur = Math.max(dur, Math.min(4.4, 1.0 + 1.1 * via.length)); // 越门多则飞得久，字幕来得及读
   if (cometNextQuick) dur *= 0.72;
   cometNextQuick = false;
+  if (REDUCED_MOTION) dur = Math.min(dur, 0.9); // 减弱动效：短程即达，不久悬空中
   comet = { t: 0, dur, dir, fromNv, fromLp, toNv, toLp, onDone, via, viaIdx: -1 };
   cometTint(dir);
   {
@@ -6082,7 +6106,7 @@ function cometStart(fromNv          , fromLp               , toNv          , toL
     trailGeo.attributes.color.needsUpdate = true;
     for (const g of trailGlows) (g.material                        ).color.setHex(c[1]);
   }
-  rideAbort = false; cancelFly();
+  rideAbort = REDUCED_MOTION; cancelFly(); // 减弱动效：不跟飞，镜头留在原地看光点走
   const a = fromNv.marker.localToWorld(_ca.copy(fromLp));
   for (let i = 0; i < TRAIL_N; i++) { trailPos[i * 3] = a.x; trailPos[i * 3 + 1] = a.y; trailPos[i * 3 + 2] = a.z; }
   trailGeo.attributes.position.needsUpdate = true;
@@ -6175,8 +6199,7 @@ function pawnUpdate(t        , dt        ) {
     pawnMode = 'land'; pawnT = 0;
     impactAt(spot.wp, spot.s, pawnLandDir === 'down');
     pawnLandDir = '';
-    hitStopT = 0.09; // ③ 顿帧一记，落得有分量
-    vib(18);
+    if (!REDUCED_MOTION) { hitStopT = 0.09; vib(18); } // ③ 顿帧一记，落得有分量（减弱动效则免）
     playVar('wood_medium', 0.18, 0.8);
   }
   pawnG.visible = true;
@@ -6240,7 +6263,7 @@ function impactAt(wp               , s = 1, down = false) {
       g: 30 * s,
     });
   }
-  fovPunchT = 0.16; // 镜头微顿半拍
+  fovPunchT = REDUCED_MOTION ? 0 : 0.16; // 镜头微顿半拍（减弱动效则免）
 }
 function impactUpdate(dt        ) {
   if (fovPunchT > 0) {
@@ -6293,15 +6316,20 @@ function netBeadOf(p                                            ) {
       map: makeGlow(rgb), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.9 }));
     sprite.scale.setScalar(2.8); sprite.visible = false; scene.add(sprite);
     const labelEl = document.createElement('div');
-    labelEl.style.cssText = `position:absolute;transform:translate(-50%,-140%);font-size:var(--fs-xs);letter-spacing:1px;color:${p.color};text-shadow:0 1px 4px #000;white-space:nowrap;display:none`;
+    labelEl.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,-140%);font-size:var(--fs-xs);letter-spacing:1px;color:${p.color};text-shadow:0 1px 4px #000;white-space:nowrap;display:none`;
     netLabelLayer.appendChild(labelEl);
-    b = netBeads[p.id] = { sprite, glide: null, labelEl, color: p.color, pos: null };
+    let ph = 0; for (const c of p.id) ph = (ph + c.charCodeAt(0)) % 220; // v392 呼吸相位按人散列：免全房齐刷刷同拍如节拍器
+    b = netBeads[p.id] = { sprite, glide: null, labelEl, color: p.color, pos: null, ph: ph / 100, off: new THREE.Vector3(), chipT: 0, name: '' };
   }
-  b.labelEl.textContent = zh(p.name || '同修');
+  b.name = p.name || '同修';
+  b.color = p.color || b.color;
+  if (!b.chipT) b.labelEl.textContent = zh(b.name); // 轮相小签占牌期间不覆写
   return b;
 }
 function netSyncBeads() {
   const seen = new Set        ();
+  const occ                          = {}; // v392 同位共住计数：本座莲台居中，远端按座次绕小环错开（Net.players 序全端一致，各端算得同样的位）
+  if (sfpS.pos) occ[sfpS.pos] = 1;
   for (const p of Net.players) {
     if (p.id === Net.myId) continue;
     seen.add(p.id);
@@ -6309,7 +6337,10 @@ function netSyncBeads() {
     b.online = p.online !== false; // R3″：离线珠不脉动、只淡显
     b.sprite.material.opacity = b.online ? 0.9 : 0.45;
     if (!p.pos || !SFP_BY[p.pos]) { b.sprite.visible = false; b.labelEl.style.display = 'none'; b.pos = p.pos || null; continue; }
-    const to = sfpWorldPos(p.pos, new THREE.Vector3());
+    const kk = occ[p.pos] = (occ[p.pos] || 0) + 1;
+    if (kk > 1) { const a = (kk - 1) * 2.4; b.off.set(Math.cos(a), 0, Math.sin(a)); } else b.off.set(0, 0, 0); // 独占居中；同位则金环距一珠
+    if (b.glide && b.glide.path) { b.pos = p.pos; b.sprite.visible = true; continue; } // 逐位滑行在途：终点即快照位，别再叠一段直线滑
+    const to = sfpWorldPos(p.pos, new THREE.Vector3()).add(b.off);
     if (b.pos && b.pos !== p.pos && b.sprite.visible) {
       const from = b.sprite.position.clone();
       const d = from.distanceTo(to);
@@ -6320,8 +6351,11 @@ function netSyncBeads() {
     b.pos = p.pos;
   }
   for (const id of Object.keys(netBeads)) {
-    if (!seen.has(id)) { // 离房者收珠
-      scene.remove(netBeads[id].sprite); netBeads[id].labelEl.remove(); delete netBeads[id];
+    if (!seen.has(id)) { // 离房者收珠（v392 连材质与光晕贴图一并释放——换室频繁不留 GPU 残渣）
+      const bm = netBeads[id].sprite.material                        ;
+      scene.remove(netBeads[id].sprite); if (bm.map) bm.map.dispose(); bm.dispose();
+      clearTimeout(netBeads[id].chipT);
+      netBeads[id].labelEl.remove(); delete netBeads[id];
     }
   }
 }
@@ -6333,34 +6367,88 @@ function netBusy() { // v221 节流的动势判定：远端莲友珠滑行期间
 // R3″ 位置点脉动（批C，2026-07-30 用户定案）：远端珠轻缓呼吸（~2.2s 周期、幅度小），
 // 星图上一眼可寻；看全房位置＝点既有「全图」观照。守 §四「禁常亮大光斑」（±6% 微幅）、
 // §七之二（不入 netBusy，静观 30fps 照常）；系统减弱动效则静止。
-const netPulseOff = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const netPulseOff = REDUCED_MOTION;
 let netPulseT = 0;
 function netFrame(dt        ) {
   netPulseT += dt;
-  const pulse = netPulseOff ? 1 : 1 + 0.06 * Math.sin(netPulseT * (Math.PI * 2) / 2.2);
   for (const id of Object.keys(netBeads)) {
     const b = netBeads[id];
-    if (b.glide) {
+    if (b.glide && b.glide.path) { // v392 逐位滑行：远端一掷沿 steps 实际路径经停（数据链路早已全量广播，此前只演首尾直线）
+      const g = b.glide;
+      g.t += dt / g.durs[g.seg];
+      const k = Math.min(g.t, 1), ek = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+      b.sprite.position.lerpVectors(g.pts[g.seg], g.pts[g.seg + 1], ek);
+      b.sprite.position.y += Math.sin(ek * Math.PI) * g.hops[g.seg];
+      if (g.t >= 1) {
+        g.t = 0; g.seg++;
+        if (g.seg >= g.pts.length - 1) { b.glide = null; netBeadLand(b); }
+      }
+    } else if (b.glide) {
       b.glide.t += dt / b.glide.dur;
       const k = Math.min(b.glide.t, 1), ek = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       b.sprite.position.lerpVectors(b.glide.a, b.glide.b, ek);
       b.sprite.position.y += Math.sin(ek * Math.PI) * b.glide.hop;
       if (b.glide.t >= 1) b.glide = null;
     } else if (b.sprite.visible && b.pos && SFP_BY[b.pos]) {
-      sfpWorldPos(b.pos, b.sprite.position); // 随锚跟位（沙盘缩放/切场景不掉队）
+      sfpWorldPos(b.pos, b.sprite.position).add(b.off); // 随锚跟位（沙盘缩放/切场景不掉队）＋同位环距
     }
-    b.sprite.scale.setScalar(b.online === false ? 2.8 : 2.8 * pulse);
+    const pulse = (netPulseOff || b.online === false) ? 1 : 1 + 0.06 * Math.sin((netPulseT + b.ph) * (Math.PI * 2) / 2.2); // v392 相位按人散列
+    b.sprite.scale.setScalar(2.8 * pulse);
     // 名牌投影
     if (b.sprite.visible) {
       _nb.copy(b.sprite.position).project(camera);
       const on = _nb.z < 1 && Math.abs(_nb.x) < 1.05 && Math.abs(_nb.y) < 1.05;
       b.labelEl.style.display = on ? '' : 'none';
-      if (on) {
-        b.labelEl.style.left = ((_nb.x * 0.5 + 0.5) * app.clientWidth) + 'px';
-        b.labelEl.style.top = ((-_nb.y * 0.5 + 0.5) * app.clientHeight) + 'px';
-      }
+      if (on) b.labelEl.style.translate = `${(_nb.x * 0.5 + 0.5) * app.clientWidth}px ${(-_nb.y * 0.5 + 0.5) * app.clientHeight}px`; // v392 合成器定位
     } else b.labelEl.style.display = 'none';
   }
+  netTurnBeamSync(dt);
+}
+// v392 远端行棋沿谱路重演：steps（服务器对全房广播的逐步棋录）→ 逐段小弧滑行＋轮相小签＋落位轻响。
+// 恪守「小一号、淡一档」：不劫持镜头、不占判词层，主角永远是本座这一手。
+function netBeadPath(playerId        , steps       , combo        ) {
+  const b = netBeads[playerId]; if (!b || !Array.isArray(steps) || !steps.length) return;
+  const ids           = [];
+  const first = steps[0] && (steps[0]       ).from;
+  if (first && SFP_BY[first]) ids.push(first);
+  for (const s of steps) { const t = s && (s       ).to; if (t && SFP_BY[t] && ids[ids.length - 1] !== t) ids.push(t); }
+  if (ids.length < 2) return;
+  const pts = ids.map(pid => sfpWorldPos(pid, new THREE.Vector3()).clone().add(b.off));
+  const durs           = []; const hops           = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const d = pts[i].distanceTo(pts[i + 1]);
+    durs.push(REDUCED_MOTION ? 0.3 : Math.min(1.9, 0.5 + Math.sqrt(d) * 0.09));
+    hops.push(Math.min(13, 3.5 + d * 0.05));
+  }
+  b.sprite.position.copy(pts[0]); b.sprite.visible = true;
+  b.glide = { path: true, t: 0, seg: 0, pts, durs, hops };
+  // 轮相小签：滑行期名牌带上这一掷的组合字，事毕复名（下一拍 roster 覆写由 chipT 挡住）
+  clearTimeout(b.chipT);
+  b.labelEl.textContent = zh(`${b.name} · 「${combo || ''}」`);
+  b.chipT = window.setTimeout(() => { b.chipT = 0; if (netBeads[playerId]) b.labelEl.textContent = zh(b.name); }, 4200);
+}
+function netBeadLand(b     ) { // 落位轻响：小号座色涧漪＋依远近减音的一记轻磬——不看屏也知道谁落在哪个方向
+  const ring = impactSprite(ringTex);
+  (ring.material                        ).color.set(b.color || '#96e1d6');
+  ring.position.copy(b.sprite.position);
+  impacts.push({ spr: ring, t: 0, dur: 0.5, kind: 'ring', s: 0.45 });
+  const dist = camera.position.distanceTo(b.sprite.position);
+  playBell(392, Math.min(0.035, 9 / Math.max(dist, 60)));
+}
+// v392 当轮光幢：轮到哪位远端莲友，其珠脚下起一道细座色光柱——全房一眼知道在等谁。
+// 守光影总纲「禁常亮大光斑」：0.1 级微光、只随轮次在，轮走即收。
+const netTurnBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 1.7, 26, 10, 1, true),
+  new THREE.MeshBasicMaterial({ color: 0x96e1d6, transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+netTurnBeam.visible = false; scene.add(netTurnBeam);
+function netTurnBeamSync(dt        ) {
+  const tid = Net.active && Net.isPlaying() ? Net.room.turnId : '';
+  const b = tid && tid !== Net.myId ? netBeads[tid] : null;
+  if (!b || !b.sprite.visible) { netTurnBeam.visible = false; return; }
+  netTurnBeam.visible = true;
+  netTurnBeam.position.copy(b.sprite.position); netTurnBeam.position.y += 11;
+  (netTurnBeam.material                        ).color.set(b.color || '#96e1d6');
+  (netTurnBeam.material                        ).opacity = 0.09 + (netPulseOff ? 0 : 0.04 * Math.sin(netPulseT * 2.6));
+  netTurnBeam.rotation.y += dt * 0.4;
 }
 // 净土横超／跨门换场：转场页——程序星辰（每次随机生成一页星空，代纯色白光）
 const fadeEl = el('<div id="fadeWhite"></div>');
@@ -6844,11 +6932,29 @@ ladder.querySelectorAll('.ladDoor').forEach(item => {
 function updateLadder() {
   const act = inDoor || browseDoor;
   const cur = sfpS.active && sfpS.pos ? SFP_BY[sfpS.pos].door : 0;
+  // v392 天梯座色刻：各同修现居门缀座色小点——右栏一眼览全房分布（本座已有 cur 金标，不另点）
+  const peerDoor                          = {};
+  if (Net.active) for (const p of Net.players) {
+    if (p.id === Net.myId || !p.pos || !SFP_BY[p.pos]) continue;
+    (peerDoor[SFP_BY[p.pos].door] || (peerDoor[SFP_BY[p.pos].door] = [])).push(p.color || '#96e1d6');
+  }
   ladder.querySelectorAll('.ladDoor').forEach(e2 => {
     const dn = Number((e2               ).dataset.d);
     e2.classList.toggle('on', dn === act);
     e2.classList.toggle('cur', dn === cur);
     e2.classList.remove('aic');
+    const cols = peerDoor[dn] || [];
+    const key = cols.join(',');
+    if ((e2               ).dataset.peers !== key) {
+      (e2               ).dataset.peers = key;
+      e2.querySelectorAll('.ladPeer').forEach(x => x.remove());
+      cols.slice(0, 3).forEach((c, i) => {
+        const dot = document.createElement('span');
+        dot.className = 'ladPeer';
+        dot.style.left = `${2 + i * 7}px`; dot.style.color = c;
+        e2.appendChild(dot);
+      });
+    }
   });
   const nameEl = ladder.querySelector('#ladName')               ;
   if (act && SFP_DOOR_BY[act]) {
@@ -7059,8 +7165,7 @@ function startWheelPalm() {
 }
 // 仰手旁掷：轮竖立，依「六字順次右旋」——绕竖轴自左向右徐徐旋转减速，停在得字面
 function startWheelToss(fa        , fb        , done            ) {
-  playVar('wood_light', 0.34, 0.88); // 旁掷起转
-  window.setTimeout(() => playVar('wood_medium', 0.3, 1.05), 1450); // 轮相落定轻叩
+  playVar('wood_light', 0.34, 0.88); // 旁掷起转（落定轻叩改在 fired 一拍同步发——旧固定 1450ms 在疾旋档〔T2=0.95s〕会迟半秒）
   [fa, fb].forEach((f, i) => {
     const w = sfpWheels[i];
     w.targetQ = wheelFaceQuat(f);
@@ -7109,6 +7214,8 @@ function updateWheelToss(dt        ) {
   });
   if (p >= 1 && !wheelAnim.fired) {
     wheelAnim.fired = true;
+    playVar('wood_medium', 0.3, 1.05); // 轮相落定轻叩：与定相同拍（常速/疾旋皆准）
+    vib(10);                           // 掷定轻振：掷—定—落三拍触感闭环
     settleGlow.visible = true; settleGlow.scale.set(7, 4, 1);
     wheelAnim.done();
   }
@@ -10171,7 +10278,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   if (e.buttons) { hovEl.style.display = 'none'; return; }
   const nowH = performance.now(); if (nowH - hovLast < 90) return; hovLast = nowH;
   if (sfpTransit || overlayEl || sfpS.rolling || starView) { hovEl.style.display = 'none'; return; }
-  const rect = renderer.domElement.getBoundingClientRect();
+  const rect = hovRect || (hovRect = renderer.domElement.getBoundingClientRect()); // v392 画布矩形缓存（resize 失效）：悬停不再逐次强制回流
   const px = e.clientX - rect.left, py = e.clientY - rect.top;
   let nm = '', sub = '', col = '';
   const pidH = beadScreenPick(px, py, 22);
@@ -10246,21 +10353,35 @@ updateTierDots(); // 慢网时首帧循环可能延后：控件挂载即呈档�
 // ---------------- 标签投影 ----------------
 const tmpV = new THREE.Vector3();
 const tmpCam = new THREE.Vector3();
+let labelTick = 0, labelCamStamp = NaN;          // v392 标签静观降频戳
+let railRects                                                  = null; // v392 导航栏避让矩形缓存（resize 失效）
+let hovRect                  = null;             // v392 悬停用画布矩形缓存
 function updateLabels() {
   updateTierDots();
+  // v392 静观降频：相机/取景/形态/剖面未动时，标签的投影·排序·避让隔拍再算（每 12 帧兜底一算接住纯状态变化）——
+  // 这是静止画面里每帧 CPU 的最大一块，白算即白热
+  labelTick++;
+  const camStamp = camera.position.x + camera.position.y * 7 + camera.position.z * 13
+    + controls.target.x + controls.target.y * 7 + controls.target.z * 13 + camera.fov + modeT * 997 + sectionH * 3;
+  if (camStamp === labelCamStamp && labelTick % 12 !== 0) return;
+  labelCamStamp = camStamp;
   const w = app.clientWidth, h = app.clientHeight;
   const camDist = camera.position.distanceTo(controls.target);
   // 矩形避让：已占屏幕区域记入 rects，后来者重叠则隐（选中位与 tier1 优先）
   const rects                                          = [];
   // 保留导航区占位（2026-07-29 标签避让补盲）：右天梯/左档位簇/左探底杆在场时其矩形先入避让集，
-  // 标签不再挤入竖沟、不再压「因/佛」顶底签；取实时 DOM 矩形，几何随 CSS 演进自动正确
-  for (const rail of [ladder, tierDotsEl, secWrap]) {
-    if (!rail) continue;
-    const rr = rail.getBoundingClientRect();
-    if (rr.width < 1 || rr.height < 1) continue;
-    const padV = rail === ladder ? 22 : 0; // 天梯顶底签（#ladTop/#ladBot 各越界 20px）并入矩形高度
-    rects.push([rr.left, rr.top - padV, rr.width, rr.height + padV * 2]);
+  // 标签不再挤入竖沟、不再压「因/佛」顶底签；v392 半秒一取——取实时 DOM 矩形是强制回流，导航栏又不逐帧挪窝
+  if (!railRects || labelTick % 32 === 0) {
+    railRects = [];
+    for (const rail of [ladder, tierDotsEl, secWrap]) {
+      if (!rail) continue;
+      const rr = rail.getBoundingClientRect();
+      if (rr.width < 1 || rr.height < 1) continue;
+      const padV = rail === ladder ? 22 : 0; // 天梯顶底签（#ladTop/#ladBot 各越界 20px）并入矩形高度
+      railRects.push([rr.left, rr.top - padV, rr.width, rr.height + padV * 2]);
+    }
   }
+  for (const rr of railRects) rects.push(rr);
   // 同节点主标签占区：副标签（善见城/天王名/月）遇自家主标重叠时让位——免「善见城」压住「忉利天」
   for (const k in nodeLabelRects) delete nodeLabelRects[k]; // v320：提升为模块级，门观附位签同查
   const mainRect = nodeLabelRects;
@@ -10338,7 +10459,7 @@ function updateLabels() {
     nv.label.classList.toggle('far', d.tier === 2 && camDist > 240 && !sel); // 三段式：240 内胶囊→240–380 幽灵→380 外隐（门槛下移，避开常用视距的跳变带）
     // 聚焦雾开启时，远处法界标签同步退隐
     nv.label.style.opacity = focusHazeOn && !sel && distC > camDist * 1.9 ? '0.22' : '';
-    nv.label.style.left = `${Math.round(x)}px`; nv.label.style.top = `${Math.round(y)}px`; // v219 取整消亚像素抖动
+    nv.label.style.translate = `${Math.round(x)}px ${Math.round(y)}px`; // v219 取整消亚像素抖动；v392 改 translate（合成器路径）——left/top 逐帧改布局，是标签层回流抖动之源
   });
   // 同族同进退（标签降噪）：族内标签要么全显要么全隐，按族设距离门——
   // 免「七座金山只剩一座有名」这类避让幸存者，既省噪音又不误导；近观才逐一现名
@@ -10384,7 +10505,7 @@ function updateLabels() {
     rectsAux.push([x0, y0, lw, lh]);
     av.label.style.display = '';
     av.label.style.opacity = focusHazeOn && distA > camDist * 1.9 ? '0.22' : '';
-    av.label.style.left = `${x}px`; av.label.style.top = `${y}px`;
+    av.label.style.translate = `${x}px ${y}px`; // v392 合成器定位
   });
 }
 // updateCompass 已随罗盘一并清除（见顶部注）
@@ -10395,13 +10516,19 @@ const ease = (t        ) => t * t * t * (t * (6 * t - 15) + 10);
 let last = performance.now();
 let elapsed = 0;
 let lastDraw = 0, perfAcc = 0, perfN = 0;
+let dprGoodWin = 0;               // v392 分辨率回升滞回：连稳窗口计数
+let ovRef                     = null, ovPz = false; // v392 遮景层是否大厅面板（每层查一次）
+let shadowPrev = '';              // v392 阴影重烘键：山体形态/各场显隐一变才重画深度图
+let morphKApplied = -1;           // v392 空间⇄心性稳态跳写
 function frame(now        ) {
   requestAnimationFrame(frame);
   // 全屏页遮景休帧（2026-07-30 发热治理追加）：大厅/动态/我的/茶寮把星图整页盖住时，
   // 画布降到约 4fps 空转——盖着仍整帧渲染是发热一大来源；转场/飞行在途时放行，关页即恢复
-  if (overlayEl && overlayEl.querySelector('.pzPanel') && !sfpTransit && !flyAnim && now - lastDraw < 240) return;
-  // v221 功耗治理（手机发热）：触屏机静观期 30fps；飞行/转场/掷轮/触控等动势期放行全帧率
-  if (isCoarse) {
+  if (overlayEl !== ovRef) { ovRef = overlayEl; ovPz = !!(overlayEl && overlayEl.querySelector('.pzPanel')); } // v392 每层只查一次 DOM，不再逐帧 querySelector
+  if (overlayEl && ovPz && !sfpTransit && !flyAnim && now - lastDraw < 240) return;
+  // v221 功耗治理（手机发热）：静观期 30fps；飞行/转场/掷轮/触控等动势期放行全帧率。
+  // v392 扩至全端：桌面静止画面同样半帧——星摇/呼吸 30fps 无感，笔记本风扇与电池立静
+  {
     const busy = flyAnim || sfpTransit || comet || hitStopT > 0 || sfpS.rolling || starView
       || (flightOn && (flyKeys.size > 0 || joyVec.x !== 0 || joyVec.y !== 0)) // 神足默认常开：只在真有输入时才算动势
       || secAnimTo !== null || Math.abs(modeTarget - modeT) > 0.0005 || now < perfBoostUntil || netBusy();
@@ -10409,9 +10536,15 @@ function frame(now        ) {
   }
   lastDraw = now;
   let dt = Math.min((now - last) / 1000, 0.05); last = now;
-  if (isCoarse && dprScale > 0.7) { // 自适应：连 30fps 都撑不住（帧距>45ms 持续约 7 秒）则分辨率降一档
+  if (isCoarse) { // 自适应分辨率：撑不住 30fps（帧距>45ms 持续约 7 秒）降一档；久稳再缓升（v392 滞回带 0.034/0.045，连稳约 42s 才回半档，防旧日所惧的降升振荡）
     perfAcc += dt; perfN++;
-    if (perfN >= 210) { if (perfAcc / perfN > 0.045) { dprScale -= 0.15; applyDpr(); } perfAcc = 0; perfN = 0; }
+    if (perfN >= 210) {
+      const avg = perfAcc / perfN;
+      if (avg > 0.045 && dprScale > 0.7) { dprScale -= 0.15; applyDpr(); dprGoodWin = 0; }
+      else if (avg < 0.034 && dprScale < 1) { if (++dprGoodWin >= 6) { dprScale = Math.min(1, dprScale + 0.15); applyDpr(); dprGoodWin = 0; } }
+      else dprGoodWin = 0;
+      perfAcc = 0; perfN = 0;
+    }
   }
   if (hitStopT > 0) { hitStopT = Math.max(0, hitStopT - dt); dt *= 0.06; } // ③ 顿帧：全世界凝一口气
   elapsed += dt;
@@ -10474,14 +10607,17 @@ function frame(now        ) {
   mandala.visible = !inPure && !inSky && !inBodhi && !inDisc && k > 0.6;
   mandalaLines.scale.setScalar(0.6 + k * 0.4);
   (mandalaLines.children         ).forEach(c => { if (c.material) c.material.opacity = (c.material.userData?.base ?? 0.5) * k; });
-  nodeViews.forEach(nv => {
-    if (nv.mandalaPos && !nv.d.pure) {
-      nv.marker.position.lerpVectors(nv.spacePos, nv.mandalaPos, k);
-      const m = (REALMS       )[nv.realmIdx].mind;
-      const s = 1 + k * (0.25 + m.altru * 0.75);
-      nv.marker.scale.setScalar(s);
-    }
-  });
+  if (k !== morphKApplied) { // v392 稳态跳写：形态未在渐变时不再逐星重写同值坐标
+    morphKApplied = k;
+    nodeViews.forEach(nv => {
+      if (nv.mandalaPos && !nv.d.pure) {
+        nv.marker.position.lerpVectors(nv.spacePos, nv.mandalaPos, k);
+        const m = (REALMS       )[nv.realmIdx].mind;
+        const s = 1 + k * (0.25 + m.altru * 0.75);
+        nv.marker.scale.setScalar(s);
+      }
+    });
+  }
 
   // 日月 / 涟漪 / 广告牌光环
   // 日行方向依《俱舍论》卷十一四洲时分：南洲日中时东洲日没、西洲日出——故日必东→南→西→北（俯瞰顺时针右繞）；
@@ -10539,17 +10675,16 @@ function frame(now        ) {
       c.children.forEach((w, wi) => { if (wi > 0) w.rotation.x = Math.sin(elapsed * 7 + b.ph) * 0.5; });
     }
   });
-  nodeViews.forEach(nv => {
-    nv.marker.children.forEach(ch => { if (ch.userData.billboard) ch.quaternion.copy(camera.quaternion); });
-    if (nv.d.id === selectedId) {
-      const p = 1 + Math.sin(elapsed * 5) * 0.18;
-      nv.marker.children[0].scale.setScalar(p);
-    } else {
-      const actD = inDoor || browseDoor; // 一位即一星：开门时充位的节点星轻呼吸，代位珠亮相
-      if (actD && NODE_POS_ANCH[actD] && NODE_POS_ANCH[actD].has(nv.d.id)) nv.marker.children[0].scale.setScalar(1 + Math.sin(elapsed * 2.4) * 0.12);
-      else nv.marker.children[0].scale.setScalar(1);
-    }
-  });
+  {
+    const actD = inDoor || browseDoor; // 一位即一星：开门时充位的节点星轻呼吸，代位珠亮相
+    nodeViews.forEach(nv => {
+      nv.marker.children.forEach(ch => { if (ch.userData.billboard) ch.quaternion.copy(camera.quaternion); });
+      const s = nv.d.id === selectedId ? 1 + Math.sin(elapsed * 5) * 0.18
+        : (actD && NODE_POS_ANCH[actD] && NODE_POS_ANCH[actD].has(nv.d.id)) ? 1 + Math.sin(elapsed * 2.4) * 0.12 : 1;
+      const c0 = nv.marker.children[0];
+      if (c0.scale.x !== s) c0.scale.setScalar(s); // v392 稳态跳写：无选中无门观时不逐帧重写 scale(1)
+    });
+  }
   sageOrbit.rotation.y += dt * 0.03;
   if (secAnimTo !== null) { // 幽冥窗缓降/缓合
     const nh = THREE.MathUtils.lerp(sectionH, secAnimTo, Math.min(1, dt * 3.2));
@@ -10558,9 +10693,8 @@ function frame(now        ) {
   } else if (secAuto && controls.target.y > 18) { secAnimTo = secPrev; secAuto = false; } // 回望地上即复原
   updateChanMandala(dt);
   sfpGlowUpdate(elapsed);
-  doorStarsUpdate(elapsed);
+  doorStarsUpdate(elapsed); // v392：旧日此调用重复了两次，白算一遍门星自旋——删其一
   locGlowUpdate(elapsed);  cometUpdate(dt);
-  doorStarsUpdate(elapsed);
   pawnUpdate(elapsed, dt);
   waterUpdate(elapsed, dt);
   impactUpdate(dt);
@@ -10572,12 +10706,17 @@ function frame(now        ) {
   doorLabelCullFn();
   syncBackBtn();
 
+  { // v392 阴影按需重烘：山体缩放（空间⇄心性）、专场显隐、剖面切换一变即重画一帧深度图
+    const sk = `${saha.visible}|${netherScene.visible}|${inPure}|${inNether}|${modeT > 0.995 ? 1 : modeT.toFixed(3)}`;
+    if (sk !== shadowPrev) { shadowPrev = sk; renderer.shadowMap.needsUpdate = true; }
+  }
   if (composer && !save.settings.lowPerf) composer.render();
   else renderer.render(scene, camera);
 }
 
 // 尺寸
 function onResize() {
+  hovRect = null; railRects = null; // v392 各矩形缓存随尺寸失效
   const w = app.clientWidth, h = app.clientHeight;
   camera.aspect = w / h; camera.updateProjectionMatrix();
   renderer.setSize(w, h);
@@ -10592,8 +10731,11 @@ function onResize() {
 }
 window.addEventListener('resize', onResize);
 
-// 首次手势 → 音频
-window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
+// 首次手势 → 音频唤醒（v392：解码已提前，此处只 resume；有的浏览器首次未生效则多试几拍，醒了即撤）
+window.addEventListener('pointerdown', function audioWake() {
+  initAudio();
+  if (actx && actx.state === 'running') window.removeEventListener('pointerdown', audioWake);
+});
 
 // ---------------- 启动 ----------------
 (async () => {
@@ -10601,6 +10743,10 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   loadSave();
   if (save.zh === 't') { zhDom(document.body); sfpStatus(); updateModeChip(); refreshPureNames(); }
   applyDpr();
+  // v392 着色器预热：并行编译（KHR_parallel_shader_compile）把首帧数秒的同步编译摊到题屏亮着的后台
+  try { void renderer.compileAsync(scene, camera); } catch (e) {}
+  // v392 音频提前解码：load 后空闲期即建 ctx＋解码（非手势也合法，只是 suspended）；首手势只需唤醒
+  setTimeout(() => { void preloadAudio(); }, 400);
   applyCardTheme();
   document.documentElement.classList.toggle('bigfont', !!save.settings.bigFont);
   if (ambientNodes) (ambientNodes       ).gain.gain.value = save.settings.ambient ? 0.035 : 0;
@@ -10705,6 +10851,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   let wasHost = false;
   Net.onRoster = () => {
     netSyncBeads();
+    updateLadder(); // v392 天梯座色刻随名册即时更新
     if (netHydrateMode) {
       hydrateNetGame(netHydrateMode === 'force');
       netHydrateMode = '';
@@ -10725,6 +10872,36 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   // 切去微信再回来，早被 turn_skipped 跳过两手转「暂离」。轮次落到本座那一拍：一记磬＋
   // 短振动；页面在后台则给标签页改题（PC 切走可见），回页时若仍轮到本座再补一记
   // （后台标签的磬常被浏览器压住，回来那记才是听得见的）。
+  // v392 局中持屏（Wake Lock）：轮流制一手可等一分钟，手机息屏即断线、两手后被记「暂离」——
+  // 行局期间不让屏睡；局终/离席/切后台即放（不支持的浏览器静默跳过）
+  let wakeLock                    = null, wakeBusy = false;
+  const wakeSync = () => {
+    const want = Net.active && Net.isPlaying() && !document.hidden;
+    if (want && !wakeLock && !wakeBusy && (navigator       ).wakeLock) {
+      wakeBusy = true;
+      (navigator       ).wakeLock.request('screen')
+        .then((wl       ) => { wakeLock = wl; wl.addEventListener('release', () => { wakeLock = null; }); })
+        .catch(() => {})
+        .finally(() => { wakeBusy = false; });
+    } else if (!want && wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  };
+  // v392 「轮到您」favicon 徽标：多标签页只看图标时也有感——金点亮起，回页或轮走即复原
+  let favEl                          = null, favOn = false;
+  const favSync = (on         ) => {
+    if (on === favOn) return; favOn = on;
+    if (!favEl) {
+      favEl = document.querySelector('link[rel="icon"]');
+      if (!favEl) { favEl = document.createElement('link'); favEl.rel = 'icon'; document.head.appendChild(favEl); }
+      favEl.dataset.base = favEl.href || '';
+    }
+    if (on) {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 32;
+      const g = cv.getContext('2d')  ;
+      g.fillStyle = '#171426'; g.beginPath(); g.arc(16, 16, 15, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#e8c766'; g.beginPath(); g.arc(16, 16, 9, 0, Math.PI * 2); g.fill();
+      favEl.href = cv.toDataURL('image/png');
+    } else if (favEl.dataset.base) favEl.href = favEl.dataset.base;
+  };
   let turnWasMine = false;
   const baseTitle = document.title;
   const turnAlertSync = () => {
@@ -10737,11 +10914,14 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
       if (document.hidden) document.title = `${zh('【轮到您】')}${baseTitle}`;
     }
     if (!mine && document.title !== baseTitle) document.title = baseTitle;
+    favSync(mine && document.hidden); // v392 图标徽标与标题改题同进退
     turnWasMine = mine;
   };
   document.addEventListener('visibilitychange', () => {
+    wakeSync(); // v392 切后台释放持屏，回前台若仍在局中续持
     if (document.visibilityState !== 'visible') return;
     document.title = baseTitle;
+    favSync(false);
     if (turnWasMine && Net.active && Net.myTurn() && !sfpS.rolling) { playBell(587, 0.05); vib(40); }
   });
   Net.onState = () => {
@@ -10750,6 +10930,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     netVerdictClock();
     scheduleNetTurnUi();
     turnAlertSync();
+    wakeSync(); // v392 房态每拍校持屏：开局即持、局终即放
     if (Net.isFinished() && Net.me()?.done && sfpS.active) sfpVictory(true);
   };
   Net.onMatchStarted = () => {
@@ -10762,6 +10943,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
     sfpMatchBegin();   // 金横幅＋磬代 toast（2026-08-12 批）：开局的话由仪式说，不再两处各说一遍
     netClockSync();
     scheduleNetTurnUi();
+    wakeSync(); // v392 开局持屏
   };
   Net.onNotice = (text) => netPeerNotice(text);   // 行棋公事播报归状态行（聊天室只留人语与人事）
   // 等候期来人/离席一记轻磬（2026-08-11 批）：toast 与系统行由 Net 自报，这里只补声——
@@ -10774,6 +10956,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
       const last = message.steps?.[message.steps.length - 1];
       netPeerMsg(message.name || '同修', message.combo || '', last?.text || '');
       netDotFlash(message.playerId);
+      netBeadPath(message.playerId, message.steps || [], message.combo || ''); // v392 星图本体同步重演这一掷（逐位经停）
       if (message.player?.done) sfpPeerWin(message.name, message.player.n);
       return;
     }
@@ -10822,6 +11005,7 @@ window.addEventListener('pointerdown', () => { initAudio(); }, { once: true });
   };
   Net.onHall = () => openPlaza();                 // 在座也能回大厅看看/换室（不离席）
   Net.onLeft = () => {
+    wakeSync(); // v392 离席放屏
     if (sfpS.active) endSfp('已离开真人共修室');
     plazaStop();                                  // 即使旧大厅定时器还挂着，也以这次显式离席为准
     openPlaza();
