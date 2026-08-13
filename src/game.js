@@ -10784,6 +10784,12 @@ window.addEventListener('pointerdown', function audioWake() {
   try { void renderer.compileAsync(scene, camera); } catch (e) {}
   // v392 音频提前解码：load 后空闲期即建 ctx＋解码（非手势也合法，只是 suspended）；首手势只需唤醒
   setTimeout(() => { void preloadAudio(); }, 400);
+  // v393 在场心跳：页面开着（且在前台）每三分钟报一记 n=0 tick——「在线人数」由此立得住；
+  // 切后台不跳（挂后台的标签页不算「在站」），回前台立即补一跳
+  const presenceBeat = () => { if (!document.hidden) void Plaza.pushName(); };
+  setTimeout(presenceBeat, 12000);
+  setInterval(presenceBeat, 180000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) presenceBeat(); });
   if (ART_MURAL) {
     // v392 壁画光·颜料化：写实法线整体减弱成晕染（山石/殿宇/水皆是）——共享材质只乘一次
     const seenM = new Set       ();

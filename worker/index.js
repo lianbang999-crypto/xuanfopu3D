@@ -410,10 +410,13 @@ export class RoomDO {
     const freshRow = [...this.state.storage.sql.exec(
       'SELECT COALESCE(SUM(live),0) AS n FROM plaza_tables WHERE ts > ?', Date.now() - LIVE_FRESH,
     )][0];
-    // v393 在线人数合一（发起人点单）：单机行谱者从前不入任何「在座/行谱」数——
-    // 在线＝联机在座 与 十分钟内有掷轮上报者 取其大（两路人群重叠无法逐人对账，取大不虚报不双计）
+    // v393 在线人数合一（发起人点单）：在线＝页面开着的人（心跳窗 8 分钟，客户端每 3 分钟一跳、切后台不跳）
+    // 与联机在座取其大（两路人群重叠无法逐人对账，取大不虚报不双计）；顺手清一日前的陈迹
+    this.state.storage.sql.exec(
+      'CREATE TABLE IF NOT EXISTS plaza_presence (actor TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
+    this.state.storage.sql.exec('DELETE FROM plaza_presence WHERE ts < ?', Date.now() - 86400000);
     const activeRow = [...this.state.storage.sql.exec(
-      'SELECT COUNT(DISTINCT actor) AS n FROM plaza_daily_practice WHERE updated > ?', Date.now() - 10 * 60 * 1000,
+      'SELECT COUNT(*) AS n FROM plaza_presence WHERE ts > ?', Date.now() - 8 * 60 * 1000,
     )][0];
     return json({
       days, people, since,                       // 本站共修第 N 天 · 已参加 N 人
@@ -525,6 +528,15 @@ export class RoomDO {
     // 只计实际落定的掷轮；单次上报上限 60，稳定匿名身份每日最多记一万念。
     let n = Math.min(60, Math.max(0, Math.floor(Number(body?.n) || 0)));
     const actorId = /^p_[a-f0-9]{24}$/.test(String(body?.actor || '')) ? String(body.actor) : '';
+    // v393 在场心跳：凡带莲号的 tick（含 n=0 心跳与改名）皆记「此刻在站」一笔——
+    // 在线人数从「掷过轮的人」升级为「页面开着的人」，读谱看山者同样在列
+    if (actorId) {
+      this.state.storage.sql.exec(
+        'CREATE TABLE IF NOT EXISTS plaza_presence (actor TEXT PRIMARY KEY, ts INTEGER NOT NULL)');
+      this.state.storage.sql.exec(
+        `INSERT INTO plaza_presence (actor, ts) VALUES (?, ?)
+         ON CONFLICT(actor) DO UPDATE SET ts = excluded.ts`, actorId, Date.now());
+    }
     if (!n) {
       // 只改名不计数：刚在功课榜取了名号，本人那一行应当立刻换过来，不必等下一掷
       const newName = this.safeName(body?.name);

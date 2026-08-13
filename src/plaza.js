@@ -241,8 +241,10 @@ export function renderStream(data, ui) {
 // 2026-08-11 再拆：静的（共修第 N 天·累计 N 掷）沉到页脚 .pzStill——数字不是大厅的主角。
 function sayHtml(data) {
   // v393 在线人数合一（发起人点单极简）：单机行谱者从前不入「在座/行谱」两数，明明有人在玩却满屏是零——
-  // 今只报一个「在线」（服务端 onlineNow 已并计单机与联机；旧服务端回退在座数）
-  return `<b>${num(data.onlineNow ?? data.online ?? 0)}</b> 位莲友在线`;
+  // 今只报一个「在线」（服务端 onlineNow＝页面开着的人，心跳制并计单机与联机；旧服务端回退在座数）；
+  // 无人则整句不出——不展示数字 0，与题屏「不假装热闹」同一条家法
+  const n = Number(data.onlineNow ?? data.online ?? 0);
+  return n > 0 ? `<b>${num(n)}</b> 位莲友在线` : '';
 }
 // 页脚静数字：站史与累计，动也是一天一动，不必占顶条
 function stillHtml(data) {
