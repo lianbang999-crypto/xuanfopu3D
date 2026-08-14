@@ -42,8 +42,8 @@ canvas{display:block;touch-action:none}
    故纱作「上下压、中段透」：顶band 托题名、底band 托钮与细字落款，
    中段几乎不加以存画之清透（殿门白莲那一线正在此处）。 */
 #boot::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:-1;
-  background:linear-gradient(rgba(4,26,30,.66),rgba(4,26,30,.48) 8%,rgba(4,26,30,.34) 16%,
-    rgba(4,26,30,.19) 25%,rgba(4,26,30,.07) 34%,rgba(4,26,30,0) 44%,
+  background:linear-gradient(rgba(4,26,30,.78),rgba(4,26,30,.62) 9%,rgba(4,26,30,.46) 17%,
+    rgba(4,26,30,.28) 26%,rgba(4,26,30,.11) 35%,rgba(4,26,30,0) 45%,
     rgba(4,26,30,0) 52%,rgba(4,26,30,.12) 60%,rgba(4,26,30,.40) 70%,
     rgba(4,26,30,.68) 80%,rgba(4,26,30,.86) 92%,rgba(4,26,30,.9))}
 #boot.bye{opacity:0;pointer-events:none!important}
@@ -53,7 +53,7 @@ canvas{display:block;touch-action:none}
   padding:calc(8.5vh + env(safe-area-inset-top)) 16px calc(13vh + env(safe-area-inset-bottom))}
 #bootName{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;font-weight:500;
   font-size:clamp(32px,7.2vw,52px);letter-spacing:.14em;text-indent:.14em;line-height:1.16;
-  color:#fbf0d4;text-shadow:0 2px 12px rgba(3,20,24,.9),0 4px 38px rgba(3,20,24,.7),0 0 52px rgba(233,196,110,.3)}
+  color:#fbf0d4;text-shadow:0 0 3px rgba(3,20,24,.95),0 2px 12px rgba(3,20,24,.92),0 4px 38px rgba(3,20,24,.75),0 0 52px rgba(233,196,110,.3)}
 /* 题名与副题只以留白相隔：画已足够满，一道纯装饰的分隔线只是噪音（本项目不加装饰之则）。
    副题字细而落在殿脊斗栱一带（画最繁处），故影比题名还要吃重——近影托边、远影压底，
    不靠加重青墨纱换来（纱一重，界画的金线就没了）。 */
@@ -172,7 +172,7 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
     <button id="bootTour" type="button"><b data-t="進入十法界">进入十法界</b><span data-t="依經導覽 · 從地獄到佛">依经导览 · 从地狱到佛</span></button>
     <button id="bootGo" type="button"><b data-t="開始行譜">开始行谱</b></button>
   </div>
-  <div id="bootLinks"><span data-t="玩法">玩法</span><span data-t="共修大廳">共修大厅</span><span data-t="我的">我的</span><span data-t="分享">分享</span></div>
+  <div id="bootLinks"><span data-t="玩法">玩法</span><span data-t="大廳">大厅</span><span data-t="分享">分享</span></div>
 </div>
 <div id="bootSeat" data-nozh>南無阿彌陀佛</div>
 <div id="bootErr" hidden data-t="進入失敗，請檢查網絡後刷新重試">进入失败，请检查网络后刷新重试</div>

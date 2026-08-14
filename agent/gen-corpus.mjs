@@ -21,7 +21,7 @@ const hub = JSON.parse(readFileSync(join(HERE, 'index/hub.json'), 'utf8'));
 
 // ── 塊：只留檢索與呈現所需 ──
 // t 正文、i 題（義理提要，檢索之最要）、m 名相、k 型、j 卷、l 行、s 章節
-const KIND = ['xu', 'biaofa', 'qa', 'mulu', 'gate', 'table', 'puyue', 'puyue-rule', 'end'];
+const KIND = ['xu', 'biaofa', 'qa', 'mulu', 'gate', 'table', 'puyue', 'puyue-rule', 'end', 'shizhu'];
 const BLOCKS = src.blocks.map((b) => ({
   id: b.id,
   j: b.juan, l: b.line, s: b.sec,
@@ -31,6 +31,21 @@ const BLOCKS = src.blocks.map((b) => ({
   n: b.note || '',
   t: b.text,
 }));
+
+// ── 外典補充（2026-08-14 發起人定：蕅益大師論著入庫）──
+// 塊由 agent/gen-aux-corpus.mjs 自 CBETA 底本切成（agent/index/aux-corpus.json）。
+// 塊型 shizhu（大師他著），多 src（書名）與 cb（CBETA 經號行位）二欄——
+// search.js 憑塊型降權（譜內人工塊恆先），toPassages 憑 src 落「大師他著」之標（紀律三）。
+// 缺檔不阻斷：庫仍以譜內 692 塊自足。
+for (const f of ['index/aux-corpus.json', 'index/aux-zonglun.json']) {
+  try {
+    const aux = JSON.parse(readFileSync(join(HERE, f), 'utf8'));
+    for (const b of aux.blocks) {
+      BLOCKS.push({ id: b.id, j: 0, l: 0, s: b.src, k: KIND.indexOf('shizhu'), i: b.i, m: [], n: '', t: b.t, src: b.src, cb: b.cb });
+    }
+    console.log(`  外典補充　${f}：${aux.blocks.length} 塊（${[...new Set(aux.blocks.map((b) => b.src))].join('・')}）`);
+  } catch { console.log(`  外典補充　${f} 缺——庫以現有塊自足`); }
+}
 
 // ── 實體表：位名・門名・詞條・別名 → 可精確命中之鍵 ──
 // 「能查表的絕不檢索，能精確匹配的絕不用向量」——設計書語。
@@ -123,7 +138,7 @@ export const CORPUS_META = ${JSON.stringify({
   blocks: BLOCKS.length,
   chars: BLOCKS.reduce((a, b) => a + b.t.length, 0),
   entities: Object.keys(ENTITY).length,
-  source: 'CBETA 補編 No.136《選佛譜》六卷 · 全文人工分塊',
+  source: 'CBETA 補編 No.136《選佛譜》六卷全文人工分塊；外典補充（大師他著）由 gen-aux-corpus.mjs 機切',
 })};
 `;
 

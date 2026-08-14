@@ -2933,13 +2933,15 @@ button:not(:disabled):active{transform:scale(.97)}
   padding:3px 9px;border-radius:9px;background:rgba(22,18,38,.84);backdrop-filter:blur(6px);
   opacity:0;transform:translateX(-6px);pointer-events:none;transition:opacity .2s,transform .2s;text-shadow:0 1px 3px rgba(10,8,20,.9)}
 .bnv:hover b,.bnv.on b{opacity:1;transform:translateX(0)}
-/* v393 菩萨道场科名全显（发起人点单）：十科签从前只在 hover／选中时现字——触屏无 hover，
-   而科色是 0x8fa2b8→0xf2f6fb 一道近乎单色的明度阶，色亦难辨，于是手机上只见十枚无名圆点。
-   今一律现字：未选者淡一档、选中者仍以字重与光点分明，层次不失而人知其名。
-   字既现即可点（旧 pointer-events:none 会让点在字上的手指穿过去落到星图上——现字而不受点，是残缺）。
-   只加 #bodhiNav：色界四禅签（#skyNav）签少色分明，不在此例。 */
-#bodhiNav .bnv b{opacity:.62;transform:none;pointer-events:auto}
-#bodhiNav .bnv:hover b,#bodhiNav .bnv.on b{opacity:1}
+/* 菩萨十科签三改（2026-08-14 发起人点单）：v393 曾十签全显（触屏无 hover，圆点无名）——
+   实测局中十签字幅压到底部轮相牌上。今改「静显当下、触显全档」：
+   平时只现当前科一签（不占版面不挡轮相）；手指落到滑杆上（.bnvAll）十签齐现以供择科，
+   离手片刻自敛。字仍可点（pointer-events:auto 保留——现字而不受点，是残缺）。
+   只治 #bodhiNav：色界四禅签（#skyNav）签少色分明，不在此例。 */
+#bodhiNav .bnv b{opacity:0;transform:none;pointer-events:auto;transition:opacity .25s}
+#bodhiNav .bnv.on b{opacity:1}
+#bodhiNav.bnvAll .bnv b{opacity:.62}
+#bodhiNav.bnvAll .bnv.on b,#bodhiNav .bnv:hover b{opacity:1}
 /* v222 色界签禅支小字（竖杆行内缀排）；五净居金白圣色（凡圣分界） */
 .bnv .bnvSub{font-size:9px;opacity:.66;letter-spacing:1.5px;margin-left:6px;font-weight:400}
 .nlabel.pureAbode{color:#f6f0da;text-shadow:0 0 10px rgba(246,240,218,.35),0 1px 3px #000}
@@ -3620,12 +3622,9 @@ function renderCard() {
   let secSfp = '';
   if (posHere.length) {
     let sh = '';
-    let lastDoor = -1;
+    // 十五门分段小标已撤（2026-08-14 发起人点单）：芯片平铺即可——所属门在点开的弹注里
+    // 本就写着（「门题 · 位名」），分段标题在此只是重复的导航噪音。
     posHere.forEach((p     ) => {
-      if (p.door !== lastDoor) {
-        sh += `<div style="font-size:var(--fs-xs);color:#9d9170;letter-spacing:1px;margin-top:6px">第${SFP_CN[p.door - 1]}门 · ${SFP_DOOR_BY[p.door].title}</div>`;
-        lastDoor = p.door;
-      }
       sh += `<span class="sfpChip${sfpS.pos === p.id ? ' cur' : ''}" data-pid="${esc(p.id)}">${esc(p.name)}</span>`;
     });
     sh += `<div id="inNote" class="inlineNote"></div>`;
@@ -3731,35 +3730,58 @@ const TOUR_DWELL = 15000;  // 自动巡游每站停留：读得完卡上一段�
 let deepVisit = (/^#v=([a-z0-9-]+)$/i.exec(location.hash || '') || [])[1] || ''; // 单站深链 #v=节点id（bootActivate 消化）
 let tourOn = false, tourI = 0, tourAuto = false, tourT = 0;
 let tourEl                     = null;
+let tourWired = false;   // controls「start」驻足钩只挂一次（挂上后凭 tourOn 自守，退场不必拆）
 function tourBar() {
   if (tourEl) return tourEl;
+  // 导览台（2026-08-14 二改·极简，发起人点单）：一行无框字幕＋一枚小胶囊，不再整块压底。
+  // 字幕行＝站标·站引一句·「读经证›」文字链（深读入口降为链，看景为主）；
+  // 胶囊只五钮皆图标（✕ ‹ ▶ › 分享），无字无框内聚一体；窄屏卡开（底部抽屉在场）时暂避让位。
   const d = el(`<div id="tourBar">
-    <button data-a="exit" title="退出导览" aria-label="退出导览">✕</button>
-    <span id="tourPos"></span>
-    <button data-a="prev" title="上一站">‹</button>
-    <button data-a="auto"></button>
-    <button data-a="next" title="下一站">›</button>
-    <button data-a="share">分享此站</button>
+    <div class="tgLine"><b id="tourPos"></b><span id="tourText"></span><u data-a="card" role="button" tabindex="0"></u></div>
+    <div class="tgRow">
+      <button data-a="exit" title="退出导览" aria-label="退出导览">✕</button>
+      <button data-a="prev" title="上一站" aria-label="上一站">‹</button>
+      <button data-a="auto"></button>
+      <button data-a="next" title="下一站" aria-label="下一站">›</button>
+      <button data-a="share" title="分享此站" aria-label="分享此站">${ico('share')}</button>
+    </div>
   </div>`);
   const css = document.createElement('style');
   css.textContent = `
-#tourBar{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
-  z-index:34;display:flex;align-items:center;gap:6px;max-width:96vw;
-  padding:6px 8px;border-radius:12px;background:rgba(10,14,20,.84);border:1px solid rgba(216,197,139,.38);
-  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 30px -12px rgba(0,0,0,.8)}
-#tourBar #tourPos{color:#e9dcba;font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap;padding:0 2px}
-#tourBar button{min-height:34px;padding:4px 10px;border-radius:9px;cursor:pointer;font-family:inherit;
-  font-size:var(--fs-sm,12.5px);letter-spacing:1px;color:#e9dcba;background:rgba(216,197,139,.1);
-  border:1px solid rgba(216,197,139,.3);white-space:nowrap}
-#tourBar button[data-a="auto"].on{color:#e8c766;border-color:rgba(232,199,102,.6);background:rgba(232,199,102,.16)}
-@media (max-width:480px){#tourBar{gap:4px;padding:5px 6px}#tourBar button{padding:4px 7px}}`;
+#tourBar{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  z-index:34;width:min(640px,94vw);display:flex;flex-direction:column;align-items:center;gap:8px;
+  pointer-events:none;transition:opacity .25s ease,transform .25s ease}
+/* 字幕行：无框浮字，靠投影立住（题屏字影同语汇）——底下是 3D 景，不再垫一块底色 */
+#tourBar .tgLine{pointer-events:auto;max-width:100%;text-align:center;line-height:1.65;
+  font-size:var(--fs-sm,12.5px);letter-spacing:.5px;color:#e9dcba;
+  text-shadow:0 1px 4px rgba(4,10,14,.95),0 2px 14px rgba(4,10,14,.85),0 0 26px rgba(4,10,14,.6)}
+#tourBar #tourPos{color:#e8c766;font-weight:600;margin-right:8px}
+#tourBar u[data-a="card"]{margin-left:8px;color:#e8c766;text-decoration:none;border-bottom:1px dotted rgba(232,199,102,.55);
+  cursor:pointer;white-space:nowrap}
+/* 胶囊：一体一框，钮皆无框图标位 */
+#tourBar .tgRow{pointer-events:auto;display:inline-flex;gap:2px;padding:4px;border-radius:13px;
+  background:rgba(10,14,20,.78);border:1px solid rgba(216,197,139,.34);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 26px -14px rgba(0,0,0,.85)}
+#tourBar .tgRow button{min-width:42px;min-height:38px;padding:4px 8px;border:none;border-radius:10px;cursor:pointer;
+  font-family:inherit;font-size:15px;color:#e9dcba;background:none;display:flex;align-items:center;justify-content:center}
+#tourBar .tgRow button:hover{background:rgba(216,197,139,.12)}
+#tourBar .tgRow button[data-a="auto"].on{color:#e8c766;background:rgba(232,199,102,.14)}
+/* 驻足态 ▶ 轻呼吸相邀（交互即驻足之后，「续走」要被看见）；动效敏感者不扰 */
+#tourBar .tgRow button[data-a="auto"].breath{animation:tgBreath 2.2s ease-in-out infinite}
+@keyframes tgBreath{0%,100%{box-shadow:0 0 0 0 rgba(232,199,102,0)}50%{box-shadow:0 0 0 5px rgba(232,199,102,.14)}}
+@media (prefers-reduced-motion:reduce){#tourBar .tgRow button[data-a="auto"].breath{animation:none}}
+/* 行棋中：让位于底部行棋条，抬到其上 */
+#tourBar.lift{bottom:calc(118px + env(safe-area-inset-bottom))}
+/* 窄屏卡开（底部抽屉在场，html.ovOn 由浮层统一置起）：导览台暂避——读卡即驻足，收卡即回 */
+@media (max-width:640px){html.ovOn #tourBar{opacity:0;pointer-events:none;transform:translate(-50%,12px)}}`;
   d.appendChild(css);
-  d.querySelectorAll('button').forEach((bn) => bn.addEventListener('click', () => {
+  d.querySelectorAll('[data-a]').forEach((bn) => bn.addEventListener('click', () => {
     const a = (bn               ).dataset.a;
     if (a === 'exit') tourExit();
     else if (a === 'prev') tourGo(tourI - 1);
     else if (a === 'next') tourGo(tourI + 1);
     else if (a === 'auto') { tourAuto = !tourAuto; tourPlan(); tourPaint(); }
+    else if (a === 'card') { tourHold(); selectNode(TOUR_STOPS[tourI], false); }
     else if (a === 'share') tourShare();
   }));
   document.body.appendChild(d);
@@ -3770,9 +3792,20 @@ function tourPaint() {
   if (!tourEl) return;
   const d = byId[TOUR_STOPS[tourI]]?.d;
   (tourEl.querySelector('#tourPos')               ).textContent = zh(`${tourI + 1}/${TOUR_STOPS.length} · ${d ? d.name : ''}`);
+  (tourEl.querySelector('#tourText')               ).textContent = zh(d ? (d.line || d.sub || '') : '');
+  (tourEl.querySelector('u[data-a="card"]')               ).textContent = zh('读经证 ›');
   const ab = tourEl.querySelector('button[data-a="auto"]')               ;
-  ab.textContent = zh(tourAuto ? '⏸ 暂停' : '▶ 自动');
+  ab.innerHTML = ico(tourAuto ? 'pause' : 'play');
+  ab.title = zh(tourAuto ? '暂停自动巡游' : '自动巡游');
+  ab.setAttribute('aria-label', ab.title);
   ab.classList.toggle('on', tourAuto);
+  ab.classList.toggle('breath', !tourAuto && tourI < TOUR_STOPS.length - 1);
+  tourEl.classList.toggle('lift', !!sfpS.active);
+}
+// 交互即驻足（2026-08-14 档一①）：读卡、拖镜头、出海报，任一主动动作即停自动巡游的钟——
+// 巡游是陪读不是赶路；「续走」由 ▶ 轻呼吸相邀，不自作主张再开。
+function tourHold() {
+  if (tourOn && tourAuto) { tourAuto = false; tourPlan(); tourPaint(); }
 }
 // 自动巡游的钟：后台页、题屏在场、入了专场（极乐/色界/道场/幽冥）都原地候着不翻站——
 // 巡游是陪读不是赶路；终站（极乐）到达即歇，归途之后没有下一站可赶。
@@ -3791,13 +3824,27 @@ function tourGo(i        ) {
   if (!tourOn) return;
   if (inPure || inSky || inBodhi || inNether) { showToast(zh('请先退出本景（✕ 或返回），再继续导览'), 3200); return; }
   tourI = Math.max(0, Math.min(TOUR_STOPS.length - 1, i));
-  selectNode(TOUR_STOPS[tourI]);
+  const id = TOUR_STOPS[tourI];
+  const nv = byId[id]; if (!nv) return;
+  // 档一②：默认只走镜头＋站引一句（看景为主）；全卡是「读经证」点开的深读。
+  // 卡若正开着（读卡中翻站），就地换成本站内容，镜头照飞——阅读节奏不断。
+  if (overlayEl === card && selectedId) selectNode(id, false);
+  else {
+    if (!readSet.has(id)) { readSet.add(id); syncSave(); }
+    nv.label.classList.add('read');
+    const wp = new THREE.Vector3(); nv.marker.getWorldPosition(wp); impactAt(wp, 0.7);
+    playSfx('sfx-tap', 0.3);
+  }
+  const v = viewPosFor(nv);
+  flyTo(v.pos, v.target);
   tourPaint(); tourPlan();
 }
 function tourStart(atId         = '', opts       = {}) {
   tourOn = true;
   tourAuto = opts.auto !== false;
-  tourBar().style.display = 'flex';
+  // 拖镜头＝驻足（档一①）：flyTo 直驱相机不经 controls，只有真人捏拖才触「start」，不误停
+  if (!tourWired) { tourWired = true; controls.addEventListener('start', tourHold); }
+  tourBar().style.display = '';
   tourGo(Math.max(0, TOUR_STOPS.indexOf(atId || 'sumeru')));
 }
 function tourExit() {
@@ -3809,7 +3856,7 @@ function tourExit() {
 function tourShare() {
   const id = TOUR_STOPS[tourI];
   const d = byId[id]?.d; if (!d) return;
-  tourAuto = false; tourPlan(); tourPaint();  // 出海报即是驻足：钟先停，免得海报开着背后翻站
+  tourHold();  // 出海报即是驻足：钟先停，免得海报开着背后翻站
   openPosterCard({ zh, toast: showToast, station: { id, name: d.name, sub: d.sub || '' } });
 }
 
@@ -4109,16 +4156,16 @@ function openTitle() {
     startSfp(hasSfp);
   };
   // 细字行：整行重建重绑（onclick 直挂，天然幂等——回题屏时 Net/存局状态可能已变）
+  // 细字行四项而止（2026-08-14 发起人点单）：新开一局（有局才出）·玩法·大厅·分享——
+  // 「我的」撤出门面（入界后右上角常在），共修大厅缩称「大厅」；已在房则大厅位换本室名。
   const links = b.querySelector('#bootLinks')               ;
   links.innerHTML = `${act || hasSfp ? '<span class="tlink" id="tiNew">新开一局</span>' : ''}
     <span class="tlink" id="tiHow">玩法</span>
     ${Net.active ? `<span class="tlink" id="tiNet">${esc(Net.roomLabel())}</span>`
-      : '<span class="tlink" id="tiHall">共修大厅</span>'}
-    <span class="tlink" id="tiMine">我的</span>
+      : '<span class="tlink" id="tiHall">大厅</span>'}
     <span class="tlink" id="tiShare">分享</span>`;
   const thall = links.querySelector('#tiHall');
   if (thall) (thall               ).onclick = () => openPlaza();
-  (links.querySelector('#tiMine')               ).onclick = () => openMine();
   const tn = links.querySelector('#tiNew');
   // 弃档三入口统一确认等级（⋯菜单两击、大厅 askConfirm）：题屏最显眼，不该唯一零确认
   if (tn) (tn               ).onclick = async () => {
@@ -7006,6 +7053,17 @@ const BODHI_NAV_ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; // 自左而右由低到
 const bodhiNav = el(`<div id="bodhiNav" class="ui">${BODHI_NAV_ORDER.map(g =>
   `<div class="bnv" data-g="${g}" style="color:#${BODHI_GRPS[g].color.toString(16).padStart(6, '0')}"><b>${zh(BODHI_GRPS[g].name)}</b><i></i></div>`).join('')}</div>`);
 app.appendChild(bodhiNav);
+// 触显全档（与上方 CSS 三改同案）：手指落杆十签齐现、离手 1.6s 自敛；hover 环境无此需（有逐签 hover）
+{
+  let bnvT = 0;
+  const bnvAll = () => {
+    bodhiNav.classList.add('bnvAll');
+    if (bnvT) clearTimeout(bnvT);
+    bnvT = window.setTimeout(() => { bnvT = 0; bodhiNav.classList.remove('bnvAll'); }, 1600);
+  };
+  bodhiNav.addEventListener('pointerdown', bnvAll);
+  bodhiNav.addEventListener('pointermove', bnvAll);
+}
 function bodhiNavSync() {
   bodhiNav.querySelectorAll('.bnv').forEach(n => n.classList.toggle('on', Number((n               ).dataset.g) === bodhiGrp));
   const on = bodhiNav.querySelector('.bnv.on');
@@ -7445,7 +7503,9 @@ function sfpSave() {
     //   即可同步读到，与 3D 毫无关系；只是位名要过简繁转换，而转换表在主包里内联脚本背不动，
     //   故此处顺手存一枚转好的。简繁一切换即刷新（见 zhSet 处的 sfpLabelSync）。
     ? { pos: sfpS.pos, n: sfpS.n, label: zh(SFP_BY[sfpS.pos].name),
-      hist: sfpHist.slice(-40), seenD: sfpS.seenD.slice(), trail: sfpS.trail.slice(-200) }
+      // 行迹帽 40→400（2026-08-14 修行手册所需）：手册要回顾全局升沉，40 掷只剩尾巴；
+      // 每掷约 80 字节，400 掷 32KB，localStorage 放得起。400 是护栏不是常态（常局几十掷）。
+      hist: sfpHist.slice(-400), seenD: sfpS.seenD.slice(), trail: sfpS.trail.slice(-200) }
     : null;
   persist();
 }
@@ -7537,14 +7597,41 @@ function sfpJourneySummary() {
 // 2026-08-12 用户点单三改：面板正名「本局升沉」；「这一程走势」段撤
 // （sfpJourneySummary 仍供问义与 __sfpRead.journey，只是不再上此屏）；
 // 点任一掷改开落处位卡（原「星图画链线」一路太隐晦——线画在面板背后，关卡才看见）。
+// 修行手册（2026-08-14 发起人定案）：局终回顾走问谱管线据文生成——不写谱传，
+// 手册只答一件事：这一局里，做了什么会升、做了什么会降，即修行次第，供回顾与学习。
+// 行迹是本机真数据（第几掷·何位·何相·何向），升沉之理由检索的谱文与大师论著作答，
+// 逐句角标可核对；生成闸（额度/降级）与问谱同一道，不另开口子。
+function sfpManualQuestion(done = false) {
+  if (!sfpHist.length) return '';
+  const nameOf = (id        ) => (id && SFP_BY[id] ? SFP_BY[id].name : id || '');
+  // 主题式而非逐掷式（2026-08-14 真机端到端校出）：逐掷「各因何行」是定本判词的事，
+  // 行迹面板本就逐格零生成直出，不必让模型复述；手册要模型讲的是这一局显出的**次第之理**——
+  // 何以退、退了怎么忏、何行感升、横超凭什么。位名只列诸处（入检索实体），问在主题。
+  const falls = sfpHist.filter((h) => h.d === 'down' && h.f).slice(-12);
+  const rises = sfpHist.filter((h) => h.d === 'up' && h.f).slice(-8);
+  const pure = sfpHist.some((h) => h.d === 'pure');
+  // 位名各限三处：位名是强实体，列多了检索前排全是位块，忏法/横超/外典主题块反被挤出材料窗
+  const uniq = (xs        ) => [...new Set(xs)].slice(0, 3).map((n) => `「${n}」`).join('');
+  const cur = !done && sfpS.pos && SFP_BY[sfpS.pos] ? SFP_BY[sfpS.pos].name : '';
+  return `本局共${sfpS.n}掷${done ? '，已选佛及第' : (cur ? `，现居「${cur}」` : '')}。`
+    + (falls.length ? `其间于${uniq(falls.map((h) => nameOf(h.f)))}诸位掷得恶相退堕。` : '本局未曾退位。')
+    + (rises.length ? `于${uniq(rises.map((h) => nameOf(h.f)))}诸位掷得善相升进。` : '')
+    + (pure ? '并曾以念佛横超净土。' : '')
+    + '请依谱文与蕅益大师论著，为此局总说修行次第：修行何以有退、退时如何忏悔对治；何行感升；'
+    + (pure ? '念佛横超之理何在；' : '')
+    + '末以一句作勉。';
+}
 function openSfpTrail() {
   const rows = [...sfpHist].reverse().map((h, ri) =>
     `<div class="sfpTrailRow" data-i="${sfpHist.length - 1 - ri}"><span class="tn">第${h.n}掷</span><span class="tc">${esc(h.c)}</span><span>${h.d ? SFP_DIR_BADGE[h.d] || '' : ''}${esc(h.t)}</span><i class="tgo">›</i></div>`).join('');
   const p = el(`<div class="panel"><h2>本局升沉</h2><div class="body">
     <div class="cMeta" style="margin-bottom:4px">${sfpS.pos ? `第 ${sfpS.n} 掷 · 现居「${esc(SFP_BY[sfpS.pos].name)}」` : '未起局'}</div>
     ${rows || '<div style="color:#9d9170">尚未掷轮——升沉从第一掷开始记。</div>'}
-    <div class="cNote">点任一掷可读落处位卡；只记最近四十掷，升沉皆依本位行法表与轮面字定。</div>
-    <button class="gbtn primary" style="margin-top:10px;width:100%" id="trOk">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+    <div class="cNote">点任一掷可读落处位卡；存档保留最近四百掷，升沉皆依本位行法表与轮面字定。</div>
+    ${sfpHist.length >= 4 ? `<button class="gbtn" style="margin-top:10px;width:100%" id="trManual">修行手册 · 问谱结此局升沉之理</button>` : ''}
+    <button class="gbtn primary" style="margin-top:${sfpHist.length >= 4 ? '8px' : '10px'};width:100%" id="trOk">${sfpS.active ? '回到局中' : '关闭'}</button></div></div>`);
+  const tm = p.querySelector('#trManual')                      ;
+  if (tm) tm.addEventListener('click', () => { overlayOnClose = null; openSfpReading(sfpManualQuestion()); });
   (p.querySelector('#trOk')               ).addEventListener('click', closeOverlay);
   p.addEventListener('click', (e) => {
     const row = (e.target               ).closest ? (e.target               ).closest('.sfpTrailRow')                : null;
@@ -8638,6 +8725,7 @@ function sfpVictory(settled = false) {
     })()}</div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
       <button class="gbtn primary" id="sfpAgain" style="flex:1;min-width:110px">${Net.active ? '准备下一局<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">等莲友共同准备</i>' : '再入选佛场'}</button>
+      <button class="gbtn" id="sfpManual" style="flex:1;min-width:110px">修行手册<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">问谱结此局升沉</i></button>
       <button class="gbtn" id="sfpLg" style="flex:1;min-width:110px">见闻录</button>
       ${Net.active ? '<button class="gbtn" id="sfpLeave" style="flex:1;min-width:110px">离席回大厅<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">让座给莲友</i></button>' : ''}
       <button class="gbtn" id="sfpFree" style="flex:1;min-width:110px">观照星图${Net.active ? '<i style="display:block;font-size:var(--fs-xs);font-style:normal;opacity:.7">留座旁观</i>' : ''}</button></div></div>`);
@@ -8668,6 +8756,7 @@ function sfpVictory(settled = false) {
         : '本局已在进行，您先旁观——本局结束后再点准备', 4200);
     } else startSfp(false);
   }));
+  (p.querySelector('#sfpManual')               ).addEventListener('click', takeAction(() => openSfpReading(sfpManualQuestion(true))));
   (p.querySelector('#sfpLg')               ).addEventListener('click', takeAction(() => openLogbook()));
   (p.querySelector('#lbView')               ).addEventListener('click', takeAction(() => openPlaza()));
   (p.querySelector('#sfpFree')               ).addEventListener('click', takeAction(() => leaveVictory()));
@@ -10116,7 +10205,7 @@ async function askSend(q        , rerender            ) {
 
 // 「问」＝与本谱对话：每问经游戏 Worker 的 service binding 内转问谱
 // （/api/ask → xuanfopu-agent-v2），答语逐句挂角标，出处可核对、可跳位。
-function openSfpReading() {
+function openSfpReading(prefillQ         = '') {
   const chips = SFP_ASK_CHIPS.map(([lbl, q]) =>
     `<span class="chipQ" data-ask="${esc(q)}">${esc(lbl)}</span>`).join('');
   const pnl = el(`<div class="panel askPanel"><h2>问谱<i>依六卷谱文作答</i></h2>
@@ -10178,6 +10267,7 @@ function openSfpReading() {
   (window       ).__askProbe = { log: () => sfpAskLog, render };   // 自测钩子（scripts/test-ask-panel.mjs 第四节种引文）
   openOverlay(pnl);
   render();
+  if (prefillQ) send(prefillQ);   // 修行手册等预置之问：开面板即代问一句，答语与手问同一条流、同一套角标
 }
 function openSfpIntro() {
   // 调试钩子：仅供自测驱动（不影响玩法）
@@ -11241,6 +11331,14 @@ window.addEventListener('pointerdown', function audioWake() {
     if (sfpS.active) endSfp('已离开真人共修室');
     plazaStop();                                  // 即使旧大厅定时器还挂着，也以这次显式离席为准
     openPlaza();
+  };
+  // 房内孤座「一人先行谱」（2026-08-14）：与题屏「开始行谱」同一条路——本地局、续档则续；
+  // 首识者仍先看三步短卡（卡底真正开局）。座位不动，莲友到齐回面板准备即可共修。
+  Net.onSolo = () => {
+    const hasSfp = !!(save.sfp && SFP_BY[save.sfp.pos]);
+    if (sfpS.active) { showToast(zh('本局已在行——直接掷轮即可'), 3200); return; }
+    if (!hasSfp && !(save       ).sfpHelp) { openSfpHelp({}); return; }
+    startSfp(hasSfp);
   };
   Net.onLocked = (locked, key) => {
     showToast(zh(locked ? `本室密码已设为 ${key}——点「邀请」转发，莲友点开即入座` : '本室密码已撤，诸位莲友皆可入座'), 4200);

@@ -170,7 +170,9 @@ async function handleAsk(req, env) {
   }
 
   // ── 正路：檢書 → 據文作答 ──
-  const hits = searchCorpus(q, { k: 6 });
+  // 长问多题（如局终「修行手册」列诸升降处）材料窗随之放宽：六段盖不住多主题，
+  // 模型只得依铁律说「材料没说到」——诚实而空手。k 上限 10，塊皆谱内已筛，不虚胖。
+  const hits = searchCorpus(q, { k: q.length > 90 ? 10 : 6 });
   if (!hits.length) {
     return new Response(streamSay(SAY.nomatch, T0, 'refuse', '未检得', 'refused'), { headers: NDJSON });
   }

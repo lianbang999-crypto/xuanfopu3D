@@ -32,6 +32,9 @@ node agent/eval/canon-eval.mjs  # 全量回歸，四項須 100%
 ```
 
 改全文分塊後：`node agent/gen-corpus.mjs`（→ `agent/worker/src/corpus.js`）。
+外典補充（2026-08-14 起，蕅益大師論著入庫）：`node agent/gen-aux-corpus.mjs`
+（CBETA 底本機切 → `agent/index/aux-corpus.json`，含教觀綱宗・彌陀要解・宗論棋喻一段），
+再跑 `gen-corpus.mjs` 併入——塊型 shizhu，檢索降權、出處標「大師他著」（紀律三）。
 改承注後前端側同步：`node agent/gen-chengzhu.mjs`（→ `src/sfp-chengzhu.js`），
 再跑 `npm run check:evidence`。
 

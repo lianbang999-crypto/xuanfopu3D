@@ -65,20 +65,28 @@ console.log('\n【一 无存局 · 导览钮为主，点入巡游】');
   const started = await pump(page, () =>
     document.querySelector('#boot')?.classList.contains('bye')
     && !!document.querySelector('#tourBar')
-    && (document.querySelector('#cardName')?.textContent || '') !== '', 20);
-  ok(started, '点导览：题屏退场、导览条现身、首站卡已开');
+    && (document.querySelector('#tourText')?.textContent || '') !== '', 20);
+  ok(started, '点导览：题屏退场、导览台现身、站引已题字');
   const t1 = await page.evaluate(() => ({
     pos: document.querySelector('#tourPos')?.textContent || '',
-    card: document.querySelector('#cardName')?.textContent || '',
+    text: document.querySelector('#tourText')?.textContent || '',
+    cardOpen: !!document.querySelector('.overlay #card'),
     auto: document.querySelector('#tourBar button[data-a="auto"]')?.classList.contains('on'),
   }));
   ok(/^1\/17/.test(t1.pos) && /须弥山/.test(t1.pos), '站标 1/17 · 须弥山', t1.pos);
-  ok(/须弥山/.test(t1.card), '首站卡＝须弥山', t1.card);
+  ok(!!t1.text, '站引一句已出（看景为主）', t1.text);
+  ok(!t1.cardOpen, '默认不压全卡（档一②）');
   ok(t1.auto === true, '入口起步＝自动巡游开');
   await page.click('#tourBar button[data-a="next"]');
-  const t2ok = await pump(page, () => /地狱/.test(document.querySelector('#cardName')?.textContent || ''), 10);
+  const t2ok = await pump(page, () => /^2\/17/.test(document.querySelector('#tourPos')?.textContent || ''), 10);
   const t2 = await page.evaluate(() => ({ pos: document.querySelector('#tourPos')?.textContent || '' }));
-  ok(t2ok && /^2\/17/.test(t2.pos), '下一站＝2/17 地狱法界（卡开着仍可点导览条）', t2.pos);
+  ok(t2ok && /地狱/.test(t2.pos), '下一站＝2/17 地狱法界', t2.pos);
+  // 读经证 → 全卡深读，开卡即驻足（档一①）
+  await page.click('#tourBar [data-a="card"]');
+  const cardOk = await pump(page, () => /地狱/.test(document.querySelector('#cardName')?.textContent || ''), 10);
+  ok(cardOk, '「读经证」开全卡＝地狱法界');
+  ok(await page.evaluate(() => !document.querySelector('#tourBar button[data-a="auto"]')?.classList.contains('on')),
+    '开卡即驻足（自动巡游停）');
   // 分享此站 → 海报
   await page.click('#tourBar button[data-a="share"]');
   const posterOk = await pump(page, () => {
@@ -110,15 +118,18 @@ console.log('\n【二 深链 · #v=trayastrimsa 直落忉利天】');
   const { page, ctx, errs } = await open(`${BASE}/#v=trayastrimsa`, { zh: 's', sfpHelp: true });
   const landed = await pump(page, () =>
     document.querySelector('#boot')?.classList.contains('bye')
-    && /忉利/.test(document.querySelector('#cardName')?.textContent || ''));
-  ok(landed, '题屏不点亮，直落忉利天卡');
+    && /忉利天/.test(document.querySelector('#tourPos')?.textContent || ''));
+  ok(landed, '题屏不点亮，直落忉利天站');
   const f = await page.evaluate(() => ({
     pos: document.querySelector('#tourPos')?.textContent || '',
+    text: document.querySelector('#tourText')?.textContent || '',
+    cardOpen: !!document.querySelector('.overlay #card'),
     auto: document.querySelector('#tourBar button[data-a="auto"]')?.classList.contains('on'),
     hash: location.hash,
   }));
-  ok(/^8\/17/.test(f.pos) && /忉利天/.test(f.pos), '导览条落 8/17 · 忉利天', f.pos);
-  ok(f.auto === false, '深链落站＝自动巡游不开（来客自己定步子）');
+  ok(/^8\/17/.test(f.pos), '导览台落 8/17 · 忉利天', f.pos);
+  ok(!!f.text && !f.cardOpen, '站引已出、不压全卡（来客自己定步子）', f.text);
+  ok(f.auto === false, '深链落站＝自动巡游不开');
   ok(f.hash === '', '深链用毕即清（#v 不残留）', f.hash);
   ok(errs.length === 0, '无脚本报错', errs.slice(0, 2).join(' | '));
   await ctx.close();

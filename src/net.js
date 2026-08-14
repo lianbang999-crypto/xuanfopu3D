@@ -982,7 +982,12 @@ export const Net = {
       button.addEventListener('click', () => this.sendChat(button.textContent));
     });
     this.$panel.querySelector('#netGuideAct').addEventListener('click', () => {
-      if (this.wakeUp()) this._toastCb?.(this.zh('已归队——下一轮轮到您时即可掷轮'));
+      // 情境双用：暂离者＝归队；孤座候人者＝一人先行谱（本地局，座位保留——见 _uiRoomSync 的 soloOffer）
+      if (this.isAway()) {
+        if (this.wakeUp()) this._toastCb?.(this.zh('已归队——下一轮轮到您时即可掷轮'));
+        return;
+      }
+      if (this._soloOffer && this.onSolo) { this.closePanel(); this.onSolo(); }
     });
     this.$panel.querySelector('#netReadyBtn').addEventListener('click', () => this.setReady(!this.me()?.ready));
     // 情境主按钮（批B W1，§七 明文落地）：独自在房时此钮＝邀请，人到齐才回归开局
@@ -1310,17 +1315,23 @@ export const Net = {
     const hint = this.$guide.querySelector('p');
     const guideAct = this.$guide.querySelector('#netGuideAct');
     this.$guide.hidden = !(waiting || spectating || away);
-    guideAct.hidden = !away;
+    // 一人先行谱（2026-08-14 发起人定案）：孤座候人时，情境钮＝就地开一局本地行谱——
+    // 座位保留、心跳照走，莲友到齐随时回来共同开局。全局两条路自此理清：
+    //   一人行谱＝本地局（题屏「开始行谱」与此钮同义）；与莲友共修＝房间局（两位准备，服务器裁定）。
+    // 不动服务器 ≥2 之规（贈掷、共同结算的语义皆系于「有同修」，一人局本就该是本地局）。
+    this._soloOffer = waiting && !readyPending && aloneRoom && !!this.onSolo;
+    guideAct.hidden = !(away || this._soloOffer);
     if (away) {
       hint.textContent = this.zh('您已暂离本局，轮次会跳过您。');
       guideAct.textContent = this.zh('我回来了');
     } else if (spectating) {
       hint.textContent = this.zh('本局在您入座前已开始；待共同结算后一同准备即可入局。');
     }
+    if (this._soloOffer) guideAct.textContent = this.zh('一人先行谱 · 不必等人');
     if (waiting) {
       const openIn = Math.ceil((Number(this.room.startOpenAt || 0) - Date.now()) / 1000);
       if (readyPending) hint.textContent = this.zh(readyTarget ? '正在确认您的准备状态…' : '正在取消准备，请稍候…');
-      else if (aloneRoom) hint.textContent = this.zh('室内暂只有您——邀请好友入座，两位准备即可开局。'); // 与同屏那枚「邀请好友，同修」同口径：邀的是站外的人
+      else if (aloneRoom) hint.textContent = this.zh('室内暂只有您——可先邀请莲友，也可一人先行谱。'); // 与同屏那枚「邀请好友，同修」同口径：邀的是站外的人
       else if (!me?.ready) hint.textContent = this.zh('先准备；两位准备即可共同开局。');
       else if (readyCount < 2) hint.textContent = this.zh('已准备，再候一位同修即可开局。'); // 此句只在室内已有二人以上时出现：等的是同室者点准备，非等人来
       else if (mayStart) {

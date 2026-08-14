@@ -131,7 +131,7 @@ console.log('\n【五 繁体设置 · 首帧即繁，亦零翻面】');
   }));
   ok(/圓頓妙觀/.test(first.go), '首帧即繁体位名（label）', first.go);
   ok(/續擲上局/.test(first.go) && /現居/.test(first.go) && /擲$/.test(first.go), '钮上固定字面亦繁', first.go);
-  ok(/新開一局/.test(first.links) && /共修大廳/.test(first.links), '细字行亦繁（data-t）', first.links);
+  ok(/新開一局/.test(first.links) && /大廳/.test(first.links), '细字行亦繁（data-t）', first.links);
   ok(first.name === '十法界須彌山世界', '题名亦繁', first.name);
   ok(/佛經中的宇宙/.test(first.sub) && /修行對局/.test(first.sub), '副题亦繁', first.sub);
   const gotReady = await pumpToReady(page);
