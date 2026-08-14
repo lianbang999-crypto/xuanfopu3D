@@ -186,10 +186,11 @@ export const Net = {
     if (!this.active) return '请先进入共修室';
     if (this._connState !== 'ok') return '连接恢复后方可掷轮';
     if (!this.isPlaying()) {
-      if (!this.isFinished()) return '请先准备，等待共同开局';
+      const alone = this.players.filter((p) => p.online).length <= 1;
+      if (!this.isFinished()) return alone ? '点「一人行谱 · 就地开局」即可自修' : '请先准备，等待共同开局';
       return this.room.finishReason === 'not_enough_players'
         ? '本局已中止，请准备下一局'
-        : '本局已共同结算，请准备下一局';
+        : (alone ? '本局已结算——可再一人行谱，或邀请同修' : '本局已共同结算，请准备下一局');
     }
     if (this.isSpectator()) return '本局已开局 · 您在下一局入座';
     if (this.isAway()) return '您已暂离本局 · 点此归队';
@@ -523,6 +524,23 @@ export const Net = {
     return true;
   },
   setKey(key) { return this._send({ type: 'lock', key, requestId: requestId('lock') }); },
+  // 一人行谱 · 就地开局（2026-08-14 发起人定案：房间可自修也可共修）——一点到底三件事：
+  // ①未锁先落锁（随机四位，免自修中被人误入打断；邀请链接自带密码，想共修随时转发）
+  // ②未准备先准备　③ready 回执一到即开局（服务器已放开一人局）。
+  // 兑现点挂在 _uiRoomSync（每次房况回执必经之地），十五秒未成自解除，不留死武装。
+  soloStart() {
+    if (!this.active || this.isPlaying() || this._pendingStart || this._soloArm) return;
+    this._soloArm = Date.now();
+    if (!this.locked) this.setKey(String(1000 + Math.floor(Math.random() * 9000)));
+    if (this.me()?.ready) this._soloFire();
+    else this.setReady(true);
+    this._uiRoomSync();
+  },
+  _soloFire() {
+    if (!this._soloArm) return;
+    this._soloArm = 0;
+    this.startMatch();
+  },
   clearKey() { return this._send({ type: 'lock', off: true, requestId: requestId('unlock') }); },
 
   // 来人/离席播报（2026-08-11）：等人是全流程最静的一段，从前名单静默换行等于来人无声——
@@ -885,7 +903,7 @@ export const Net = {
       <div id="netMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天消息"></div>
       <div id="netQuick"><button>南無阿彌陀佛</button><button>隨喜讚歎 🙏</button></div>
       <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="说一句…"><button aria-label="发送聊天">发送</button><span id="netChatHint" aria-live="polite"></span></div>
-      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请</button><button id="netHallBtn">大厅</button></div>
+      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请同修</button><button id="netHallBtn">大厅</button></div>
     </section>`);
     document.body.appendChild(this.$panel);
     this.$msgs = this.$panel.querySelector('#netMsgs');
@@ -992,7 +1010,7 @@ export const Net = {
     this.$panel.querySelector('#netReadyBtn').addEventListener('click', () => this.setReady(!this.me()?.ready));
     // 情境主按钮（批B W1，§七 明文落地）：独自在房时此钮＝邀请，人到齐才回归开局
     this.$panel.querySelector('#netStartBtn').addEventListener('click', () => {
-      if (this._startAsInvite) this._invite();
+      if (this._startAsSolo) this.soloStart();
       else this.startMatch();
     });
     this.$panel.querySelector('#netKeyBtn').addEventListener('click', () => this.openKey());
@@ -1264,6 +1282,11 @@ export const Net = {
     }
 
     const me = this.me();
+    // 一人开局兑现点（见 soloStart）：ready 回执落地即开局；超时或已开局则解除武装
+    if (this._soloArm) {
+      if (Date.now() - this._soloArm > 15000 || playingRoom) this._soloArm = 0;
+      else if (me?.ready && !this._pendingReady && !this._pendingStart) this._soloFire();
+    }
     const readyButton = this.$panel.querySelector('#netReadyBtn');
     const startButton = this.$panel.querySelector('#netStartBtn');
     const actionBar = this.$panel.querySelector('#netRoundActions');
@@ -1284,16 +1307,17 @@ export const Net = {
     readyButton.setAttribute('aria-label', this.zh(readyPending
       ? (readyTarget ? '正在确认准备状态' : '正在取消准备状态')
       : (me?.ready ? '取消准备' : (finishedRoom ? '准备下一局' : '我已准备'))));
-    // 情境主按钮（批B W1）：独自在房时真正的下一步是「邀请」，不是盯着一枚灰掉的开局钮；
-    // 人一到齐即回归「共同开局」。房主自然可开局；房主久未动手时向已准备的诸位放开（服务器同一把尺子）。
+    // 情境主按钮三改（2026-08-14 发起人定案：房间可自修也可共修）：
+    // 独自在房＝主钮即「一人行谱 · 就地开局」——一点到底（自动准备＋房门落锁＋开局），
+    // 不再让人对着邀请钮干等；邀请归底行「邀请同修」常在。人一到齐即回归「共同开局」。
     const aloneRoom = this.players.filter((p) => p.online).length <= 1;
-    this._startAsInvite = waiting && aloneRoom;
+    this._startAsSolo = waiting && aloneRoom;
     const mayStart = this.isHost() || this.canStart();
-    if (this._startAsInvite) {
+    if (this._startAsSolo) {
       startButton.style.display = '';
-      startButton.textContent = this.zh('邀请莲友 · 点开即入');
-      startButton.disabled = false;
-      startButton.setAttribute('aria-busy', 'false');
+      startButton.textContent = this.zh(startPending || this._soloArm ? '正在开局…' : '一人行谱 · 就地开局');
+      startButton.disabled = !!startPending || !!this._soloArm || this._connState !== 'ok';
+      startButton.setAttribute('aria-busy', startPending || this._soloArm ? 'true' : 'false');
     } else {
       startButton.style.display = waiting && mayStart ? '' : 'none';
       startButton.textContent = this.zh(startPending
@@ -1303,9 +1327,8 @@ export const Net = {
         || this._connState !== 'ok' || !this.canStart();
       startButton.setAttribute('aria-busy', startPending ? 'true' : 'false');
     }
-    // 底行「邀请」在主按钮已是邀请时收起（§5.0b 同屏不重复）
     const invButton = this.$panel.querySelector('#netInvBtn');
-    if (invButton) invButton.style.display = this._startAsInvite ? 'none' : '';
+    if (invButton) invButton.style.display = '';
 
     // 指引只剩一行：说「下一步做什么」，不复述状态行的人数、也不图解正上方那两个按钮。
     // 局中仍保留，专给两种「在室但不在局」的人：中途入室的旁观者、超时暂离者——
@@ -1315,23 +1338,20 @@ export const Net = {
     const hint = this.$guide.querySelector('p');
     const guideAct = this.$guide.querySelector('#netGuideAct');
     this.$guide.hidden = !(waiting || spectating || away);
-    // 一人先行谱（2026-08-14 发起人定案）：孤座候人时，情境钮＝就地开一局本地行谱——
-    // 座位保留、心跳照走，莲友到齐随时回来共同开局。全局两条路自此理清：
-    //   一人行谱＝本地局（题屏「开始行谱」与此钮同义）；与莲友共修＝房间局（两位准备，服务器裁定）。
-    // 不动服务器 ≥2 之规（贈掷、共同结算的语义皆系于「有同修」，一人局本就该是本地局）。
-    this._soloOffer = waiting && !readyPending && aloneRoom && !!this.onSolo;
-    guideAct.hidden = !(away || this._soloOffer);
+    // 上轮「本地局」方案已撤（2026-08-14 发起人裁定改为真房局）：情境钮归暂离者专用，
+    // 一人开局升为正门——主钮「一人行谱 · 就地开局」（见上方情境主按钮三改）。
+    guideAct.hidden = !away;
     if (away) {
       hint.textContent = this.zh('您已暂离本局，轮次会跳过您。');
       guideAct.textContent = this.zh('我回来了');
     } else if (spectating) {
       hint.textContent = this.zh('本局在您入座前已开始；待共同结算后一同准备即可入局。');
     }
-    if (this._soloOffer) guideAct.textContent = this.zh('一人先行谱 · 不必等人');
     if (waiting) {
       const openIn = Math.ceil((Number(this.room.startOpenAt || 0) - Date.now()) / 1000);
       if (readyPending) hint.textContent = this.zh(readyTarget ? '正在确认您的准备状态…' : '正在取消准备，请稍候…');
-      else if (aloneRoom) hint.textContent = this.zh('室内暂只有您——可先邀请莲友，也可一人先行谱。'); // 与同屏那枚「邀请好友，同修」同口径：邀的是站外的人
+      else if (this._soloArm) hint.textContent = this.zh('正在为您落锁开局…');
+      else if (aloneRoom) hint.textContent = this.zh('可即刻一人行谱（房门自动落锁）；转发「邀请同修」，人到即共修。');
       else if (!me?.ready) hint.textContent = this.zh('先准备；两位准备即可共同开局。');
       else if (readyCount < 2) hint.textContent = this.zh('已准备，再候一位同修即可开局。'); // 此句只在室内已有二人以上时出现：等的是同室者点准备，非等人来
       else if (mayStart) {

@@ -25,7 +25,17 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 const missing = [];
 page.on('response', (r) => { if (r.status() >= 400) missing.push(`${r.status()} ${r.url()}`); });
 
-await page.goto(UI_BASE, { waitUntil: 'domcontentloaded' });
+await page.goto(UI_BASE, { waitUntil: 'commit' });
+// 2026-08-14 等待改稳：DCL 要等整个模块图求值完（WebGL 初始化在内），无头慢机 30s 不保——
+// 改 commit＋催帧等钩子（1px 截图逼合成器走帧，同 test-boot-face 法），钩子一到即行
+for (let i = 0; i < 80; i++) {
+  if (await page.evaluate(() => typeof window.__openDoor === 'function').catch(() => false)) break;
+  await Promise.race([
+    page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
+    new Promise((r) => setTimeout(r, 900)),
+  ]).catch(() => {});
+  await page.waitForTimeout(300);
+}
 await page.waitForFunction(() => typeof window.__openDoor === 'function', { timeout: 30000 });
 await wait(600);
 

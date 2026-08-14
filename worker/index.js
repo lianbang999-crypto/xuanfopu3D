@@ -1047,7 +1047,9 @@ export class RoomDO {
     const ready = Object.values(this.players)
       .filter((p) => p.ready && this.liveIds().has(p.id))
       .sort((a, b) => a.seat - b.seat);
-    if (ready.length < 2) return false;
+    // 房间可自修可共修（2026-08-14 发起人定案）：一人准备亦可开局——自修局与共修局同一套
+    // 服务器规则（贈掷无人可受则作废、末位成佛即结算，本就都为一人局留了路）。
+    if (ready.length < 1) return false;
 
     const starterSeat = this.meta.status === 'finished'
       ? (Number(this.meta.starterSeat || 0) + 1) % ROOM_MAX
@@ -1177,7 +1179,8 @@ export class RoomDO {
       await this.finishMatch('completed');
       return;
     }
-    if (this.meta.order.length < 2 && !this.meta.finishing) {
+    // 剩一人不中止（2026-08-14）：房间可自修——同修尽去，余者独行续局；空局方收
+    if (this.meta.order.length < 1 && !this.meta.finishing) {
       await this.finishMatch('not_enough_players');
       return;
     }
@@ -1587,12 +1590,12 @@ export class RoomDO {
           return;
         }
         const ready = Object.values(this.players).filter((p) => p.ready && this.liveIds().has(p.id));
-        if (!me.ready || ready.length < 2) {
-          this.commandError(ws, 'not_ready', '至少两位在线同修准备后方可开局', msg.requestId);
+        if (!me.ready || ready.length < 1) {
+          this.commandError(ws, 'not_ready', '请先准备，再开局（一人可自修，二人以上共修）', msg.requestId);
           return;
         }
         if (!await this.startMatch()) {
-          this.commandError(ws, 'not_ready', '至少两位在线同修准备后方可开局', msg.requestId);
+          this.commandError(ws, 'not_ready', '请先准备，再开局（一人可自修，二人以上共修）', msg.requestId);
           return;
         }
         this.broadcast({ type: 'match_started', room: this.roomState(), players: this.roster() });
@@ -1830,8 +1833,6 @@ export class RoomDO {
           && this.meta.order.every((id) => this.players[id]?.done);
         if (survivorsAllDone) {
           await this.finishMatch('completed');
-        } else if (this.meta.order.length < 2 && !this.meta.finishing) {
-          await this.finishMatch('not_enough_players');
         } else if (!this.meta.order.length) {
           await this.finishMatch(this.meta.finishing ? 'completed' : 'not_enough_players');
         } else if (this.meta.phase === 'choosing_grant' && grantGone) {
@@ -1908,8 +1909,6 @@ export class RoomDO {
       await this.finishMatch('completed');   // 全员成佛：圆满收局（离线清座后残局同则）
     } else if (this.meta.status === 'playing' && !this.meta.order.length) {
       await this.finishMatch(this.meta.finishing ? 'completed' : 'not_enough_players');
-    } else if (this.meta.status === 'playing' && this.meta.order.length < 2 && !this.meta.finishing) {
-      await this.finishMatch('not_enough_players');
     } else if (this.meta.status === 'playing' && now >= Number(this.meta.turnDeadline || Infinity)) {
       const current = this.players[this.currentPlayerId()];
       if (this.meta.phase === 'choosing_grant') {

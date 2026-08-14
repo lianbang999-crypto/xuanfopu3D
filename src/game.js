@@ -9678,6 +9678,13 @@ function openDoor(dn        , opts      = {}) {
     if (sfpS.active) overlayOnClose = null;      // 题「回到局中」时要真回局中，解除 backTo；题「关闭」时仍同路往返
     closeOverlay();
   });
+  // 双击门义即收（2026-08-14 发起人点单）：卡面空处双击＝关卡——开卡的手势反着来就是关。
+  // 钮、链、芯片、折叠标题上双击不夺（那是人在快点操作，不是要关卡）。
+  inner.addEventListener('dblclick', (e) => {
+    if ((e.target               ).closest?.('button,a,u,input,summary,.sfpChip,[data-pi]')) return;
+    overlayOnClose = null;
+    closeOverlay();
+  });
   openOverlay(inner);
   if (backTo) overlayOnClose = () => { overlayOnClose = null; backTo(); };
   // opts.jump（旧「直奔这一位的谱文」来路）已撤：那是段内滚动定位，随第三段一并归 openReader。
@@ -10119,11 +10126,15 @@ function sfpTossAnswerHtml(ctx                                                  
 //     · 行内角标 [n]：点开即展出处原文，可再点跳到谱里那一位（这是本站独有的去处）
 //     · 一行核验小字：引文已逐句核验／有句未过被剔除／降级直出
 //   撤：本地速查双轨、判定条、再讲开、缓存标记、日配额计数（后端自有配额与快取）。
+// 四枚预设问二设（2026-08-14 发起人点单重设计）：从「介绍这部书」转向「陪人修行」——
+// 入门（怎么玩）→ 机制（六字表法）→ 修行（退了怎么忏，三忏材料随外典入库已最扎实）→
+// 归宿（念佛横超净土，谱内横超门＋《弥陀要解》两路材料）。「谁写的」出列：题屏玩法卡
+// 与《敘》已载，打字可问；四枚要各占一层，不为身世留席。
 const SFP_ASK_CHIPS = [
   ['这局怎么玩', '选佛谱这局是怎么玩的？'],
   ['六字何义', '轮相六字「那謨阿彌陀佛」各表什么？'],
-  ['什么是横超', '什么是横超？'],
-  ['谁写的', '选佛谱是谁写的，为什么要做这个谱？'],
+  ['退了怎么办', '退堕了怎么办？如何忏悔对治？'],
+  ['何谓横超', '什么是念佛横超净土？'],
 ];
 const sfpAskLog                                                    = [];
 let sfpAskBusy = false;
@@ -11331,14 +11342,6 @@ window.addEventListener('pointerdown', function audioWake() {
     if (sfpS.active) endSfp('已离开真人共修室');
     plazaStop();                                  // 即使旧大厅定时器还挂着，也以这次显式离席为准
     openPlaza();
-  };
-  // 房内孤座「一人先行谱」（2026-08-14）：与题屏「开始行谱」同一条路——本地局、续档则续；
-  // 首识者仍先看三步短卡（卡底真正开局）。座位不动，莲友到齐回面板准备即可共修。
-  Net.onSolo = () => {
-    const hasSfp = !!(save.sfp && SFP_BY[save.sfp.pos]);
-    if (sfpS.active) { showToast(zh('本局已在行——直接掷轮即可'), 3200); return; }
-    if (!hasSfp && !(save       ).sfpHelp) { openSfpHelp({}); return; }
-    startSfp(hasSfp);
   };
   Net.onLocked = (locked, key) => {
     showToast(zh(locked ? `本室密码已设为 ${key}——点「邀请」转发，莲友点开即入座` : '本室密码已撤，诸位莲友皆可入座'), 4200);
