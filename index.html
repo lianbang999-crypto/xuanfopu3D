@@ -4,8 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0d12">
-<meta name="description" content="十法界须弥山世界 · 选佛谱——依蕅益大师《選佛譜》十五门二百二十位，掷占察轮行十法界棋盘，从初发心直到成佛；支持四人实时联机与在线讨论。">
-<title>选佛谱 · 十法界须弥山世界</title>
+<meta name="description" content="十法界须弥山世界——依经立象的须弥山佛教宇宙教学模型：三界二十八天、四大部洲、从地狱到佛十法界，处处注明经据；附蕅益大师《选佛谱》修行对局，四人实时联机。">
+<title>十法界须弥山世界 · 须弥山十法界教学模型（附选佛谱）</title>
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://game.foyue.org/">
+<meta property="og:title" content="十法界须弥山世界 · 看见佛经中的宇宙">
+<meta property="og:description" content="依经立象的须弥山十法界教学模型：三界二十八天、四大部洲、从地狱到佛，处处注明经据；附《选佛谱》修行对局。">
+<meta property="og:image" content="https://game.foyue.org/assets/title-key.jpg">
 <!-- 题屏壁画随屏向取图：立轴（竖）与横卷（横）各一幅，media 只让当屏那幅上路，不白耗一份流量。
      置于样式之前＝解析到 CSS 时图已在途，务求第一帧即是画（本屏无「加载态」画面可退） -->
 <link rel="preload" as="image" href="/assets/title-bg-p.webp" media="(orientation:portrait)" fetchpriority="high">
@@ -47,7 +52,7 @@ canvas{display:block;touch-action:none}
   width:100%;max-width:min(560px,94vw);box-sizing:border-box;
   padding:calc(8.5vh + env(safe-area-inset-top)) 16px calc(13vh + env(safe-area-inset-bottom))}
 #bootName{font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;font-weight:500;
-  font-size:clamp(48px,11.5vw,72px);letter-spacing:.3em;text-indent:.3em;line-height:1.16;
+  font-size:clamp(32px,7.2vw,52px);letter-spacing:.14em;text-indent:.14em;line-height:1.16;
   color:#fbf0d4;text-shadow:0 2px 12px rgba(3,20,24,.9),0 4px 38px rgba(3,20,24,.7),0 0 52px rgba(233,196,110,.3)}
 /* 题名与副题只以留白相隔：画已足够满，一道纯装饰的分隔线只是噪音（本项目不加装饰之则）。
    副题字细而落在殿脊斗栱一带（画最繁处），故影比题名还要吃重——近影托边、远影压底，
@@ -55,16 +60,24 @@ canvas{display:block;touch-action:none}
 #bootSub{margin-top:17px;font-size:13px;letter-spacing:.24em;text-indent:.24em;color:#f2e7c9;
   font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;
   text-shadow:0 1px 3px rgba(3,20,24,1),0 2px 14px rgba(3,20,24,.95),0 0 30px rgba(3,20,24,.75)}
-/* 主钮：第一毫秒即金钮（样式自足，不等主包）；就绪前点了记心愿，文案由内联小脚本改「正在入界…」 */
-#bootGo{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  margin-top:auto;width:min(300px,82vw);
-  min-height:58px;padding:14px 12px;border:1px solid rgba(255,240,200,.34);border-radius:13px;cursor:pointer;
-  font-family:inherit;font-weight:600;letter-spacing:5px;font-size:16px;color:#2a1e08;
+/* 行动区两钮（2026-08-14 门面对调）：导览为主（金）、行谱为附（青纱）——
+   元素语义不换（#bootGo 永远是行谱，自测脚本按名点它），主次只由样式与 .hasSave 说话：
+   无存局＝导览金钮在上；有存局＝续掷金钮在上（column-reverse 翻序，行谱回主位）。
+   两钮样式自足（第一毫秒即在，不等主包）；就绪前点了记心愿，文案由内联小脚本改「正在入界…」 */
+#bootActs{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:10px;width:min(300px,82vw)}
+#boot.hasSave #bootActs{flex-direction:column-reverse}
+#bootGo,#bootTour{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  width:100%;min-height:54px;padding:12px;border-radius:13px;cursor:pointer;
+  font-family:inherit;font-weight:600;letter-spacing:5px;font-size:16px}
+#bootTour,#boot.hasSave #bootGo{border:1px solid rgba(255,240,200,.34);color:#2a1e08;
   background:linear-gradient(180deg,#e6bc5b,#b0831c);
   box-shadow:0 10px 34px -12px rgba(3,20,24,.9),0 0 26px rgba(215,170,69,.16)}
-#bootGo:hover{filter:brightness(1.06)}
-#bootGo b{letter-spacing:5px;font-size:16px}
-#bootGo span{font-size:11px;letter-spacing:1px;opacity:.82;font-weight:400}
+#bootGo,#boot.hasSave #bootTour{border:1px solid rgba(255,240,200,.3);color:#e9dcba;
+  background:rgba(4,26,30,.4);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  box-shadow:0 8px 26px -14px rgba(3,20,24,.9)}
+#bootGo:hover,#bootTour:hover{filter:brightness(1.06)}
+#bootGo b,#bootTour b{letter-spacing:5px;font-size:16px}
+#bootGo span,#bootTour span{font-size:11px;letter-spacing:1px;opacity:.82;font-weight:400}
 /* 在场一行（v393 重择位次）：题名→副题→「此刻谁在」，三行同属上方身份区；
    主钮带 margin-top:auto，这一行的高度由那道自动留白吸收——题名与主钮零位移，异步到达也不跳版。
    就绪且有真人才浮现（不留空盒、不报零、不假装热闹） */
@@ -94,7 +107,7 @@ canvas{display:block;touch-action:none}
 /* ── 手机竖屏（立轴）：画按高填满、取中轴竖条（殿门·台阶·池·台毯，构图天然成立）；
       题名由 vw 定尺（竖屏宽度才是稀缺物），上下留白收一档 ── */
 @media (orientation:portrait) and (max-width:640px){
-  #bootName{font-size:clamp(44px,13vw,58px);letter-spacing:.26em;text-indent:.26em}
+  #bootName{font-size:clamp(28px,8.6vw,42px);letter-spacing:.12em;text-indent:.12em}
   .bGroup{padding-top:calc(8vh + env(safe-area-inset-top));padding-bottom:calc(11vh + env(safe-area-inset-bottom))}
   #bootLinks{gap:18px}
 }
@@ -115,9 +128,10 @@ canvas{display:block;touch-action:none}
   .bGroup{max-width:min(620px,84vw);
     padding:calc(5.5vh + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
             calc(15vh + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
-  #bootName{font-size:clamp(30px,11vh,48px);letter-spacing:.28em;text-indent:.28em}
+  #bootName{font-size:clamp(22px,8vh,38px);letter-spacing:.14em;text-indent:.14em}
   #bootSub{margin-top:10px;font-size:11.5px;letter-spacing:.2em;text-indent:.2em}
-  #bootGo{width:min(280px,54vw);min-height:50px;padding:11px 12px}
+  #bootActs{width:min(280px,54vw);gap:8px}
+  #bootGo,#bootTour{min-height:46px;padding:9px 12px}
   #bootLinks{margin-top:13px;gap:20px;font-size:12px}
   #bootSeat{bottom:calc(2.8vh + env(safe-area-inset-bottom));font-size:11px;letter-spacing:.44em;text-indent:.44em}
   #bootErr{bottom:calc(4.6vh + 20px + env(safe-area-inset-bottom))}
@@ -149,12 +163,15 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
 <div id="app"></div>
 <!-- data-t＝该处的繁体字面。门面在主包到达前就要照实，而简繁转换表在主包里；
      繁体设置下若不先换，就绪时 zhDom 会把满屏简体一并转成繁体——又是一次当着人面的改口。
-     六处字面手写两份，比背一张 30 KB 的表划算。（南無阿彌陀佛 走 data-nozh，本不转。） -->
+     诸处字面手写两份，比背一张 30 KB 的表划算。（南無阿彌陀佛 走 data-nozh，本不转。） -->
 <div id="boot" aria-hidden="false"><div class="bGroup">
-  <div id="bootName" data-t="選佛譜">选佛谱</div>
-  <div id="bootSub" data-t="一人或與蓮友共修 · 行十法界 · 直至成佛">一人或与莲友共修 · 行十法界 · 直至成佛</div>
+  <div id="bootName" data-t="十法界須彌山世界">十法界须弥山世界</div>
+  <div id="bootSub" data-t="看見佛經中的宇宙 · 附《選佛譜》修行對局">看见佛经中的宇宙 · 附《选佛谱》修行对局</div>
   <div id="bootPresence" hidden></div>
-  <button id="bootGo" type="button"><b data-t="開始行譜">开始行谱</b></button>
+  <div id="bootActs">
+    <button id="bootTour" type="button"><b data-t="進入十法界">进入十法界</b><span data-t="依經導覽 · 從地獄到佛">依经导览 · 从地狱到佛</span></button>
+    <button id="bootGo" type="button"><b data-t="開始行譜">开始行谱</b></button>
+  </div>
   <div id="bootLinks"><span data-t="玩法">玩法</span><span data-t="共修大廳">共修大厅</span><span data-t="我的">我的</span><span data-t="分享">分享</span></div>
 </div>
 <div id="bootSeat" data-nozh>南無阿彌陀佛</div>
@@ -177,27 +194,32 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
    而终位不存局，故 pos 恒等于位名，至多字形略旧。
    就绪后 openTitle 仍会重写一遍，写的是同一份内容，故屏上不再有变化。 */
 (function(){
-  var g=document.getElementById('bootGo');
+  var g=document.getElementById('bootGo'),g2=document.getElementById('bootTour');
   try{
     var s=JSON.parse(localStorage.getItem('sm10.save.v1')||'{}');
     var T=s&&s.zh==='t';
-    // ① 繁体设置：先把静态字面换成 data-t 那一份（六处），免就绪时 zhDom 当众改口
+    // ① 繁体设置：先把静态字面换成 data-t 那一份，免就绪时 zhDom 当众改口
     if(T){var ns=document.querySelectorAll('#boot [data-t]');
       for(var i=0;i<ns.length;i++)ns[i].textContent=ns[i].getAttribute('data-t');}
-    // ② 有存局：钮改「续掷上局」并报现居与掷数，细字行添「新开一局」
+    // ② 有存局：行谱回主位（.hasSave 翻序换色），钮改「续掷上局」并报现居与掷数，
+    //    导览钮收成短形「导览十法界」，细字行添「新开一局」
     if(s&&s.sfp&&s.sfp.pos){
+      document.getElementById('boot').classList.add('hasSave');
       var esc=function(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
       var nm=esc(s.sfp.label||s.sfp.pos),n=s.sfp.n|0;
       if(g)g.innerHTML='<b>'+(T?'續擲上局':'续掷上局')+'</b><span>'
         +(T?'現居':'现居')+'「'+nm+'」 · 第 '+n+(T?' 擲':' 掷')+'</span>';
+      if(g2)g2.innerHTML='<b>'+(T?'導覽十法界':'导览十法界')+'</b>';
       var lk=document.getElementById('bootLinks');
       if(lk)lk.insertAdjacentHTML('afterbegin','<span>'+(T?'新開一局':'新开一局')+'</span>');
     }
   }catch(e){/* 档坏／隐私模式禁 localStorage：静态文案原样留着，即无存局之简体形 */}
-  /* 就绪前点主钮＝记下心愿：文案给出回应，主包就绪即自动起行（game.js bootActivate 兑现） */
-  if(g)g.addEventListener('click',function(){
+  /* 就绪前点钮＝记下心愿：文案给出回应，主包就绪即自动兑现（game.js bootActivate）——
+     行谱钮记 true（沿旧约），导览钮记 'tour'，各自在何钮上点的就在何钮上答话 */
+  var want=function(el,w){if(el)el.addEventListener('click',function(){
     if(document.getElementById('boot').classList.contains('ready'))return;
-    window.__wantStart=true;g.innerHTML='<b>正在入界…</b>';});
+    window.__wantStart=w;el.innerHTML='<b>正在入界…</b>';});};
+  want(g,true);want(g2,'tour');
 })();
 </script>
 <script type="module" src="./src/game.js"></script>

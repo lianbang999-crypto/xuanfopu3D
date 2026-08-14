@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "十法界须弥山世界 · 选佛谱——蕅益大师《選佛譜》十五门二百二十位，须弥山十法界宇宙棋盘，最多四人实时联机",
+  "description": "十法界须弥山世界——依经立象的须弥山十法界教学模型（三界二十八天·四大部洲·处处注明经据），附蕅益大师《選佛譜》修行对局，最多四人实时联机",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -28,6 +28,7 @@
     "test:door-intro": "node scripts/test-door-intro.mjs",
     "test:pos-card": "node scripts/test-pos-card.mjs",
     "test:boot": "node scripts/test-boot-face.mjs",
+    "test:tour": "node scripts/test-tour.mjs",
     "check:door-baihua": "node scripts/check-door-baihua.mjs",
     "test:name-ready": "node scripts/test-name-ready-flow.mjs",
     "test:finish": "node scripts/test-finish-flow.mjs",

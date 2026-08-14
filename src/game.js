@@ -30,7 +30,7 @@ import { SFP_PLACE_PLAIN } from './sfp-place-plain.js';
 import { SFP_POS_BAIHUA } from './sfp-pos-baihua.js'; // 二百二十位位注白话手译本（220/220 已译毕）：领起句 v ＋明细行 rows ＋他经补注 ext
 import { ZH_T2S, ZH_S2T } from './zh-conv.js';
 import { Net } from './net.js'; // 联机同修：房间/轮次/聊天（渲染在本文件「联机同修珠」段）
-import { quickShare } from './share.js'; // 分享卡：荐游戏/邀莲友（二维码+一键转发）
+import { quickShare, openPosterCard } from './share.js'; // 分享卡＋分享海报：荐此界/邀莲友/单站海报（二维码+一键转发）
 import * as Plaza from './plaza.js'; // 共修大厅：12 桌网格·动态广播·念佛功课榜
 import { mountChalou, chalouApi, mountChalouFeed, mountChalouInput, CHALOU_CSS } from './chalou.js'; // 莲友茶寮（2026-08-11 与主站脱钩）：本站自建留言，全屏页与大厅右墙共用
 // 六卷原文阅读器已迁独立页面 read.html（2026-08-12，src/reader-page.js）——本文件不再 import sfp-reader，openReader 只作跳转
@@ -3720,6 +3720,99 @@ function updateLabelBadges() {
 }
 updateLabelBadges();
 
+// ---------------- 导览模式（2026-08-14 门面对调 · 教学线） ----------------
+// 十七站自须弥总览沉入地狱、升经人天、出至四圣、终归极乐——顺序即教义（先知苦、次识升进、后明出离、末指归途）。
+// 站站皆是既有节点卡（selectNode）：经证、出处、此处谱位全是现成真源，导览只出「线」与「腿」，一字不新造。
+// 导览条 z:34 压在浮层纱（.overlay z:30）之上：卡开着时上一站/下一站仍可点，不必先关卡再走。
+const TOUR_STOPS = ['sumeru', 'hell', 'preta', 'animal', 'asura', 'jambu',
+  'caturmaharaja', 'trayastrimsa', 'tusita', 'paranirmita', 'rupa', 'arupa',
+  'sravaka', 'pratyeka', 'bodhi', 'buddha', 'gate'];
+const TOUR_DWELL = 15000;  // 自动巡游每站停留：读得完卡上一段经证的时长，不是幻灯片节奏
+let deepVisit = (/^#v=([a-z0-9-]+)$/i.exec(location.hash || '') || [])[1] || ''; // 单站深链 #v=节点id（bootActivate 消化）
+let tourOn = false, tourI = 0, tourAuto = false, tourT = 0;
+let tourEl                     = null;
+function tourBar() {
+  if (tourEl) return tourEl;
+  const d = el(`<div id="tourBar">
+    <button data-a="exit" title="退出导览" aria-label="退出导览">✕</button>
+    <span id="tourPos"></span>
+    <button data-a="prev" title="上一站">‹</button>
+    <button data-a="auto"></button>
+    <button data-a="next" title="下一站">›</button>
+    <button data-a="share">分享此站</button>
+  </div>`);
+  const css = document.createElement('style');
+  css.textContent = `
+#tourBar{position:fixed;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+  z-index:34;display:flex;align-items:center;gap:6px;max-width:96vw;
+  padding:6px 8px;border-radius:12px;background:rgba(10,14,20,.84);border:1px solid rgba(216,197,139,.38);
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 8px 30px -12px rgba(0,0,0,.8)}
+#tourBar #tourPos{color:#e9dcba;font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap;padding:0 2px}
+#tourBar button{min-height:34px;padding:4px 10px;border-radius:9px;cursor:pointer;font-family:inherit;
+  font-size:var(--fs-sm,12.5px);letter-spacing:1px;color:#e9dcba;background:rgba(216,197,139,.1);
+  border:1px solid rgba(216,197,139,.3);white-space:nowrap}
+#tourBar button[data-a="auto"].on{color:#e8c766;border-color:rgba(232,199,102,.6);background:rgba(232,199,102,.16)}
+@media (max-width:480px){#tourBar{gap:4px;padding:5px 6px}#tourBar button{padding:4px 7px}}`;
+  d.appendChild(css);
+  d.querySelectorAll('button').forEach((bn) => bn.addEventListener('click', () => {
+    const a = (bn               ).dataset.a;
+    if (a === 'exit') tourExit();
+    else if (a === 'prev') tourGo(tourI - 1);
+    else if (a === 'next') tourGo(tourI + 1);
+    else if (a === 'auto') { tourAuto = !tourAuto; tourPlan(); tourPaint(); }
+    else if (a === 'share') tourShare();
+  }));
+  document.body.appendChild(d);
+  tourEl = d;
+  return d;
+}
+function tourPaint() {
+  if (!tourEl) return;
+  const d = byId[TOUR_STOPS[tourI]]?.d;
+  (tourEl.querySelector('#tourPos')               ).textContent = zh(`${tourI + 1}/${TOUR_STOPS.length} · ${d ? d.name : ''}`);
+  const ab = tourEl.querySelector('button[data-a="auto"]')               ;
+  ab.textContent = zh(tourAuto ? '⏸ 暂停' : '▶ 自动');
+  ab.classList.toggle('on', tourAuto);
+}
+// 自动巡游的钟：后台页、题屏在场、入了专场（极乐/色界/道场/幽冥）都原地候着不翻站——
+// 巡游是陪读不是赶路；终站（极乐）到达即歇，归途之后没有下一站可赶。
+function tourPlan() {
+  if (tourT) { clearTimeout(tourT); tourT = 0; }
+  if (!tourOn || !tourAuto) return;
+  tourT = window.setTimeout(() => {
+    tourT = 0;
+    if (!tourOn || !tourAuto) return;
+    if (document.hidden || titleOn || inPure || inSky || inBodhi || inNether) { tourPlan(); return; }
+    if (tourI >= TOUR_STOPS.length - 1) { tourAuto = false; tourPaint(); return; }
+    tourGo(tourI + 1);
+  }, TOUR_DWELL);
+}
+function tourGo(i        ) {
+  if (!tourOn) return;
+  if (inPure || inSky || inBodhi || inNether) { showToast(zh('请先退出本景（✕ 或返回），再继续导览'), 3200); return; }
+  tourI = Math.max(0, Math.min(TOUR_STOPS.length - 1, i));
+  selectNode(TOUR_STOPS[tourI]);
+  tourPaint(); tourPlan();
+}
+function tourStart(atId         = '', opts       = {}) {
+  tourOn = true;
+  tourAuto = opts.auto !== false;
+  tourBar().style.display = 'flex';
+  tourGo(Math.max(0, TOUR_STOPS.indexOf(atId || 'sumeru')));
+}
+function tourExit() {
+  tourOn = false; tourAuto = false;
+  if (tourT) { clearTimeout(tourT); tourT = 0; }
+  if (tourEl) tourEl.style.display = 'none';
+  closeCard();
+}
+function tourShare() {
+  const id = TOUR_STOPS[tourI];
+  const d = byId[id]?.d; if (!d) return;
+  tourAuto = false; tourPlan(); tourPaint();  // 出海报即是驻足：钟先停，免得海报开着背后翻站
+  openPosterCard({ zh, toast: showToast, station: { id, name: d.name, sub: d.sub || '' } });
+}
+
 // ---------------- 覆盖层 ----------------
 let overlayEl                     = null;
 let overlayOnClose                      = null;
@@ -3989,10 +4082,21 @@ function openTitle() {
   const hasSfp = !!(save.sfp && SFP_BY[save.sfp.pos]);
   const act = sfpS.active;
   const cur = act || hasSfp ? SFP_BY[(act ? sfpS.pos : save.sfp.pos)          ] : null;
+  // 回到门面＝导览收队（2026-08-14）：题屏 z:100 全盖，导览条留在底下只会背着人自动翻站
+  if (tourOn) tourExit();
   // 主钮三态：局中→回局；有存局→直接续掷；无局→直开新局（单人零阻力，共修入口另在）。
   const go = b.querySelector('#bootGo')               ;
   go.innerHTML = `<b>${act ? '回到局中' : (hasSfp ? '续掷上局' : '开始行谱')}</b>`
     + (cur ? `<span>现居「${esc(cur.name)}」 · 第 ${act ? sfpS.n : save.sfp.n} 掷</span>` : '');
+  // 门面对调（2026-08-14）：金主位随存局易主——无局＝导览为主（教学模型是门面），
+  // 有局/局中＝行谱回主位（修行人回来第一眼要的还是续掷）。元素语义不动，主次全由 .hasSave 说话
+  // （翻序换色皆在 index.html 的 CSS：column-reverse 与金/纱两皮）。字面与 index.html 静态骨架
+  // 及内联读档脚本逐字同文——就绪重写写的是同一句话，屏上零翻面。
+  b.classList.toggle('hasSave', act || hasSfp);
+  const tb = b.querySelector('#bootTour')               ;
+  tb.innerHTML = (act || hasSfp) ? '<b>导览十法界</b>'
+    : '<b>进入十法界</b><span>依经导览 · 从地狱到佛</span>';
+  tb.onclick = () => { titleHide(); tourStart(); };
   go.onclick = () => {
     if (act) { titleHide(); return; }
     if (netRejoin()) { titleHide(); return; }   // 共修在座：回服务器棋况，不落到本机旧存局
@@ -10874,13 +10978,26 @@ window.addEventListener('pointerdown', function audioWake() {
   // 邀请链接等场景已有浮层/面板在场，则 boot 让位淡出（不移除，回题屏再点亮）。
   const bootActivate = () => {
     if (titleOn) return;
+    // 导览深链（#v=节点 id）：分享出去的「单站链接」，点开即落此站——题屏不点亮，直入其境。
+    // 巡游站开导览条（自动巡游不开，来客自己定步子）；非巡游站径开节点卡。
+    // 邀请链接（#r=）已在联机段先行消化；有浮层/在局/在座者不夺——链接让给人的现场。
+    if (deepVisit && byId[deepVisit] && !overlayEl && !sfpS.active && !Net.isPanelOpen()) {
+      const vid = deepVisit; deepVisit = '';
+      history.replaceState(history.state, '', location.pathname); // 链接用毕即清，免刷新重入
+      titleHide();
+      if (TOUR_STOPS.includes(vid)) tourStart(vid, { auto: false });
+      else selectNode(vid);
+      return;
+    }
+    deepVisit = '';
     if (!overlayEl && !sfpS.active && !Net.isPanelOpen()) {
       openTitle();
-      // 兑现就绪前记下的心愿（内联脚本 __wantStart：用户已点过「开始行谱」）——
-      // 复用主钮 onclick 的三态逻辑：有存局续掷、在座回局、无局新开，与亲手点无异
+      // 兑现就绪前记下的心愿（内联脚本 __wantStart：true＝行谱主钮、'tour'＝导览钮）——
+      // 各自复用本钮 onclick 的现成逻辑：有存局续掷、在座回局、无局新开／起导览，与亲手点无异
       if ((window       ).__wantStart) {
+        const w = (window       ).__wantStart;
         (window       ).__wantStart = false;
-        (document.getElementById('boot')?.querySelector('#bootGo')               )?.click();
+        (document.getElementById('boot')?.querySelector(w === 'tour' ? '#bootTour' : '#bootGo')               )?.click();
       }
     } else titleHide();
   };
