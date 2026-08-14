@@ -798,8 +798,10 @@ export const Net = {
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
 /* 聊天区不再另立标题：下面就是聊天，「共修聊天」四字是废话。这一行只留隐私说明，
    翻历史时借同一位置报新消息（§5.0b 信息只出一次）。 */
+/* 聊天头顶线撤（2026-08-14 极简批）：其上名单/操作行已各有一道底线，两线相邻即重复框架——
+   分区靠留白与内容自明，线只留承重的那几道 */
 #netChatHead{display:flex;align-items:center;justify-content:flex-end;flex:none;padding:6px 12px 4px;
-  border-top:1px solid var(--aq-line);color:var(--aq-note);font-size:var(--fs-xs)}
+  color:var(--aq-note);font-size:var(--fs-xs)}
 #netMsgs{flex:1 1 0;min-height:0;overflow-y:auto;padding:5px 12px 8px;display:flex;flex-direction:column;gap:8px;-webkit-overflow-scrolling:touch;touch-action:pan-y}
 @media (min-height:640px){#netMsgs{min-height:70px}}
 #netPanel.is-waiting #netMsgs,#netPanel.is-finished #netMsgs{min-height:64px}
@@ -822,7 +824,10 @@ export const Net = {
 #netInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.7);border:1px solid var(--aq-line);border-radius:10px;color:var(--aq-tx);padding:9px 11px;font-size:var(--fs-lg);outline:none}
 #netInput input:focus{border-color:rgba(150,112,32,.6);box-shadow:0 0 0 2px rgba(176,131,28,.1)}
 #netInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-goldline);background:var(--aq-goldwash);color:var(--aq-tx);border-radius:10px;cursor:pointer;font-weight:600}
-#netBtns{display:flex;flex:none;gap:8px;padding:0 12px 10px}#netBtns button{flex:1;font-size:var(--fs-sm)}
+/* 底行四钮（2026-08-14 极简批）：线形图标＋字，一钮一形一眼可辨；图标随字色走，主/险两级照旧 */
+#netBtns{display:flex;flex:none;gap:8px;padding:0 12px 10px}
+#netBtns button{flex:1;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;gap:5px;padding:4px 6px;white-space:nowrap}
+#netBtns .ico{width:1.1em;height:1.1em;flex:none}
 #netGrab{display:none;height:22px;flex:none;cursor:grab;position:relative;touch-action:none}
 #netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(112,96,64,.4);transform:translateX(-50%)}
 #netKey{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;background:rgba(8,10,15,.6);backdrop-filter:blur(4px)}
@@ -903,7 +908,7 @@ export const Net = {
       <div id="netMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天消息"></div>
       <div id="netQuick"><button>南無阿彌陀佛</button><button>隨喜讚歎 🙏</button></div>
       <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="说一句…"><button aria-label="发送聊天">发送</button><span id="netChatHint" aria-live="polite"></span></div>
-      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">离席</button><button id="netKeyBtn">密码</button><button id="netInvBtn" class="pri">邀请同修</button><button id="netHallBtn">大厅</button></div>
+      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">${ico('leave')}<span>离席</span></button><button id="netKeyBtn">${ico('lock')}<span>密码</span></button><button id="netInvBtn" class="pri">${ico('share')}<span>邀请同修</span></button><button id="netHallBtn">${ico('hall')}<span>大厅</span></button></div>
     </section>`);
     document.body.appendChild(this.$panel);
     this.$msgs = this.$panel.querySelector('#netMsgs');
@@ -1367,7 +1372,9 @@ export const Net = {
 
     const keyButton = this.$panel.querySelector('#netKeyBtn');
     keyButton.style.display = this.isHost() ? '' : 'none';
-    keyButton.textContent = this.zh(this.locked ? '改密码' : '设密码');
+    const keySpan = keyButton.querySelector('span');   // 图标批后钮内两件：线形锁＋字；态别只改字不吞锁
+    if (keySpan) keySpan.textContent = this.zh(this.locked ? '改密码' : '设密码');
+    else keyButton.textContent = this.zh(this.locked ? '改密码' : '设密码');
     this._chatEmptySync();
   },
 

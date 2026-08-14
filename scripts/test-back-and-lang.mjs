@@ -94,10 +94,13 @@ try {
   ok(true, '设置关卡同路往返回「我的」');
   await page.goBack(); // 关「我的」回裸场景
   await page.waitForFunction(() => !document.querySelector('.overlay'), undefined, { timeout: 8_000, polling: 250 });
-  // 起一局单机：大厅→一人行谱
+  // 起一局单机：大厅→一人行谱。「一人行谱」卡已撤出大厅正例（plaza.js「单人是玩法不是共修去处」定案），
+  // 本测试环境（vite 单跑、无房间服务）走的正是「大厅连不上」兜底钮 #pzSolo2——顺带把该兜底也测在内；
+  // 若日后在有房服环境跑，正例入口如有恢复亦兼容（两选择器取先见者）。
   await page.locator('#hallBtn').evaluate((b) => b.click());
-  await page.locator('#pzSolo').waitFor({ state: 'visible', timeout: 30_000 });
-  await page.locator('#pzSolo').evaluate((b) => b.click());
+  const solo = page.locator('#pzSolo, #pzSolo2').first();
+  await solo.waitFor({ state: 'visible', timeout: 45_000 });
+  await solo.evaluate((b) => b.click());
   await page.waitForFunction(() => document.querySelector('#sfpBar')?.classList.contains('show'), undefined, { timeout: 30_000, polling: 250 });
   // 掷轮（空格按住→松开），连拍截图催帧兜底（无头 rAF 节流环境）
   await page.keyboard.down('Space');

@@ -3198,6 +3198,19 @@ function toastPump() {
     window.setTimeout(() => { toastBusy = false; toastPump(); }, 260);
   }, hold);
 }
+// 即时换话（2026-08-14，门签门义提示所用）：「当前所指」型提示后点立换前话——
+// 排队制只适合互不相干的播报；门3 长义九秒占屏，门8 的话排队一秒六才上，指东话西。
+function showToastNow(msg        , ms = 2600) {
+  toastQ.length = 0;
+  if (toastTimer) { clearTimeout(toastTimer); toastTimer = 0; }
+  toastBusy = true;
+  toast.style.pointerEvents = 'none'; toast.style.cursor = '';
+  toast.textContent = zh(msg); toast.style.opacity = '1';
+  toastTimer = window.setTimeout(() => {
+    toast.style.opacity = '0';
+    window.setTimeout(() => { toastBusy = false; toastPump(); }, 260);
+  }, ms);
+}
 // v393 即刻收话：话说到一半而其所指已撤时（如门义正报着、门却被收拢），
 // 该让它当场淡去，而不是另说一句「已收拢」把它顶掉——收起本是无声的事。
 function hideToast() {
@@ -5190,7 +5203,7 @@ const SFP_DOOR_BY                      = {};
   d.introEvidenceType = d.intro ? SFP_EVIDENCE_TYPE.source : '';
 });
 // v169/v172 门总说（作者自撰助读，明确标「助讀非原譜原文」不冒充谱文）：原谱门1/2/15 无总说，补此三段
-SFP_DOOR_BY[1].intro = '選佛第一擲不論升降，二十一種輪相組合直定二十一種發始因地——此生從何處起步。廿一因分四類：三品十惡為惡因，多感三塗；見取、戒取、慢心行施、世間福并三品十善為世間雜因，隨業升沉世間諸趣；邪定、味禪、根本四禪、四無量心、四無色定為禪定因，多生色無色天；出世福戒定慧四學為出世正因，意見參禪與利名習教則慕道而雜染，最易轉入法道流弊。因地一定，此後每擲皆自此起行。';
+SFP_DOOR_BY[1].intro = '選佛第一擲，二十一種輪相組合直定二十一種發始因地——此生從何處起步。廿一因分四類：三品十惡為惡因，多感三塗；見取、戒取、慢心行施、世間福并三品十善為世間雜因，隨業升沉世間諸趣；邪定、味禪、根本四禪、四無量心、四無色定為禪定因，多生色無色天；出世福戒定慧四學為出世正因，意見參禪與利名習教則慕道而雜染，最易轉入法道流弊。因地一定，此後每擲皆自此起行。';
 SFP_DOOR_BY[2].intro = '學道而歧，其弊有五：破尸羅（毀戒行）、破軌則（壞威儀僧制）、毀正見（撥無因果）、棄多聞（恃悟輕教）、增上慢（未得謂得）。多自「意見參禪」「利名習教」兩種因地而來——離教參禪易墮暗證，逐名習教易成狂解。譜設此門，正示法門無咎、咎在用心；一念知非，懺悔還淨，仍可轉入生善滅惡與三學正軌。';
 SFP_DOOR_BY[15].intro = '圓極果位，唯一位而已——圓教究竟妙覺。斷盡四十二品無明，究盡諸法實相，三覺圓、萬德備，是為成佛、譜之終局。前十四門諸位，或升或沉、或橫超淨土，究竟同歸此極果；藏通別三教佛果，望圓皆屬因位，唯此一位，更無可進。凡各出發位譜表明確判入極果者，依該位阿佛、彌佛、陀佛或佛佛等含「佛」字的輪相進入本位；具體須依出發位判定。本局至此選佛及第。';
 [1, 2, 15].forEach(no => { SFP_DOOR_BY[no].introEvidenceType = SFP_EVIDENCE_TYPE.interpretation; });
@@ -7098,8 +7111,9 @@ function showDoorTip(dno        ) {
   const op = railOpHinted ? '' : '（双击门签入门内观照）';
   railOpHinted = true;
   const txt = gist ? `「${title}」${gist}${op}` : `「${title}」全亮${op}`;
-  // 停留时长随字数走：门13 十八字与门8 八十八字若同用 3.6 秒，后者读不完
-  showToast(txt, Math.min(9000, 2200 + txt.length * 90));
+  // 停留时长随字数走：门13 十八字与门8 八十八字若同用 3.6 秒，后者读不完。
+  // 即时换话（非排队）：连点两签，后签门义立顶前签——所指已换，话不该还在排队。
+  showToastNow(txt, Math.min(9000, 2200 + txt.length * 90));
 }
 // 签栏点门：单击＝本门全亮（镜头框位珠云、无关题字全隐），再点＝收拢；双击＝入门内观照；净土门＝极乐链路
 let railLT = 0, railLD = 0, railCardT = 0;
@@ -8606,8 +8620,9 @@ function startSfp(resume         ) {
     if (inDoor) exitDoor(false); // 新开局若身在门内：先出门再呈全图
     sfpStatus();
     sfpShowMsg('先掷發始因地：二十一种轮相，对应本局二十一种起点之一');
-    // 只说明游戏内起点，不把轮相冒作对玩家现实业力、根机或未来的判定。
-    if ((save       ).sfpHelp) showToast('第一掷只定本局起点「发始因地」——不判断现实业力或吉凶', 4200);
+    // 首掷提示依原文简说（2026-08-14 发起人点单）：只说定起点这一件事——
+    // 「不判业力吉凶」的申明归缘起/玩法卡总说一处，不在掷前反复申辩；升降对照亦不提（原谱无此说）。
+    if ((save       ).sfpHelp) showToast('第一掷定「发始因地」——掷得何因，即自何位起行', 4200);
     // 开局先呈十法界全图（用户点单）：不跳南洲，第一掷落定后随行棋飞位
     flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0));
   }
@@ -9016,17 +9031,20 @@ function openMine() {
   let mine                    = null;
 
   const paint = () => {
-    if (!mine) return;
     // 2026-08-05 极简收束（用户点单）：主页面只留「我的一张卡＋近七日一条＋三行去处」，
     // 全月月历移入弹窗（原占 ~640px，是全页最重一块）；名号收进页头右上，点即改名。
     // 全站两数降为卡下一行注脚——同一组数在大厅顶条已有一份，此处是「我的」页，主角不该是全站。
+    // 2026-08-14 本地骨架即刻上屏（三失败修其三）：见闻/原文/设置皆本机之事，不该被功课取数绑架——
+    // 从前整页只挂「正在取功课…」，断网或本地单跑（无 /api/plaza）时连设置都点不开。
+    // 今功课卡自成一格：先占位、取到补数、取不到卡内如实说并可点重试，页其余照常可用。
     body.innerHTML = `
-      <div class="myCard">
+      <div class="myCard">${mine ? `
         <i>我的累计</i><b>${myNum(mine.tosses)}</b>
-        <span>今日 ${myNum(mine.today)} · 共修 ${myNum(mine.days)} 天 · 连续 ${myNum(mine.streak)} 日 · 成佛 ${myNum(mine.wins)}</span>
+        <span>今日 ${myNum(mine.today)} · 共修 ${myNum(mine.days)} 天 · 连续 ${myNum(mine.streak)} 日 · 成佛 ${myNum(mine.wins)}</span>`
+    : `<i>我的累计</i><b>…</b><span id="myCardHint">正在取功课……</span>`}
       </div>
-      <div class="mySite">全站 ${myNum(mine.siteTosses)} · 今日 ${myNum(mine.siteToday)}</div>
-      <button class="gbtn myWeek" id="myCal"><em>近七日</em><span class="myWkBar">${myWeekHtml(mine.daily || {})}</span><i>全月 ›</i></button>
+      ${mine ? `<div class="mySite">全站 ${myNum(mine.siteTosses)} · 今日 ${myNum(mine.siteToday)}</div>` : ''}
+      <button class="gbtn myWeek" id="myCal"><em>近七日</em><span class="myWkBar">${myWeekHtml((mine && mine.daily) || {})}</span><i>全月 ›</i></button>
       <div class="myList">
         <button class="gbtn myRow" id="myLg">${ico('eye')}<span>行谱见闻</span><i>见 ${lg.seen.length}/${(SFP_POS         ).length} 位 ›</i></button>
         <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文</span><i>›</i></button>
@@ -9054,7 +9072,8 @@ function openMine() {
   // 名号在页头常驻，不随 paint 重绘：只绑一次，取数失败时也仍能改名号
   nameBtn.addEventListener('click', () => { closeOverlay(); openPlazaRename(); });
 
-  (async () => {
+  paint();   // 本地骨架不等网：设置/见闻/原文即点即用，功课卡随后补数
+  const load = async () => {
     try {
       await Plaza.flush();                            // 先把本机未送达的掷数补上，数字才是最新的
       const [me, site] = await Promise.all([Plaza.fetchMine(), Plaza.fetchPlaza()]);
@@ -9063,14 +9082,16 @@ function openMine() {
       paint();
     } catch (e) {
       if (!p.isConnected) return;
-      // 失败态与大厅同构（#pzRetry 之例）：给重试钮，移动网瞬断不必关页再手动重开
-      body.innerHTML = `<div class="cNote">${zh('功课暂时取不到，请稍后再看。')}</div>`
-        + `<button class="gbtn primary" id="myRetry" style="margin-top:10px;width:100%">${zh('重试')}</button>`
-        + `<button class="gbtn" id="myOk" style="margin-top:8px;width:100%">${zh('关闭')}</button>`;
-      (body.querySelector('#myRetry')               ).addEventListener('click', () => { closeOverlay(); openMine(); });
-      (body.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
+      // 失败态收进功课卡一格（从前整页换成重试钮，本地三行去处陪葬）：如实说、点即重试
+      const hint = body.querySelector('#myCardHint')                    ;
+      if (hint) {
+        hint.textContent = zh('功课暂取不到——点此重试（本机记录仍在）');
+        hint.style.cursor = 'pointer';
+        hint.onclick = () => { hint.onclick = null; hint.style.cursor = ''; hint.textContent = zh('正在取功课……'); void load(); };
+      }
     }
-  })();
+  };
+  void load();
 }
 const myNum = (n         ) => Number(n || 0).toLocaleString('en-US');
 
@@ -9527,7 +9548,7 @@ function openReader(opts      = {}) {
 const SFP_DOOR_GROUPS                         = {
   1: {
     label: '廿一因',
-    lead: '第一掷不论升降；廿一种轮相对应本门廿一种因地，只用来确定本局起点，不判断玩家现实业力。因地一定，此后每掷皆自此起行。',
+    lead: '第一掷定发始因地：廿一种轮相对应本门廿一种因地，掷得何因，本局即自何位起行。',
     caption: SFP_D1_CAPTION,                    // 有逐位义读者一行一位，无则位名芯片网格
     groups: SFP_D1_GROUPS.map(([n, cap, ids]) => ({ n, cap, ids })),
   },

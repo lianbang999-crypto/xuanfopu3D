@@ -1,12 +1,12 @@
 // 共修广场协议测试：对 wrangler dev 跑固定桌 + 广场汇总全流程
-// 覆盖：12 张固定桌快照/桌态流转/分厅/掷轮计数/上报上限/及第局录/公报流/
+// 覆盖：9 张固定桌快照/桌态流转/分厅/掷轮计数/上报上限/及第局录/公报流/
 //       共同准备开局/中途入座转旁观/断线保座/共同状态与座次推送
 // 用法：先 `npx wrangler dev --port 8788`，再 `node scripts/test-plaza.mjs`
-// 注：桌是全站固定对象，默认占用 H1T12；可用 PLAZA_TEST_TABLE 指定一张空桌。
+// 注：桌是全站固定对象，默认占用 H1T9；可用 PLAZA_TEST_TABLE 指定一张空桌。
 
 const BASE = process.env.NET_BASE || 'http://localhost:8788';
 const WS_BASE = BASE.replace(/^http/, 'ws');
-const TABLE = String(process.env.PLAZA_TEST_TABLE || 'H1T12').toUpperCase();
+const TABLE = String(process.env.PLAZA_TEST_TABLE || 'H1T9').toUpperCase();
 const TEST_HALL = Number(/^H(\d+)T/.exec(TABLE)?.[1] || 1);
 
 let passed = 0, failed = 0;
@@ -41,14 +41,14 @@ const table12 = (p) => p.tables.find(t => t.code === TABLE);
 // ── 一、广场快照：桌数固定 ──
 console.log('\n【广场快照】');
 const p0 = await plaza();
-ok(p0.tables.length === 12, '广场固定 12 张共修室');
+ok(p0.tables.length === 9, '广场固定 9 张共修室（2026-08-11 发起人定案由 12 收 9）');
 ok(p0.tables.every((t, i) => t.no === i + 1 && t.max === 4 && t.hall === p0.hall), '桌次连续、每桌固定四座、同属一厅');
-ok(p0.tables[10].ord === '十一', '桌号以中文序数标名');
+ok(p0.tables[8].ord === '九', '桌号以中文序数标名');
 ok(table12(p0).state === 'empty', `${TABLE} 起始为空室`);
-ok(p0.seatsPerHall === 48, '每厅 48 座（12 桌 × 4）');
+ok(p0.seatsPerHall === 36, '每厅 36 座（9 桌 × 4）');
 ok(p0.tables.every(t => /^H\d+T([1-9]|1[0-2])$/.test(t.code)), '桌号带厅号（H{厅}T{桌}）');
 const pH9 = await fetch(`${BASE}/api/plaza?hall=9`).then(r => r.json());
-ok(pH9.hall === 9 && pH9.tables.length === 12 && pH9.tables[0].code === 'H9T1', '可指定厅号，任何厅都是 12 张桌');
+ok(pH9.hall === 9 && pH9.tables.length === 9 && pH9.tables[0].code === 'H9T1', '可指定厅号，任何厅都是 9 张桌');
 
 // ── 二、掷轮计数 ──
 console.log('\n【掷轮计数】');
