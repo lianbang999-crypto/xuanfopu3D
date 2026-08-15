@@ -79,7 +79,7 @@ try {
     aria: document.querySelector('#hallBtn')?.getAttribute('aria-label') || '',
     mine: document.querySelector('#mineBtn')?.title || '',
   }));
-  ok(t1.title.includes('共修大廳') && t1.title.includes('行譜'), `切繁后 title 随转（${t1.title.slice(0, 12)}…）`);
+  ok(t1.title.includes('共修大廳') && t1.title.includes('蓮友'), `切繁后 title 随转（${t1.title.slice(0, 12)}…）`);
   ok(t1.aria.includes('共修大廳'), '切繁后 aria-label 随转（读屏不再停在开机语言）');
   ok(t1.mine.includes('功課'), '「我的」钮 tooltip 亦随转');
   await page.locator('#zhSet').evaluate((b) => b.click());

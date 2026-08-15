@@ -194,7 +194,7 @@ try {
   const hallBox = await page.locator('.pzPanel').boundingBox();
   ok(hallBox.width >= 1400 && hallBox.height >= 880, '共修大厅完整占据桌面视口');
   ok(await page.locator('#pzSolo').isVisible() && await page.locator('#pzQuick').isVisible(), '大厅顶部同时提供单人与多人入口');
-  ok((await page.locator('.pzRoomsNote').innerText()).includes('两位准备即可开局'), '大厅准确说明准备后共同开局');
+  ok((await page.locator('.pzRoomsNote').innerText()).includes('一人即可开局'), '大厅准确说明准备后共同开局');
   ok(await page.locator('#pzQuick').evaluate((element) => element.classList.contains('primary')), '多人随喜入座保持主操作层级');
   ok(await page.locator('.pzTickerTrack').isVisible(), '共修动态在大厅顶部滚动区域呈现');
   // 共修动态已由大厅内层弹层改为独立全屏页：进去一层，回来一条路
@@ -415,7 +415,9 @@ try {
 
   tail.leave();
   await page.waitForFunction(() => (document.querySelector('#netRoomState')?.textContent || '').includes('本局中止'));
-  ok((await page.locator('#netRoomState').innerText()).includes('有效同修不足两位'), '只剩一人时前台显示本局中止原因');
+  // ⚠️ 本节场景自 v396（房间可自修可共修）起已陈旧：剩一人不再中止，服务端 order.length<1 方收局。
+  //    此处仅同步了用语（旧「有效同修不足两位」→「无人续行」），场景本身待重写为「剩一人续行」。
+  ok((await page.locator('#netRoomState').innerText()).includes('无人续行'), '只剩一人时前台显示本局中止原因');
   ok((await page.locator('#netReadyBtn').innerText()).includes('准备下一局'), '中止后可直接准备下一局');
   ok((await page.locator('#rollTxt').innerText()).includes('本局已中止'), '棋盘行动栏与中止结果用语一致');
   await capture(page, '05-match-aborted');
@@ -439,7 +441,8 @@ try {
   await page.locator('#netLeaveBtn').evaluate((button) => button.click());
   const twoPlayerConfirm = await takeLeaveConfirm(page);
   await page.locator('.pzPanel').waitFor({ state: 'visible', timeout: 20_000 });
-  ok(twoPlayerConfirm.includes('不足两位') && twoPlayerConfirm.includes('立即中止'), '两人局离席前明确告知本局将立即中止');
+  // ⚠️ 同上，v396 后两人局一方离席不再中止（余者续行）：本条与下一条 reason 断言待随场景重写。
+  ok(twoPlayerConfirm.includes('其余同修继续'), '两人局离席前告知余者续行、本座让出');
   const twoPlayerFinish = await twoPlayerHost.next((message) => message.type === 'match_finished');
   ok(twoPlayerFinish.reason === 'not_enough_players', '两人局一方主动离席后服务器共同中止');
   twoPlayerHost.leave();

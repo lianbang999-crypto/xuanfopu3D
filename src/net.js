@@ -8,7 +8,7 @@
 //   莲友＝站上的人，不论在不在局中——题屏与大厅一律称此：「N 位莲友在线」「候莲友」「莲友茶寮」；
 //         莲号前缀、留空默认名亦是。净土宗专称，本谱归宿在净土、题屏落款即六字名号，
 //         故以此为全站「人」字，不可换作通用词。
-//   同修＝同在一局／一室共修的人——局中语一律称此：「同修行谱中」「有效同修不足两位」
+//   同修＝同在一局／一室共修的人——局中语一律称此：「同修行谱中」「候同修归队」
 //         「四位同修」「同修珠」，面板题即「同修」。其动词义（共同修行）出自本谱所依教典
 //         《教觀綱宗》「而同修析觀、同斷見思」，「邀请好友，同修」用的正是这一义。
 //   例外：施受、让座一类人情动作保留「莲友」（「请择一位莲友受之」「施与同席莲友」）——
@@ -1224,7 +1224,7 @@ export const Net = {
     }
     if (this.room.status === 'finished') {
       const winners = this.players.filter((p) => p.done).map((p) => p.name);
-      if (this.room.finishReason === 'not_enough_players') return '<b>本局中止</b> · 有效同修不足两位';
+      if (this.room.finishReason === 'not_enough_players') return '<b>本局中止</b> · 无人续行';
       return `<b>共同结算</b>${winners.length ? ` · ${esc(winners.join('、'))}本局成佛` : ''}`;
     }
     if (Date.now() < Number(this.room.availableAt || 0)) return '<b>共同开局</b> · 倒计时中';

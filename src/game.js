@@ -3099,7 +3099,7 @@ function syncFreeDock() {
   }
   const resume = !!(save.sfp && SFP_BY[save.sfp.pos]);
   quickSfp.textContent = zh(resume ? '续掷' : '选佛');
-  quickSfp.title = zh(resume ? `续上局：现居「${SFP_BY[save.sfp.pos].name}」` : '进入房间——一人可自修，莲友来即共修');
+  quickSfp.title = zh(resume ? `续上局：现居「${SFP_BY[save.sfp.pos].name}」` : '共修大厅 · 一人可自修，莲友来即共修');
 }
 // 单菜单原则：自由观照期底坞也带「⋯」，谱务抽屉全程可达（局中入口在 sfpBar）
 const quickChat = el('<button class="gbtn netEntry" id="freeChat" style="border-radius:24px;padding:13px 15px" title="同修 · 名单与聊天"><span class="netDots"></span><i class="netUnread"></i></button>');
@@ -3161,7 +3161,7 @@ topbar.appendChild(backBtn);
 // 两者平级，故并排；不把「我的」塞进大厅——那会让个人面成为公共面的子页，语义拧了。
 // 题字与状态小签在左，两枚去处在右，一屏两端各管一件事。
 // 两枚去处：图标在前、字在后；窄屏收起字只留形（aria-label 仍在，读屏与长按提示不受影响）
-const hallBtn = el(`<button id="hallBtn" class="ui gbtn" aria-label="大厅" title="大厅 · 进入房间：一人自修或与莲友共修">${ico('hall')}<span class="btTx">大厅</span></button>`)                     ;
+const hallBtn = el(`<button id="hallBtn" class="ui gbtn" aria-label="共修大厅" title="共修大厅 · 一人可自修，莲友来即共修">${ico('hall')}<span class="btTx">大厅</span></button>`)                     ;
 hallBtn.addEventListener('click', () => { playSfx('sfx-tap', 0.22); openPlaza(); });
 topbar.appendChild(hallBtn);
 const mineBtn = el(`<button id="mineBtn" class="ui gbtn" aria-label="我的功课" title="我的功课 · 日历 · 原文与设置">${ico('person')}<span class="btTx">我的</span></button>`)                     ;
@@ -3266,12 +3266,13 @@ window.addEventListener('keydown', (e) => {
   closeConfirm(false);
 }, true);
 
-// 局中离席会波及全房：不足两位即中止整局。换室、改一人行谱与「离席」钮一律先问这一句。
+// 局中离席只让出自己的座：其余同修照常续行（v396 起室内剩一人亦可续局），
+// 唯室内无人续行时本局方收。换室与「离席」钮一律先问这一句。
 function confirmLeaveMatch(what        )                   {
   if (!Net.active || !Net.isPlaying()) return Promise.resolve(true);
   const stillIn = Net.room.order.filter(id => !Net.players.find(p => p.id === id)?.done).length;
-  const body = stillIn <= 2
-    ? '您一走，本局有效同修不足两位，<b>全房这一局会立即中止</b>。'
+  const body = stillIn <= 1
+    ? '您一走，本局无人续行，<b>这一局就此收去</b>。'
     : '本局由其余同修继续，您的座位立即让出，本局进度不再保留。';
   return askConfirm(`${what}？`, body, '确定，让出座位', '再想想');
 }
@@ -8961,7 +8962,7 @@ function openNetSettle(message         ) {
     <div class="cMeta">${esc(Net.roomLabel())} · 第 ${Net.room.round || 1} 轮</div>
     <div class="nsHead">${head}</div>
     <div class="nsMine">${mine}</div>
-    ${aborted ? '<div class="cNote">有效同修不足两位，本局未及结算即止。</div>' : ''}
+    ${aborted ? '<div class="cNote">室内无人续行，本局未及结算即止。</div>' : ''}
     <div class="nsList">${roster}</div>
     <div class="cNote">本谱纯由掷相所至，同座只陈行处，不较先后。</div>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
@@ -9062,10 +9063,10 @@ async function plazaSit(code, nameArg = '', needKey = false, keyArg = '') {
     if (Net.isPlaying()) { plazaNavAway(); closeOverlay(); }
     else if (!document.querySelector('.overlay:not(.bye) .pzPanel')) openPlaza(); // 从问名/密码卡或邀请链接来：先铺开大厅作等候的底（:not(.bye) 免把淡出中的旧厅当在场）
     Net.openPanel();
-    // 中途入室是旁观，不是入局：别拿「两位准备即可开局」糊弄他等一个不属于他的轮次
+    // 中途入室是旁观，不是入局：这一句要说明白，免得他等一个不属于他的轮次
     showToast(zh(Net.isSpectator()
       ? `已入共修室${ord}——本局已开始，您在下一局入座`
-      : `已入共修室${ord}——两位准备即可开局`), 4200);
+      : `已入共修室${ord}`), 4200);
   } catch (e) {
     const msg = (e && e.message) || '';
     if (/密码|上锁/.test(msg)) { openPlazaSitKey(code, msg); return; } // 密码错：留在密码卡上重填
@@ -9391,7 +9392,7 @@ function plazaRender(data) {
       const ord = Plaza.TABLE_ORD[Number(String(code).split('T')[1]) - 1] || '';
       if (t) {
         showToast(zh(t.state === 'waiting' ? `已为您选共修室${ord}——${t.live} 位莲友在候`
-          : (t.state === 'empty' ? `已为您开共修室${ord}——两位准备即可开局`
+          : (t.state === 'empty' ? `已为您开共修室${ord}——此室尚无人，一人即可开局`
             : `已为您选共修室${ord}——本局行谱中，可先入座同观`)), 3600);
       }
       plazaSit(code);
@@ -11500,7 +11501,7 @@ window.addEventListener('pointerdown', function audioWake() {
       : (message.winners || []).map(id => Net.players.find(p => p.id === id)?.name))
       .filter(Boolean);
     sfpShowMsg(message.reason === 'not_enough_players'
-      ? '有效同修不足两位，本局已中止'
+      ? '室内无人续行，本局已中止'
       : (winners.length ? `${winners.join('、')}本局成佛——已共同结算` : '本局已共同结算'));
     // 末位成佛者此刻才走成佛面板；先成佛者早在成佛一刻已庆祝过（sfpVictoryHandled），
     // 与未成佛者、旁观者同看共同结算卡，两者不并出

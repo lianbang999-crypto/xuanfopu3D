@@ -344,7 +344,7 @@ export function renderPlaza(data, ui) {
 
       <section class="pzModes" aria-label="共修去处">
         <button class="pzMode multi primary" id="pzQuick" type="button">
-          <span class="pzModeNo">${ico('group')}</span><span><b>与人共修</b><i>2–4 人 · 自动入座</i></span><em>随喜入座</em>
+          <span class="pzModeNo">${ico('group')}</span><span><b>进入房间</b><i>1–4 人 · 自动择室</i></span><em>随喜入座</em>
         </button>
         <button class="pzMode chalou" id="pzChalou" type="button">
           <span class="pzModeNo">${ico('tea')}</span><span><b>茶寮</b><i>莲友闲话一处</i></span><em>进来坐</em>
@@ -354,7 +354,7 @@ export function renderPlaza(data, ui) {
       <main class="pzMain">
         <section class="pzRooms" aria-label="共修诸室">
           <div class="pzGrid"></div>
-          <p class="pzRoomsNote">自行选室 · 两位准备即可开局</p>
+          <p class="pzRoomsNote">自行选室 · 一人即可开局</p>
         </section>
         <div class="pzSeatNote" hidden></div>
         <div class="pzStill"></div>
@@ -608,9 +608,10 @@ export const PLAZA_CSS = `
 .pzTickerSet i{font-style:normal;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs,11px);margin-left:9px}
 .pzTickerMore{flex:none;color:var(--aq-note);font-size:var(--fs-sm,12.5px);letter-spacing:1px;white-space:nowrap}
 .pzTickerMore b{font-size:var(--fs-xl);font-weight:400;margin-left:4px}
-/* 两卡并排（2026-08-11 重排）：与人共修（主）｜茶寮（手机入口）——
-   「一人行谱」卡撤：单人是玩法不是共修去处，入口在题屏主钮；大厅只管人。
-   桌面双栏时茶寮卡亦藏（右墙代之），与人共修独占一行成唯一主动作。 */
+/* 两卡并排（2026-08-11 重排）：进入房间（主）｜茶寮（手机入口）——
+   2026-08-15 正名：旧题「与人共修」已不准（房间一人亦可自修，共修是可能不是前提），
+   故标题只名去处，右侧动作签仍作「随喜入座」（快速入座本就择人多之室而往）。
+   桌面双栏时茶寮卡亦藏（右墙代之），此卡独占一行成唯一主动作。 */
 .pzModes{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .pzMode{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;min-height:84px;
   padding:16px 18px;text-align:left;font:inherit;border-radius:14px;cursor:pointer;
@@ -686,8 +687,8 @@ export const PLAZA_CSS = `
 .pzR.s-waiting{border-color:var(--aq-goldline)}.pzR.s-waiting .st{color:var(--aq-strong)}
 /* 入座途中：点的那张桌原位亮着（joining 面板整体压暗，独此卡答「正入此室」） */
 .pzPanel.joining .pzR.sitting{opacity:1;border-color:rgba(150,112,32,.8);background:rgba(176,131,28,.12)}
-/* 「两位准备即可开局」是新来者未必猜得到的规矩，故留：从旧式 34px 的标题块（含自明的「十二室」小题）
-   降为一行页脚小字——话还在，版面省下大半。 */
+/* 「一人即可开局」是新来者未必猜得到的规矩，故留（2026-08-15 更正：旧作「两位准备」，
+   自 v396 房间可自修可共修后已成假话）：一行页脚小字，话在而版面省。 */
 .pzRoomsNote{margin:2px 0 0;color:var(--aq-note);opacity:.8;font-size:var(--fs-xs,11px);letter-spacing:1px}
 .pzSeatNote{color:var(--aq-note);font-size:var(--fs-sm,12.5px);text-align:center;letter-spacing:1px}
 .pzSeatNote[hidden]{display:none}
