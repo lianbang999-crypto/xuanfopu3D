@@ -12,6 +12,12 @@ import {
   makeSfpOperationalEvidence,
   makeSfpGlyphEvidence,
 } from '../src/sfp-evidence.js';
+// 承注/正本已改懒装载（2026-08-14 切库）：node 侧先装满再验，与线上「装载即回调补格」同一份数据
+import { czReady } from '../src/sfp-chengzhu-lazy.js';
+import { sfpVerdictCanonReady } from '../src/sfp-verdict-canon.js';
+import { sfpEvidenceReady } from '../src/sfp-evidence.js';
+await czReady(); await sfpVerdictCanonReady(); await sfpEvidenceReady();
+
 import { SFP_GLYPH_WHY } from '../src/sfp-glyph-why.js';
 import { sfpCanonVerdict } from '../src/sfp-verdict-canon.js';
 import { SFP_REFER_WHY } from '../src/sfp-refer-why.js';   // v390 旧溯源表：已由承注库取代，保留作历史数据与自身护栏

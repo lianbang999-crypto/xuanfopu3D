@@ -78,6 +78,19 @@ canvas{display:block;touch-action:none}
 #bootGo:hover,#bootTour:hover{filter:brightness(1.06)}
 #bootGo b,#bootTour b{letter-spacing:5px;font-size:16px}
 #bootGo span,#bootTour span{font-size:11px;letter-spacing:1px;opacity:.82;font-weight:400}
+/* 开机仪式（2026-08-14 发起人点单重规划）：未点击＝纯画无装置；点击后唯二反馈——
+   钮上一句境语、钮下一根发丝金线。境随真事踩点：取经卷（主包在途，线律动）→
+   正开星图（主包求值毕 __gpReady，线满实）→ 就绪由 bootActivate 自动兑现所点之愿。
+   不做字节百分比：CDN gzip 计数失真、同址并发取会双下载——线只述「活着与到站」，不谎报几成。 */
+#bootLine{display:block;width:100%;height:2px;margin-top:2px;border-radius:1px;overflow:hidden;
+  background:rgba(216,197,139,.16);position:relative}
+#bootLine[hidden]{display:none}
+#bootLine::before{content:'';position:absolute;left:0;top:0;bottom:0;width:100%;
+  background:linear-gradient(90deg,rgba(232,199,102,.5),#e8c766);transform:translateX(-100%);transition:transform .4s ease}
+#bootLine.ind::before{width:34%;transform:none;animation:blInd 1.5s ease-in-out infinite alternate}
+#bootLine.done::before{width:100%;transform:none;animation:none}
+@keyframes blInd{from{left:0}to{left:66%}}
+@media (prefers-reduced-motion:reduce){#bootLine.ind::before{animation:none;width:100%;left:0}}
 /* 在场一行（v393 重择位次）：题名→副题→「此刻谁在」，三行同属上方身份区；
    主钮带 margin-top:auto，这一行的高度由那道自动留白吸收——题名与主钮零位移，异步到达也不跳版。
    就绪且有真人才浮现（不留空盒、不报零、不假装热闹） */
@@ -171,6 +184,7 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
   <div id="bootActs">
     <button id="bootTour" type="button"><b data-t="進入十法界">进入十法界</b><span data-t="依經導覽 · 從地獄到佛">依经导览 · 从地狱到佛</span></button>
     <button id="bootGo" type="button"><b data-t="開始行譜">开始行谱</b></button>
+    <i id="bootLine" hidden></i>
   </div>
   <div id="bootLinks"><span data-t="玩法">玩法</span><span data-t="大廳">大厅</span><span data-t="分享">分享</span></div>
 </div>
@@ -195,9 +209,10 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
    就绪后 openTitle 仍会重写一遍，写的是同一份内容，故屏上不再有变化。 */
 (function(){
   var g=document.getElementById('bootGo'),g2=document.getElementById('bootTour');
+  var T=false;
   try{
     var s=JSON.parse(localStorage.getItem('sm10.save.v1')||'{}');
-    var T=s&&s.zh==='t';
+    T=s&&s.zh==='t';
     // ① 繁体设置：先把静态字面换成 data-t 那一份，免就绪时 zhDom 当众改口
     if(T){var ns=document.querySelectorAll('#boot [data-t]');
       for(var i=0;i<ns.length;i++)ns[i].textContent=ns[i].getAttribute('data-t');}
@@ -214,11 +229,28 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
       if(lk)lk.insertAdjacentHTML('afterbegin','<span>'+(T?'新開一局':'新开一局')+'</span>');
     }
   }catch(e){/* 档坏／隐私模式禁 localStorage：静态文案原样留着，即无存局之简体形 */}
-  /* 就绪前点钮＝记下心愿：文案给出回应，主包就绪即自动兑现（game.js bootActivate）——
+  /* 就绪前点钮＝记下心愿并起开机仪式：钮上境语（取经卷→开星图）、钮下金线（律动→满实），
+     境随真事踩点（主包求值毕 __gpReady 换境），就绪即自动兑现（game.js bootActivate）——
      行谱钮记 true（沿旧约），导览钮记 'tour'，各自在何钮上点的就在何钮上答话 */
+  var line=document.getElementById('bootLine'),stageEl=null,staged=false;
+  var stage2=function(){
+    if(stageEl)stageEl.innerHTML='<b>'+(T?'正開星圖…':'正开星图…')+'</b>';
+    if(line){line.classList.remove('ind');line.classList.add('done');}
+  };
+  var ceremony=function(){
+    if(staged)return;staged=true;
+    if(line){line.hidden=false;line.classList.add('ind');}
+    var iv=setInterval(function(){
+      var b=document.getElementById('boot');
+      if(window.__gpReady)stage2();
+      if(window.__gpReady||(b&&b.classList.contains('ready')))clearInterval(iv);
+    },250);
+  };
   var want=function(el,w){if(el)el.addEventListener('click',function(){
     if(document.getElementById('boot').classList.contains('ready'))return;
-    window.__wantStart=w;el.innerHTML='<b>正在入界…</b>';});};
+    window.__wantStart=w;stageEl=el;
+    el.innerHTML='<b>'+(T?'正取經卷…':'正取经卷…')+'</b>';
+    ceremony();});};
   want(g,true);want(g2,'tour');
 })();
 </script>

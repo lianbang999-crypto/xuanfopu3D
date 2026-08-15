@@ -4,7 +4,8 @@
 //   ③ 判词卡的“详读／行棋”双动作与来源标签稳定可见。
 // 先启动 `npm run dev`，再运行：npm run test:verdict
 import { chromium } from 'playwright-core';
-import { SFP_VERDICT_CANON_COUNT, sfpCanonVerdict } from '../src/sfp-verdict-canon.js';
+import { SFP_VERDICT_CANON_COUNT, sfpCanonVerdict, sfpVerdictCanonReady } from '../src/sfp-verdict-canon.js';
+await sfpVerdictCanonReady();   // 切库后正本为懒块：node 侧直调 sfpCanonVerdict 前先装满（浏览器侧另候 __sfpDeep）
 import { SFP_GLOSS } from '../src/sfp-gloss.js';
 
 const UI_BASE = process.env.UI_BASE || 'http://localhost:5930';
@@ -46,6 +47,19 @@ await page.goto(UI_BASE, { waitUntil: 'commit' });
 // 注意第二参是 pageFunction 的 arg，options 要放第三位——写在第二位会静默退回默认 30s
 await page.waitForFunction(() => !!(window.__sfpRead && window.__sfpRead.toss), undefined, { timeout: 120000, polling: 500 })
   .catch((e) => { console.error('  应用钩子未就绪；页面错误：', errors.slice(0, 3).join(' | ') || '(无)'); throw e; });
+// 切库后正本/承注为懒块（2026-08-14）：预取挂在首帧 rAF 之后 900ms，无头下须催帧方来。
+// 判词断言验的是真源逐字，故全篇之前先候深库齐备——__sfpRead.toss 与 showVerdict 皆据此二库。
+{
+  const t0 = Date.now();
+  while (Date.now() - t0 < 120000) {
+    await Promise.race([
+      page.screenshot({ clip: { x: 0, y: 0, width: 1, height: 1 } }),
+      new Promise((r) => setTimeout(r, 900)),
+    ]).catch(() => {});
+    await wait(250);
+    if (await page.evaluate(() => window.__sfpDeep === true).catch(() => false)) break;
+  }
+}
 await wait(400);
 
 // 四类典型：降堕／不行安住（通例层）／升进／首掷定因地

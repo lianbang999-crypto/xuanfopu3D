@@ -9,9 +9,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'; 
 import { NODES, REALMS, WORKS, COORD_KIND_LABEL } from './data.js';
 import { SFP_DOORS, SFP_POS, SFP_META } from './sfp-data.js';
 import { SFP_CANON_DOORS } from './sfp-canon.js'; // 六卷原文（CBETA B0136 逐字）；卷首卷末四篇今归阅读器，此处不再引
-import { SFP_EVIDENCE_TYPE, SFP_WHY_EVIDENCE, sfpWhyEvidence, sfpEvidenceItems, mergeSfpEvidence, makeSfpInterpretationEvidence, makeSfpOperationalEvidence, makeSfpSourceEvidence, makeSfpGlyphEvidence, sfpManualWhyText, sfpWhyLayered, SFP_WHY_LAYER_LABEL } from './sfp-evidence.js'; // sfpManualWhyText：手工逐组轮相说明（复刻线上 V104），白话主句以它为先
+import { sfpEvidenceReady, sfpEvidenceDeepBuilt, SFP_EVIDENCE_TYPE, SFP_WHY_EVIDENCE, sfpWhyEvidence, sfpEvidenceItems, mergeSfpEvidence, makeSfpInterpretationEvidence, makeSfpOperationalEvidence, makeSfpSourceEvidence, makeSfpGlyphEvidence, sfpManualWhyText, sfpWhyLayered, SFP_WHY_LAYER_LABEL } from './sfp-evidence.js'; // sfpManualWhyText：手工逐组轮相说明（复刻线上 V104），白话主句以它为先
 import { streamAsk, askFormat, historyOf } from './ask-core.js'; // 问谱客户端内核（与阅读页 reader-ask.js 共用）
-import { czOf } from './sfp-chengzhu.js'; // 承注库：判词卡与智能体同据此一份，口径不二 // NotebookLM 式问答内核：ndjson 流式・角标可点・出处跳位 // v389/v390 字义解与总括句展开经证据层单一取值口接入
+import { czOf, czReady, czLoaded } from './sfp-chengzhu-lazy.js'; // 承注库懒壳（2026-08-14 切库）：判词卡与智能体同据此一份，口径不二；831KB 生成件出首包，收口见 showVerdict 竞速门
 import { SFP_GLOSS, SFP_DOOR_PLAIN } from './sfp-gloss.js';
 import { SFP_DOOR_BAIHUA } from './sfp-door-baihua.js'; // 十五门门义白话（繁体本，浮标可标）；旧本 SFP_DOOR_PLAIN 系简体，仅作回落
 // 卡制总纲 v2「三问」六库（移植线上 V106 v474–v478）：门卡／辅标／段签／器世间／量数词／处所白话覆盖
@@ -37,7 +37,7 @@ import { mountChalou, chalouApi, mountChalouFeed, mountChalouInput, CHALOU_CSS }
 import { ico, ICON_CSS } from './icons.js'; // 内联 SVG 图标：去处与行项先认形，再认字
 import { sfpDirOf as sfpDirOfRule } from './sfp-rules.js'; // 行棋升降判定（与 check-dir 核证脚本同源）
 import { SFP_FACE_ORDER, canonicalSfpCombo } from './sfp-engine.js'; // 单机/联机共用轮面与组合归一化
-import { sfpCanonVerdict, sfpQuoteKind, SFP_VERDICT_CANON_COUNT } from './sfp-verdict-canon.js'; // 正本/门01–15：4620 格发布判词，及「谱曰／承前」判分
+import { sfpCanonVerdict, sfpQuoteKind, SFP_VERDICT_CANON_COUNT, sfpVerdictCanonReady, sfpVerdictCanonLoaded, sfpVerdictCanonSeed } from './sfp-verdict-canon.js'; // 正本/门01–15：4620 格发布判词（2026-08-14 切库：内部动态装载，1.6MB 出首包），及「谱曰／承前」判分
 import { sfpSplitOf } from './sfp-canon-split.js'; // 位文切点表（220 位逐位手核）：义解｜行法｜后论
 
 const C = {
@@ -3059,7 +3059,7 @@ function el(html        )              {
 // 右上角常驻大厅入口：进出共修是主干节点，不该藏在底部控制台或二级菜单里。
 // 题字（左）＝观照全图，大厅（右）＝进出共修，一屏两角各管一件事。
 const topbar = el(`<div id="topbar" class="ui">
-  <div id="title">选佛谱 <span style="font-size:var(--fs-xs);color:#d7aa45;opacity:.85">⊙</span></div></div>`);
+  <div id="title">十法界须弥山世界 <span style="font-size:var(--fs-xs);color:#d7aa45;opacity:.85">⊙</span></div></div>`);
 app.appendChild(topbar);
 // 题字即全图观照入口；题屏仍留给开局引导，「选佛」钮负责开始或续掷。
 const titleEl = topbar.querySelector('#title')               ;
@@ -6893,7 +6893,40 @@ function sfpTossCardModel(ctx                                                   
 }
 (window       ).__sfpCardModel = (ctx     ) => sfpTossCardModel(ctx); // 三卡接线验收钩子
 (window       ).__sfpCanonCount = SFP_VERDICT_CANON_COUNT;
-function showVerdict(body        , why                                      , goLabel        , fn            , combo         , destId         , askQ         , dirKey         , light          ) {
+// ── 深库竞速门（2026-08-14 切库治本）────────────────────────────────────
+// 正本（1.6MB）与承注（0.83MB）已出首包（sfp-verdict-canon 内部动态装载＋chengzhu 懒壳）。
+// 判词是二库唯一的硬消费点，收口在此：深库未至则三路竞速——①整块 chunk（闲时早已预取）
+// ②正本 API（api.foyue.org）单位取格籽 ③1.6 秒底线；见者先得，全败则降级出卡
+// （why 家族白话仍在首包，不空手）。掷轮动画本身即是等待的掩护。
+function sfpDeepReady() { return Promise.all([sfpVerdictCanonReady(), czReady(), sfpEvidenceReady()]); }
+let sfpSeedBusy                       = null;
+function sfpDeepSeed(posName        ) {
+  if (!posName || sfpVerdictCanonLoaded()) return Promise.resolve();
+  return sfpSeedBusy ||= fetch(`https://api.foyue.org/v1/positions/${encodeURIComponent(posName)}`,
+    { signal: AbortSignal.timeout(1400) })
+    .then((r) => r.json())
+    .then((d     ) => {
+      const cells                          = {};
+      (d.rules || []).forEach((r2     ) => {
+        cells[`${d.name}|${r2.combo}`] = r2.cite ? `${r2.plain}‖${r2.cite}` : String(r2.plain || '');
+      });
+      sfpVerdictCanonSeed(cells);
+    })
+    .catch(() => {})
+    .finally(() => { sfpSeedBusy = null; });
+}
+let showVerdictGen = 0;
+function showVerdict(...args       ) {
+  const g = ++showVerdictGen;
+  if (sfpVerdictCanonLoaded() && czLoaded() && sfpEvidenceDeepBuilt()) { showVerdictNow(...args); return; }
+  const from = sfpS.pos && SFP_BY[sfpS.pos];
+  Promise.race([
+    sfpDeepReady(),
+    sfpDeepSeed(from ? from.name : ''),
+    new Promise((res) => setTimeout(res, 1600)),
+  ]).then(() => { if (g === showVerdictGen) showVerdictNow(...args); });
+}
+function showVerdictNow(body        , why                                      , goLabel        , fn            , combo         , destId         , askQ         , dirKey         , light          ) {
   void light;
   if (dirKey) verdictEl.dataset.dir = dirKey; else delete verdictEl.dataset.dir;
   if (destId && SFP_BY[destId] && SFP_BY[destId].door !== (sfpS.pos && SFP_BY[sfpS.pos] ? SFP_BY[sfpS.pos].door : -1)) { // v264 天梯联动；v319 只跨门时闪（闪的本义是提示空间跨越，同门位移不闪）
@@ -7020,6 +7053,7 @@ function commitVerdict() {
   }, 300);
 }
 function cancelVerdict() {
+  showVerdictGen++;   // 深库竞速门在途者作废：收谱/重开时迟到的判词不再落笔
   verdictFn = null; vdAutoMin = false;
   verdictEl.classList.remove('show', 'paused', 'min', 'zap');
   verdictEl.style.removeProperty('--zx'); verdictEl.style.removeProperty('--zy');
@@ -11123,7 +11157,12 @@ window.addEventListener('pointerdown', function audioWake() {
       }
     } else titleHide();
   };
-  const startLoop = () => requestAnimationFrame((t) => { frame(t); bootActivate(); });
+  const startLoop = () => requestAnimationFrame((t) => {
+    frame(t); bootActivate();
+    // 深库闲时预取（2026-08-14 切库）：首帧站稳即取正本＋承注两块——常人首掷之前块已在手，
+    // 竞速门形同虚设；取失败无妨（掷时门内自有 API 籽与降级两路）
+    window.setTimeout(() => { sfpDeepReady().then(() => { (window       ).__sfpDeep = true; }).catch(() => {}); }, 900);
+  });
   if (document.readyState === 'complete') startLoop();
   else window.addEventListener('load', () => setTimeout(startLoop, 50), { once: true });
   (window       ).__gpReady = true;

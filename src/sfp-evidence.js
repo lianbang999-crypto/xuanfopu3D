@@ -2,7 +2,7 @@ import { SFP_WHY } from './sfp-data.js';
 import { SFP_CANON_DOORS } from './sfp-canon.js';
 import { SFP_GLYPH_WHY } from './sfp-glyph-why.js'; // v389 字义解：旧生成层，逐门手写完毕后退役
 import { sfpGlyphCanonText } from './sfp-glyph-canon.js'; // 2026-08-08 字义解手写正本：逐门核定，优先于旧生成层
-import { CZ, czOf } from './sfp-chengzhu.js'; // 承注库：4620 格逐格缘由（主源，取代 v390 之 SFP_REFER_WHY 为溯源主据）
+import { czOf, czAll, onCzReady } from './sfp-chengzhu-lazy.js'; // 承注库懒壳（2026-08-14 切库）：4620 格逐格缘由（主源）——831KB 生成件不再随首包，装载即回调补格
 import { SFP_REFER_WHY } from './sfp-refer-why.js'; // v390 旧溯源表：非相杂格处其所指仍有价值，与承注库并存（相杂格旧表误溯，不取）
 // ── 手工逐组轮相说明（复刻线上 V104 正本，v417/v419 手写层 ＋ v418 话头改写层）──
 // 缘起：谱主常以一句总括句管十几组（「阿彌至謨佛皆不行者」管九组），旧白话把那句原样搬给每一组，
@@ -34,7 +34,7 @@ import { SFP_STAY_WHY } from './sfp-stay-why.js'; // v409「不行」之由：�
 import { sfpStayCanonText } from './sfp-stay-canon.js'; // 2026-08-08「不行」之由手写正本：逐门核定，优先于旧生成层
 import { normWhy } from './sfp-norm.js'; // 话头归一：本组自称→「这一掷」，别组名字与枚举片段剔除，判语一字不动
 import { applyCanonLead } from './sfp-lead-canon.js'; // 话头正名：上游用词归到卷首〈輪相表法第一〉定诠（本地校勘层）
-import { sfpCanonVerdict } from './sfp-verdict-canon.js'; // 4620 格白话正本：游戏判词第一真源
+import { sfpCanonVerdict, sfpVerdictCanonReady } from './sfp-verdict-canon.js'; // 4620 格白话正本：游戏判词第一真源（切库后补格循环候其装载）
 
 // 判词证据严格分层：逐字引文、项目释义、项目操作规则不得互相冒充。
 export const SFP_EVIDENCE_TYPE = Object.freeze({
@@ -305,6 +305,16 @@ const canonPlain = (position, combo) => {
 };
 
 export const SFP_WHY_EVIDENCE = {};
+// 两段补格循环移入「双库齐备」回调（2026-08-14 切库）：循环既取承注（czEvidenceItems）
+// 又取正本白话（sfpCanonVerdict）——只等承注会抢跑在正本之前，缺白话释义（check:evidence 首验即翻）。
+// 故承注到位后再候正本，双至方跑；建成始兑 sfpEvidenceReady()（判词竞速门与 node 校验链皆候此諾）。
+// 表引用不变（只填不换），sfpWhyEvidence 建成前对未填之格返 null——消费皆在判词/详读层，收口有门。
+let evidenceBuiltRes                     = null;
+const evidenceBuiltP = new Promise((res) => { evidenceBuiltRes = res; });
+let evidenceBuilt = false;
+export function sfpEvidenceReady() { return evidenceBuiltP; }
+export function sfpEvidenceDeepBuilt() { return evidenceBuilt; }
+onCzReady(() => { void sfpVerdictCanonReady().then(() => {
 for (const [position, combos] of Object.entries(SFP_WHY)) {
   const canonical = CANON_BY_POSITION[position];
   SFP_WHY_EVIDENCE[position] = {};
@@ -370,7 +380,7 @@ for (const [position, combos] of Object.entries(SFP_WHY)) {
 
 // 承注补格：SFP_WHY 只载有按语之格（2210），承注库覆盖全部 4620 格。
 // 余下 2410 格（其中「行」格 1158）此前无缘由可示，今由承注库补足——纯增益，不改既有格。
-for (const key of Object.keys(CZ)) {
+for (const key of Object.keys(czAll() || {})) {
   const at = key.lastIndexOf('|');
   const position = key.slice(0, at), combo = key.slice(at + 1);
   if (SFP_WHY_EVIDENCE[position] && SFP_WHY_EVIDENCE[position][combo]) continue;
@@ -379,6 +389,9 @@ for (const key of Object.keys(CZ)) {
   if (!SFP_WHY_EVIDENCE[position]) SFP_WHY_EVIDENCE[position] = {};
   SFP_WHY_EVIDENCE[position][combo] = evidence(position, combo, items);
 }
+evidenceBuilt = true;
+evidenceBuiltRes();
+}); });   // 双库齐备回调闭（补格两循环至此）
 
 export function sfpWhyEvidence(position, combo) {
   return SFP_WHY_EVIDENCE[position]?.[combo] || null;

@@ -18,6 +18,7 @@
 //   初值迁自游戏存档 save.zh（读者在游戏里选过繁体，来此不必再选一遍）。
 import './reader-page.css';
 import { readerNodes, nodeKey, nodeBodyHtml } from './sfp-reader.js';
+import { sfpVerdictCanonReady } from './sfp-verdict-canon.js'; // 切库后判词白话为懒块：页尾装载即重绘
 import { ZH_T2S, ZH_S2T } from './zh-conv.js';
 import { SFP_GLOSS } from './sfp-gloss.js';
 import { mountAsk } from './reader-ask.js';   // 问谱右抽屉（2026-08-12，问文钞形制；后端 agent/worker 问谱 v3）
@@ -448,3 +449,6 @@ if (location.hash === '#ask') {
   history.replaceState(null, '', '#' + encodeURIComponent(KEYS[at]));
   ask.open();
 }
+// 正本懒装载（2026-08-14 切库）：4620 格判词白话随块而至——页先出（原文与骨架不等它），
+// 块到重绘本节，判词列无声补齐；取不到则列空，原文照读不误
+void sfpVerdictCanonReady().then(() => { render(); paintToc(); }).catch(() => {});

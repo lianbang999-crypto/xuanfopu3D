@@ -24,6 +24,12 @@ import { SFP_DOOR13_WHY } from '../src/sfp-door13-why.js';
 import { SFP_DOOR14_WHY } from '../src/sfp-door14-why.js';
 import { KNOWN_LEADS, canonLeadOf, applyCanonLead, CANON_GLYPH, POS_GLYPH } from '../src/sfp-lead-canon.js';
 import { sfpManualWhyText } from '../src/sfp-evidence.js';
+// 承注/正本已改懒装载（2026-08-14 切库）：node 侧先装满再验，与线上「装载即回调补格」同一份数据
+import { czReady } from '../src/sfp-chengzhu-lazy.js';
+import { sfpVerdictCanonReady } from '../src/sfp-verdict-canon.js';
+import { sfpEvidenceReady } from '../src/sfp-evidence.js';
+await czReady(); await sfpVerdictCanonReady(); await sfpEvidenceReady();
+
 
 const MANUAL = {
   ...SFP_DOOR1_WHY, ...SFP_DOOR2_WHY, ...SFP_DOOR3_WHY, ...SFP_DOOR4_WHY, ...SFP_DOOR5_WHY,

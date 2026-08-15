@@ -20,6 +20,12 @@ import { SFP_CANON_DOORS } from '../src/sfp-canon.js';
 import { czOf } from '../src/sfp-chengzhu.js';
 import { sfpDirOf } from '../src/sfp-rules.js';
 import { sfpManualWhyText } from '../src/sfp-evidence.js';
+// 承注/正本已改懒装载（2026-08-14 切库）：node 侧先装满再验，与线上「装载即回调补格」同一份数据
+import { czReady } from '../src/sfp-chengzhu-lazy.js';
+import { sfpVerdictCanonReady } from '../src/sfp-verdict-canon.js';
+import { sfpEvidenceReady } from '../src/sfp-evidence.js';
+await czReady(); await sfpVerdictCanonReady(); await sfpEvidenceReady();
+
 import { glyphMeaningOf, CANON_GLYPH, POS_GLYPH } from '../src/sfp-lead-canon.js';
 import { SFP_COMBO_WHY } from '../src/sfp-combo-why.js';
 import { SFP_STAY_WHY } from '../src/sfp-stay-why.js';

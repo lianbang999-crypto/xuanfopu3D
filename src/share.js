@@ -50,8 +50,19 @@ export async function quickShare({ code = '', zh = (s) => s, toast = () => {} } 
   const url = shareUrl(code);
   const text = shareText(code, zh);
   if (navigator.share && !isWeChat()) {
-    try { await navigator.share({ title: zh('十法界须弥山世界'), text, url }); return; }
-    catch (e) { if (e && e.name === 'AbortError') return; /* 用户取消则静默 */ }
+    try {
+      // 兑现之诺加时限（2026-08-14 修）：有些环境（部分安卓 WebView、无头浏览器）
+      // 声明了 navigator.share 却既不弹面板也不落定——await 就此悬住，分享卡永不出现，
+      // 用户看着像「点了没反应」。故与 1.2 秒赛跑：面板真开了，本页转入后台，
+      // 计时器随之冻结（后台节流），赢的一定是面板；反之赛过时限即断定其无面板可开，回退分享卡。
+      const panel = navigator.share({ title: zh('十法界须弥山世界'), text, url });
+      const raced = await Promise.race([
+        panel.then(() => 'done'),
+        new Promise((res) => setTimeout(() => res('mute'), 1200)),
+      ]);
+      if (raced === 'done') return;
+      panel.catch(() => {});          // 迟到的拒绝不作未捕获异常
+    } catch (e) { if (e && e.name === 'AbortError') return; /* 用户取消则静默 */ }
   }
   openShareCard({ code, zh, toast });
 }
@@ -79,7 +90,10 @@ export function openShareCard({ code = '', zh = (s) => s, toast = () => {} } = {
     </div>`;
   const css = document.createElement('style');
   css.textContent = `
-#shareCard{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;background:rgba(8,10,15,.72);backdrop-filter:blur(4px)}
+/* z:110 高过题屏（#boot z:100，2026-08-14 修）：从前作 70，题屏在场时点「分享」，
+   卡就开在题屏底下——人只见画面不动，还当是没反应；点「大厅」题屏一退，那张卡才露出来。
+   分享是自题屏细字行发起的，卡必须压得住发起它的那一层。 */
+#shareCard{position:fixed;inset:0;z-index:110;display:flex;align-items:center;justify-content:center;background:rgba(8,10,15,.72);backdrop-filter:blur(4px)}
 #shareCard .scBox{width:min(300px,86vw);background:rgba(18,21,30,.97);border:1px solid rgba(216,197,139,.4);border-radius:16px;padding:20px 18px 16px;color:#e8e2d0;text-align:center;position:relative}
 #shareCard .scX{position:absolute;top:10px;right:12px;background:none;border:none;color:#9aa3b5;font-size:var(--fs-lg,16px);cursor:pointer;padding:4px}
 #shareCard .scTitle{letter-spacing:3px;color:#d8c58b;font-weight:600}
@@ -220,7 +234,8 @@ export async function openPosterCard({ zh = (s) => s, toast = () => {}, station 
     </div>`;
   const css = document.createElement('style');
   css.textContent = `
-#posterCard{position:fixed;inset:0;z-index:71;display:flex;align-items:center;justify-content:center;background:rgba(8,10,15,.78);backdrop-filter:blur(4px)}
+/* 海报卡踞分享卡之上一层（同随 z:71→111 抬过题屏，缘由见 #shareCard 处） */
+#posterCard{position:fixed;inset:0;z-index:111;display:flex;align-items:center;justify-content:center;background:rgba(8,10,15,.78);backdrop-filter:blur(4px)}
 #posterCard .pcBox{width:min(340px,88vw);max-height:92vh;overflow:auto;background:rgba(18,21,30,.97);border:1px solid rgba(216,197,139,.4);border-radius:16px;padding:16px 14px 14px;text-align:center;position:relative}
 #posterCard .pcX{position:absolute;top:8px;right:10px;z-index:2;width:34px;height:34px;background:rgba(8,10,15,.5);border:none;border-radius:9px;color:#e8e2d0;font-size:var(--fs-lg,16px);cursor:pointer}
 #posterCard img{display:block;width:100%;border-radius:10px;-webkit-touch-callout:default;user-select:auto;-webkit-user-select:auto}

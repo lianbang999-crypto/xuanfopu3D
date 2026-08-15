@@ -9,6 +9,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { czOf } from '../src/sfp-chengzhu.js';
 import { sfpManualWhyText } from '../src/sfp-evidence.js';
+// 承注/正本已改懒装载（2026-08-14 切库）：node 侧先装满再验，与线上「装载即回调补格」同一份数据
+import { czReady } from '../src/sfp-chengzhu-lazy.js';
+import { sfpVerdictCanonReady } from '../src/sfp-verdict-canon.js';
+import { sfpEvidenceReady } from '../src/sfp-evidence.js';
+await czReady(); await sfpVerdictCanonReady(); await sfpEvidenceReady();
+
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CSV_FILE = join(ROOT, '选佛谱·轮相说明总表.csv');
