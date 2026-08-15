@@ -9476,7 +9476,7 @@ async function openPlaza() {
       loading.querySelector('.body').innerHTML =
         `<div class="cNote">${zh('大厅暂时连接不上，请稍后再试')}</div>` +
         `<button class="gbtn primary" id="pzRetry" style="margin-top:10px;width:100%">${zh('重试')}</button>` +
-        `<button class="gbtn" id="pzSolo2" style="margin-top:8px;width:100%">${zh('一人行谱')}</button>`;
+        `<button class="gbtn" id="pzSolo2" style="margin-top:8px;width:100%">${zh('开始行谱')}</button>`;
       loading.querySelector('#pzRetry').addEventListener('click', () => openPlaza());
       loading.querySelector('#pzSolo2').addEventListener('click', async () => { // 与大厅 onSolo 同护栏：此兜底钮同样不该是丢局旁路
         if (sfpTransit || (sfpS.rolling && !(verdictFn && !Net.active))) { showToast(zh('本掷落定后再换'), 2200); return; } // 单机判词期放行

@@ -191,40 +191,57 @@ try {
   //   正卡在默认 30s 边上，机器一忙即报「导航超时」，看着像页面坏了，其实只是没编完。
   await page.goto(UI_BASE, { waitUntil: 'domcontentloaded', timeout: 120_000 });
   await enterPlaza(page);
-  const hallBox = await page.locator('.pzPanel').boundingBox();
+  const hallBox = await page.locator('.pzPanel:not(.pzLoading)').boundingBox();
   ok(hallBox.width >= 1400 && hallBox.height >= 880, '共修大厅完整占据桌面视口');
-  ok(await page.locator('#pzSolo').isVisible() && await page.locator('#pzQuick').isVisible(), '大厅顶部同时提供单人与多人入口');
-  ok((await page.locator('.pzRoomsNote').innerText()).includes('一人即可开局'), '大厅准确说明准备后共同开局');
+  // 2026-08-15 重写：「一人行谱」卡已撤（单人入口在题屏主钮），大厅唯一主动作是「进入房间」卡；
+  //   桌面双栏下茶寮卡自藏、右墙即茶寮本体。房间 1–4 人皆可开局（发起人定案）。
+  const quickCard = await page.locator('#pzQuick').innerText();
+  ok(await page.locator('#pzQuick').isVisible() && quickCard.includes('进入房间') && quickCard.includes('1–4'),
+    '大厅主卡是「进入房间」，明说 1–4 人皆可（一人自修，莲友来即共修）');
+  ok(await page.locator('.pzSide').isVisible() && !await page.locator('#pzChalou').isVisible(),
+    '桌面右墙即茶寮本体，茶寮入口卡不重复出现');
+  ok((await page.locator('.pzRoomsNote').innerText()).includes('一人即可开局'), '大厅页脚准确说明一人即可开局');
   ok(await page.locator('#pzQuick').evaluate((element) => element.classList.contains('primary')), '多人随喜入座保持主操作层级');
   ok(await page.locator('.pzTickerTrack').isVisible(), '共修动态在大厅顶部滚动区域呈现');
   // 共修动态已由大厅内层弹层改为独立全屏页：进去一层，回来一条路
   await page.locator('#pzRank').click({ force: true });
   await page.locator('.pzRankList').waitFor({ state: 'visible', timeout: 20_000 });
-  ok((await page.locator('.pzTop h2').innerText()).includes('共修动态'), '点顶条进入共修动态全屏页');
+  ok(await page.getByRole('heading', { name: '共修动态' }).isVisible(), '点顶条进入共修动态全屏页'); // 大厅 h2 仍在 DOM，按角色指认免撞严格模式
   ok(await page.locator('.pzRankRow .no').count() === 0, '共修动态不列名次');
   await page.locator('#pzStreamBack').evaluate((button) => button.click());
   await page.locator('.pzPanel:not(.pzLoading) .pzRooms').waitFor({ state: 'visible', timeout: 30_000 });
   ok(true, '从共修动态可回到大厅');
   // 桌况刷新必须就地补写：整段重绘会把焦点掀回 body，键盘与读屏用户选不中房间，点击也会落空
   const focusKept = await page.evaluate(async () => {
-    const cell = document.querySelector('.pzR,.pzE');
+    // 2026-08-15 修考法：从动态页回厅的一拍内，旧厅可能整体换新——彼时抓的格子随旧厅拆下，
+    //   focus 落在离档节点上考出假阴性。等首格身份稳定两拍再考：考的是 8 秒定时刷新，不是转场。
+    const pick = () => document.querySelector('.pzPanel:not(.pzLoading) .pzR');
+    let cell = pick();
+    for (let i = 0; i < 10; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      const now = pick();
+      if (now === cell && now?.isConnected) break;
+      cell = now;
+    }
     cell.focus();
     const before = document.activeElement?.getAttribute('aria-label') || '';
     await new Promise((resolve) => setTimeout(resolve, 9000));
     return {
       before,
       after: document.activeElement?.getAttribute('aria-label') || '',
-      sameNode: document.querySelector('.pzR,.pzE') === cell,
+      sameNode: pick() === cell,
     };
   });
+  if (!(focusKept.before && focusKept.before === focusKept.after && focusKept.sameNode))
+    console.error(`  焦点诊断：${JSON.stringify(focusKept)}`);
   ok(!!focusKept.before && focusKept.before === focusKept.after && focusKept.sameNode,
     '大厅定时刷新就地补写桌况，不夺走键盘焦点');
   await capture(page, '00-plaza-desktop');
   await page.setViewportSize({ width: 390, height: 844 });
-  const mobileHallBox = await page.locator('.pzPanel').boundingBox();
+  const mobileHallBox = await page.locator('.pzPanel:not(.pzLoading)').boundingBox();
   ok(mobileHallBox.width >= 389 && mobileHallBox.height >= 843, '共修大厅在手机端同样占满视口');
   ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), '手机大厅没有横向溢出');
-  ok(await page.locator('#pzSolo').isVisible() && await page.locator('#pzQuick').isVisible(), '手机首屏保留单人与多人入口');
+  ok(await page.locator('#pzQuick').isVisible() && await page.locator('#pzChalou').isVisible(), '手机首屏保留进入房间与茶寮两个去处');
   await capture(page, '00b-plaza-mobile');
   await page.setViewportSize({ width: 1440, height: 900 });
   const openTables = page.locator('.pzR.s-empty:not(:disabled):not(.locked)'); // 2026-08-12 九宫格：空桌即 s-empty 卡（.pzE 空室条已撤）
@@ -258,10 +275,10 @@ try {
     && !/[东南西北]·主/.test(await page.locator('#netRoster').innerText()), '房间只显示房主，不再显示方位座次');
   ok((await page.locator('#netRoomState').innerText()).includes('准备室'), '入座后进入准备室而非直接开局');
   // W3（2026-07-30）：状态行只报人数，开局条件由指引句说一次
+  // 2026-08-15 重写：孤座指引已随 v396「房间可自修可共修」改词——一人即可开始掷轮，邀请是可选不是前提
   ok((await page.locator('#netRoomState').innerText()).includes('人在线')
-    && (await page.locator('#netGuide').innerText()).includes('两位准备即可开局'), '开局条件由指引句说一次：两位准备即可开局');
-  ok((await page.locator('#netGuide').innerText()).includes('邀请莲友入座')
-    && (await page.locator('#netGuide').innerText()).includes('两位准备即可开局'), '准备室指引一句说清下一步（独自＝邀请，两位准备即可开局）');
+    && (await page.locator('#netGuide').innerText()).includes('一人即可开始掷轮'), '状态行只报人数，孤座指引明说一人即可开始掷轮');
+  ok((await page.locator('#netGuide').innerText()).includes('邀请同修'), '孤座指引同句给出「邀请同修」共修之路');
   await page.setViewportSize({ width: 375, height: 667 });
   ok(await page.locator('#netReadyBtn').isVisible()
     && await page.locator('#netStartBtn').isVisible()
@@ -367,7 +384,7 @@ try {
   // 动态面板在确认卡出现前可能被外部点按层先收起；直接触发按钮语义，稳定覆盖真正的离席流程。
   await page.locator('#netLeaveBtn').evaluate((button) => button.click());
   const confirmText = await takeLeaveConfirm(page);
-  await page.locator('.pzPanel').waitFor({ state: 'visible', timeout: 20_000 });
+  await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 20_000 });
   ok(confirmText.includes('其余同修继续') && confirmText.includes('立即让出'), '三人局离席前明确告知其余玩家继续及立即让座');
   ok(!nativeDialogSeen, '离席确认走站内卡片，不再弹原生对话框');
   const continued = await peerB.next((message) => message.type === 'sync'
@@ -377,7 +394,7 @@ try {
   peerC.leave();
   await wait(300);
 
-  console.log('\n【刷新重连、房主递补与人数不足】');
+  console.log('\n【刷新重连、房主递补与孤座续局】');
   const host = await openPeer(tableB, '原房主'); peers.push(host);
   await page.locator(`.pzR[data-code="${tableB}"],.pzE[data-code="${tableB}"]`).evaluate((button) => button.click());
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
@@ -396,12 +413,18 @@ try {
   await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 12_000 });
 
   await page.reload({ waitUntil: 'domcontentloaded', timeout: 120_000 });   // 同上：dev server 冷启慢，非页面之过
-  // 刷新即重来一遍首帧：自动回座要等 bootActivate，而它在首帧 rAF 之后；
-  //   无头 swiftshader 下 rAF 受节流，须催帧（同 enterPlaza，2026-08-12）。
-  await pumpUntil(page, () => document.querySelector('#netPanel')?.classList.contains('on'), 90);
-  await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 90_000 });
+  // 2026-08-15 随 v394 门面对调重写：刷新后静默回座（boot 尾 joinRoom）＋首拍水合在题屏之下完成，
+  //   面板不自弹——题屏是门面，回局经「开始行谱」一点（act 已真＝titleHide 即回局中）。
+  await pumpUntil(page, () => document.querySelector('#boot')?.classList.contains('ready'), 90);
+  await pumpUntil(page, () => document.querySelector('#sfpBar')?.classList.contains('show')
+    || !!document.querySelector('#tiNet')
+    || (document.querySelector('#toast')?.textContent || '').includes('已重回'), 60);
+  await page.locator('#bootGo').evaluate((b) => b.click());
+  await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 60_000 });
   await freezeVisuals(page);   // 同前：冻在就绪之后
-  ok((await page.locator('#netRoomState').innerText()).includes('第 1 轮'), '刷新页面后自动回原座并恢复进行中的共同轮次');
+  await page.locator('#sfpChat').click({ force: true });
+  await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
+  ok((await page.locator('#netRoomState').innerText()).includes('第 1 轮'), '刷新后凭本机座票回原座，一点「开始行谱」即回进行中的共同轮次');
 
   host.leave();
   await page.waitForFunction(() => {
@@ -414,19 +437,19 @@ try {
   await capture(page, '04-promoted-host');
 
   tail.leave();
-  await page.waitForFunction(() => (document.querySelector('#netRoomState')?.textContent || '').includes('本局中止'));
-  // ⚠️ 本节场景自 v396（房间可自修可共修）起已陈旧：剩一人不再中止，服务端 order.length<1 方收局。
-  //    此处仅同步了用语（旧「有效同修不足两位」→「无人续行」），场景本身待重写为「剩一人续行」。
-  ok((await page.locator('#netRoomState').innerText()).includes('无人续行'), '只剩一人时前台显示本局中止原因');
-  ok((await page.locator('#netReadyBtn').innerText()).includes('准备下一局'), '中止后可直接准备下一局');
-  ok((await page.locator('#rollTxt').innerText()).includes('本局已中止'), '棋盘行动栏与中止结果用语一致');
-  await capture(page, '05-match-aborted');
+  // 2026-08-15 重写（v396 房间可自修可共修）：剩一人不再中止——余者孤座续局，服务端 order.length<1 方收局
+  await page.waitForFunction(() => document.querySelectorAll('#netRoster .netP').length === 1);
+  ok((await page.locator('#netRoomState').innerText()).includes('第 1 轮'), '只剩一人时本局不中止，孤座续局照常行谱');
+  ok(!(await page.locator('#netRoomState').innerText()).includes('本局中止'), '状态行不再误报中止');
+  await capture(page, '05-solo-continues');
 
-  await page.locator('#netLeaveBtn').click({ force: true });
-  await page.locator('.pzPanel').waitFor({ state: 'visible', timeout: 12_000 });
-  ok(true, '结算后离席无需二次确认并返回大厅');
+  // 孤座局中离席＝无人续行：确认卡把这层后果说明白（copy 与 confirmLeaveMatch stillIn<=1 分支同源）
+  await page.locator('#netLeaveBtn').evaluate((button) => button.click());
+  const soloLeaveConfirm = await takeLeaveConfirm(page);
+  await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 20_000 });
+  ok(soloLeaveConfirm.includes('无人续行') && soloLeaveConfirm.includes('就此收去'), '孤座离席前明确告知本局将就此收去');
 
-  console.log('\n【两人局主动离席】');
+  console.log('\n【两人局主动离席 · 余者续局】');
   const twoPlayerHost = await openPeer(tableC, '两人局房主'); peers.push(twoPlayerHost);
   await page.locator(`.pzR[data-code="${tableC}"],.pzE[data-code="${tableC}"]`).evaluate((button) => button.click());
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
@@ -440,11 +463,12 @@ try {
   await page.locator('#sfpChat').click({ force: true });
   await page.locator('#netLeaveBtn').evaluate((button) => button.click());
   const twoPlayerConfirm = await takeLeaveConfirm(page);
-  await page.locator('.pzPanel').waitFor({ state: 'visible', timeout: 20_000 });
-  // ⚠️ 同上，v396 后两人局一方离席不再中止（余者续行）：本条与下一条 reason 断言待随场景重写。
-  ok(twoPlayerConfirm.includes('其余同修继续'), '两人局离席前告知余者续行、本座让出');
-  const twoPlayerFinish = await twoPlayerHost.next((message) => message.type === 'match_finished');
-  ok(twoPlayerFinish.reason === 'not_enough_players', '两人局一方主动离席后服务器共同中止');
+  await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 20_000 });
+  ok(twoPlayerConfirm.includes('其余同修继续') && twoPlayerConfirm.includes('立即让出'), '两人局离席前告知余者继续、本座让出');
+  // 2026-08-15 重写（v396）：一方离席不再中止全局——余者一人孤座续局，服务器不发 match_finished
+  const soloSync = await twoPlayerHost.next((message) => message.type === 'sync'
+    && message.room?.status === 'playing' && message.players.length === 1);
+  ok(soloSync.room.order.length === 1, '两人局一方离席后余者一人孤座续局，本局不中止');
   twoPlayerHost.leave();
   await context.close();
 } catch (error) {
