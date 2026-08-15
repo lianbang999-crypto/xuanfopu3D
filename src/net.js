@@ -128,7 +128,6 @@ export const Net = {
   onMatchFinished: null,
   onCommandError: null,
   onLocked: null,
-  onHall: null,
   onLeft: null,
   zh: (s) => s,
   _toastCb: null,
@@ -142,6 +141,20 @@ export const Net = {
     if (this.isHost()) return true;
     const openAt = Number(this.room.startOpenAt || 0);
     return !!openAt && Date.now() >= openAt;
+  },
+  // 独自在室（在线者唯我）：一人局的判定口径，与 _uiRoomSync 的 aloneRoom 同则
+  isAlone() { return this.players.filter((p) => p.online).length <= 1; },
+  // 一人局就地重开（2026-08-15）：题屏「新开一局」在房内走的就是这条线——
+  // 先请服务端收去本局（reason 'restarted'，前台静默不掀结算卡），房态一转候局即自行开新局。
+  // 二人以上不走此路（服务端亦拒），仍须共同结算后再开。
+  restartSolo() {
+    if (!this.active || !this.isAlone()) return false;
+    if (!this.isPlaying()) { this.soloStart(); return true; }   // 本就不在局中：径直开新局
+    // 兑现点不可借 _soloArm：局中每拍 _uiRoomSync 见 playingRoom 即把它撤掉，收局回执未到就先没了。
+    // 另立 _restartArm，待服务端收局（match_finished · restarted）落定后再走一遍正门 soloStart。
+    this._restartArm = Date.now();
+    if (!this._send({ type: 'restart_match', requestId: `restart:${Date.now()}` })) { this._restartArm = 0; return false; }
+    return true;
   },
   // 全站只称「共修室N」；H1T2 这类内部码只在需要口报或手输处作次级信息
   roomLabel(code = this.code) {
@@ -658,13 +671,24 @@ export const Net = {
       case 'player_back':
         this._sysMsg(`${message.name || '同修'}已归队`);
         break;
-      case 'match_finished':
+      case 'match_finished': {
         this._pendingToss = '';
         this._applyState(message);
+        // 一人局重开（reason 'restarted'）静默收局：不掀结算卡、不报成佛——本局是自己主动弃的，
+        // 结算是共修才有的仪式。armed 者此刻房态已转候局，走一遍正门 soloStart 开新局。
+        const restarted = message.reason === 'restarted';
+        if (restarted) {
+          const armed = !!this._restartArm && Date.now() - this._restartArm < 15000;
+          this._restartArm = 0;
+          if (armed) this.soloStart();
+          break;
+        }
         // 结算画面由宿主给（成佛面板／共同结算卡，各带下一步操作），此处不再自动掀开面板抢版面
         this.onMatchFinished?.(message);
         break;
+      }
       case 'command_error':
+        if (String(message.requestId || '').startsWith('restart:')) this._restartArm = 0;
         if (message.requestId && message.requestId === this._pendingToss) this._pendingToss = '';
         if (message.requestId && message.requestId === this._pendingReady?.id) this._pendingReady = null;
         if (message.requestId && message.requestId === this._pendingStart) this._pendingStart = '';
@@ -826,8 +850,12 @@ export const Net = {
 #netInput input:focus{border-color:rgba(150,112,32,.6);box-shadow:0 0 0 2px rgba(176,131,28,.1)}
 #netInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-goldline);background:var(--aq-goldwash);color:var(--aq-tx);border-radius:10px;cursor:pointer;font-weight:600}
 /* 底行四钮（2026-08-14 极简批）：线形图标＋字，一钮一形一眼可辨；图标随字色走，主/险两级照旧 */
+/* 底行二钮（2026-08-15 发起人点单）：密码撤（少人用，先不上）、大厅撤（顶栏「大厅」常在，此处是第二遍）。
+   位置依用惯：离席是破坏性动作，缩在左侧不占拇指区；邀请同修是这一栏真正常用的事，占主位铺右。 */
 #netBtns{display:flex;flex:none;gap:8px;padding:0 12px 10px}
 #netBtns button{flex:1;font-size:var(--fs-sm);display:flex;align-items:center;justify-content:center;gap:5px;padding:4px 6px;white-space:nowrap}
+#netBtns #netLeaveBtn{flex:0 0 auto;min-width:96px}
+#netBtns #netInvBtn{flex:1 1 auto}
 #netBtns .ico{width:1.1em;height:1.1em;flex:none}
 #netGrab{display:none;height:22px;flex:none;cursor:grab;position:relative;touch-action:none}
 #netGrab::after{content:'';position:absolute;left:50%;top:8px;width:44px;height:4px;border-radius:2px;background:rgba(112,96,64,.4);transform:translateX(-50%)}
@@ -909,7 +937,7 @@ export const Net = {
       <div id="netMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天消息"></div>
       <div id="netQuick"><button>南無阿彌陀佛</button><button>隨喜讚歎 🙏</button></div>
       <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="说一句…"><button aria-label="发送聊天">发送</button><span id="netChatHint" aria-live="polite"></span></div>
-      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">${ico('leave')}<span>离席</span></button><button id="netKeyBtn">${ico('lock')}<span>密码</span></button><button id="netInvBtn" class="pri">${ico('share')}<span>邀请同修</span></button><button id="netHallBtn">${ico('hall')}<span>大厅</span></button></div>
+      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">${ico('leave')}<span>离席</span></button><button id="netInvBtn" class="pri" title="转发邀请，莲友点开即入座">${ico('share')}<span>邀请同修</span></button></div>
     </section>`);
     document.body.appendChild(this.$panel);
     this.$msgs = this.$panel.querySelector('#netMsgs');
@@ -1017,12 +1045,9 @@ export const Net = {
       if (!this.me()?.ready) { this._soloArm = Date.now(); this.setReady(true); this._uiRoomSync(); return; }
       this.startMatch();
     });
-    this.$panel.querySelector('#netKeyBtn').addEventListener('click', () => this.openKey());
+    // 设密码钮已撤（2026-08-15）：openKey 与入座填密码一路仍在，旧上锁之室照常可进。
+    // 回大厅钮亦撤：顶栏「大厅」常在，onHall 回调留给它与邀请链路。
     this.$panel.querySelector('#netInvBtn').addEventListener('click', () => this._invite());
-    this.$panel.querySelector('#netHallBtn').addEventListener('click', () => {
-      this.closePanel();
-      this.onHall?.();
-    });
     this.$panel.querySelector('#netLeaveBtn').addEventListener('click', async () => {
       if (this.isPlaying() && !await this._confirmCb('离开本局并让出座位')) return;
       this.leave();
@@ -1362,20 +1387,16 @@ export const Net = {
       else if (readyCount < 2) hint.textContent = this.zh('已准备，再候一位同修即可开局。'); // 此句只在室内已有二人以上时出现：等的是同室者点准备，非等人来
       else if (mayStart) {
         hint.textContent = this.zh(this.isHost() ? '人员已齐，可以共同开局。' : '房主久未开局，您也可以开局。');
-      } else if (openIn > 0) hint.textContent = this.zh(`已准备，候房主开局；${openIn} 秒后您也可以开局。`);
-      else hint.textContent = this.zh('已准备，候房主开局。');
-      // 开局权到点即放开：让倒计时自己走完，不必等下一条服务器消息
+      } else hint.textContent = this.zh('已准备，候房主开局。');
+      // 倒数提示已撤（2026-08-15 发起人点单）：候的是人不是秒，读秒只把等待放大。
+      // 开局权仍按 startOpenAt 到点自开——单发一记定时，届时钮静静亮起（旧为每秒重绘，数字跳字即噪音）。
       window.clearTimeout(this._startGate);
-      this._startGate = (!mayStart && Number(this.room.startOpenAt || 0) > Date.now())
-        ? window.setTimeout(() => this._uiRoomSync(), 1000)
+      const openWait = Number(this.room.startOpenAt || 0) - Date.now();
+      this._startGate = (!mayStart && openWait > 0)
+        ? window.setTimeout(() => this._uiRoomSync(), openWait + 120)
         : 0;
     }
 
-    const keyButton = this.$panel.querySelector('#netKeyBtn');
-    keyButton.style.display = this.isHost() ? '' : 'none';
-    const keySpan = keyButton.querySelector('span');   // 图标批后钮内两件：线形锁＋字；态别只改字不吞锁
-    if (keySpan) keySpan.textContent = this.zh(this.locked ? '改密码' : '设密码');
-    else keyButton.textContent = this.zh(this.locked ? '改密码' : '设密码');
     this._chatEmptySync();
   },
 

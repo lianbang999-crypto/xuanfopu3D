@@ -251,6 +251,7 @@ try {
   const tableA = await openTables.nth(openCount - 3).getAttribute('data-code');
   const tableB = await openTables.nth(openCount - 2).getAttribute('data-code');
   const tableC = await openTables.nth(openCount - 1).getAttribute('data-code');
+  const tableD = openCount >= 4 ? await openTables.nth(openCount - 4).getAttribute('data-code') : '';
 
   console.log('\n【准备室与共同开局】');
   await page.locator(`.pzR[data-code="${tableA}"],.pzE[data-code="${tableA}"]`).evaluate((button) => {
@@ -303,7 +304,15 @@ try {
     if (!box || box.height < 43
       || box.y + box.height > desktopRoomBox.y + desktopRoomBox.height + 1) desktopToolsFit = false;
   }
-  ok(desktopToolsFit, '桌面准备室的密码、邀请和大厅工具完整留在面板内');
+  ok(desktopToolsFit, '桌面准备室底行工具完整留在面板内');
+  // 2026-08-15 发起人点单：底行四钮收为二——密码撤（少人用，先不上）、大厅撤（顶栏「大厅」常在）
+  const btnRow = await page.locator('#netBtns button:visible').allInnerTexts();
+  ok(btnRow.length === 2 && btnRow.join('|').includes('离席') && btnRow.join('|').includes('邀请同修'),
+    '房间底行只余「离席」与「邀请同修」两钮');
+  const leaveBox2 = await page.locator('#netLeaveBtn').boundingBox();
+  const invBox = await page.locator('#netInvBtn').boundingBox();
+  ok(!!leaveBox2 && !!invBox && leaveBox2.x < invBox.x && invBox.width > leaveBox2.width,
+    '依用惯排位：离席缩在左侧，邀请同修占主位铺右');
   await capture(page, '01-waiting-room-desktop');
 
   await page.locator('#netReadyBtn').evaluate((button) => button.click());
@@ -431,8 +440,11 @@ try {
     const roster = document.querySelector('#netRoster')?.textContent || '';
     return roster.includes('房主') && roster.includes('甲同修');
   });
-  await page.locator('#netKeyBtn').waitFor({ state: 'visible', timeout: 3000 });
-  ok(true, '原房主离席后下一位前台立即获得房主操作');
+  // 密码钮已撤（2026-08-15），改断名单上「房主」与「（我）」同在一行——房主之位落到本机
+  await page.waitForFunction(() => Array.from(document.querySelectorAll('#netRoster .netP'))
+    .some((row) => row.querySelector('.role') && (row.querySelector('.nm')?.textContent || '').includes('我')),
+  null, { timeout: 8_000 });
+  ok(true, '原房主离席后房主之位立即落到本机');
   ok((await page.locator('#netRoomState').innerText()).includes('第 1 轮'), '三人局房主离席后剩余两人继续而非误结算');
   await capture(page, '04-promoted-host');
 
@@ -470,6 +482,41 @@ try {
     && message.room?.status === 'playing' && message.players.length === 1);
   ok(soloSync.room.order.length === 1, '两人局一方离席后余者一人孤座续局，本局不中止');
   twoPlayerHost.leave();
+  await wait(300);
+
+  console.log('\n【一人在房掷轮 · 就地重开一局】');
+  // 2026-08-15 发起人点单：一人掷轮时接入题屏「新开一局」那条线。
+  // 服务端支点＝restart_match（只许一人局，见 test-room-state）；此处验前台整条链路。
+  if (!tableD) ok(false, '空桌不足四张，无法独立验一人局重开');
+  else {
+    await page.locator(`.pzR[data-code="${tableD}"]`).evaluate((button) => button.click());
+    await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
+    ok((await page.locator('#netStartBtn').innerText()).includes('开始掷轮'), '独自在房主钮即「开始掷轮」');
+    await page.locator('#netStartBtn').click({ force: true });
+    await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 20_000 });
+    // 开局后面板自动收起（onMatchStarted 里 closePanel）：状态行须先把面板开回来才读得到
+    await page.locator('#sfpChat').click({ force: true });
+    await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 12_000 });
+    const soloState = await page.locator('#netRoomState').innerText();
+    ok(soloState.includes('第 1 轮'), `一人局开局成功，进入第 1 轮（实见：${soloState.slice(0, 24)}）`);
+
+    // 入口须真在：从前一人在房掷轮时菜单里「重开一局」根本不渲染（今补）
+    await page.locator('#netMinBtn').evaluate((b) => b.click());   // 先收面板，免它盖住控制台
+    await page.locator('#sfpMore').evaluate((b) => b.click());
+    await page.locator('#smNew').waitFor({ state: 'visible', timeout: 8_000 });
+    ok((await page.locator('#smNew').innerText()).includes('本室唯您一人'), '一人在房掷轮时「重开一局」入口在场且注明缘由');
+
+    // 两击确认→走 newRound→restartSolo：服务端收局（静默，不掀结算卡）后随即开新局
+    await page.locator('#smNew').evaluate((b) => b.click());
+    await page.locator('#smNew').evaluate((b) => b.click());
+    // 结算卡走通用 overlay，无独立 id：以卡内主钮 #sfpAgain 为其在场标记——主动重开不该掀它
+    await wait(1500);
+    ok(!await page.locator('#sfpAgain').count(), '主动重开静默收局，不掀共同结算卡');
+    await page.waitForFunction(() => (document.querySelector('#netRoomState')?.textContent || '').includes('第 1 轮')
+      && !(document.querySelector('#netRoomState')?.textContent || '').includes('中止'), null, { timeout: 25_000 });
+    ok(true, '一人局就地重开：新局当即开起，不掀结算卡也不中止');
+    ok(!nativeDialogSeen, '重开全程无原生弹窗');
+  }
   await context.close();
 } catch (error) {
   failed++;

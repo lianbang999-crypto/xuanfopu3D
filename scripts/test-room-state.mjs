@@ -287,5 +287,43 @@ console.log('\n【断线轮次】');
   ok(wait >= 29_000 && wait <= 31_000, '轮到已断线同修时只保留三十秒重连窗口');
 }
 
+console.log('\n【一人局就地重开 · restart_match】');
+// 2026-08-15 发起人点单：一人掷轮时接入题屏「新开一局」那条线——服务端支点即本命令。
+// 只许室内在线仅我一人时用（本局与他人无涉）；二人以上须共同结算后再开。
+{
+  const room = makeRoom(['a']);
+  room.meta.status = 'playing';
+  room.meta.order = ['a'];
+  room.players.a.n = 7;
+  const ws = room.state.getWebSockets()[0];
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'restart_match', requestId: 'r1' }));
+  ok(room.meta.status === 'finished', '一人局重开：本局当即收去');
+  const finished = room.events.filter((e) => e.type === 'match_finished');
+  ok(finished.length === 1 && finished[0].reason === 'restarted', '收局原因记作 restarted（前台据此静默不掀结算卡）');
+  ok(!finished[0].winners.length, '主动重开不记成佛');
+  ok(Object.values(room.players).every((p) => !p.ready), '重开后准备位归零，可即刻开新局');
+}
+{
+  const room = makeRoom(['a', 'b']);
+  room.meta.status = 'playing';
+  room.meta.order = ['a', 'b'];
+  const ws = room.state.getWebSockets()[0];
+  const sent = [];
+  ws.send = (raw) => sent.push(JSON.parse(raw));
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'restart_match', requestId: 'r2' }));
+  ok(room.meta.status === 'playing', '二人局不得单独重开：本局照旧进行');
+  ok(sent.some((m) => m.type === 'command_error' && m.code === 'not_alone'), '二人局重开被据实回绝（not_alone）');
+}
+{
+  const room = makeRoom(['a']);
+  room.meta.status = 'waiting';
+  const ws = room.state.getWebSockets()[0];
+  const sent = [];
+  ws.send = (raw) => sent.push(JSON.parse(raw));
+  await room.webSocketMessage(ws, JSON.stringify({ type: 'restart_match', requestId: 'r3' }));
+  ok(room.meta.status === 'waiting' && !sent.some((m) => m.type === 'command_error'),
+    '候局中重开＝静默视作已成（本就可直接开新局，不报错）');
+}
+
 console.log(`\n通过 ${passed} · 失败 ${failed}`);
 process.exit(failed ? 1 : 0);

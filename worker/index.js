@@ -1069,8 +1069,11 @@ export class RoomDO {
       order: ready.map((p) => p.id),
       turnIdx: 0,
       round: 1,
-      availableAt: now + 3000,
-      turnDeadline: now + 3000 + TURN_MS,
+      // 开局压掷三秒已撤（2026-08-15 发起人点单）：从前共同开局后掷轮钮死三秒、只挂一句
+      // 「共同开局倒计时中」，开局最热的一刻被一段无事可做的停顿冷掉。首掷者本就要长按称念，
+      // 天然有缓冲，不必再由服务端压秒。availableAt 机制仍在（贈掷、轮转仍用），只是开局不压。
+      availableAt: now,
+      turnDeadline: now + TURN_MS,
       actorId: '',
       giftQueue: [],
       pendingGrant: null,
@@ -1777,6 +1780,25 @@ export class RoomDO {
 
       case 'sync': {
         ws.send(JSON.stringify(this.syncMsg(true)));    // 主动求全量：名单 + 聊天
+        break;
+      }
+
+      // 一人局重开（2026-08-15 发起人点单：一人掷轮时接入题屏「新开一局」那条线）。
+      // 只许室内在线仅我一人时用——本局与他人无涉，重开不夺人局；二人以上仍须共同结算后再开。
+      // 复用 finishMatch 的全套善后（准备位归零、贈掷队清空、轮限解除、广场回报），
+      // 只是把 reason 记作 'restarted'：前台据此静默收局，不掀结算卡（那是共修才有的仪式）。
+      case 'restart_match': {
+        const me = this.players[att.playerId];
+        if (!me) return;
+        if (this.meta.status !== 'playing') {   // 已在候局/已结算：本就可直接开新局，静默视作已成
+          ws.send(JSON.stringify(this.syncMsg()));
+          break;
+        }
+        if (this.liveIds().size > 1) {
+          this.commandError(ws, 'not_alone', '共修局进行中不可单独重开——结算后全房共同准备下一局', msg.requestId);
+          return;
+        }
+        await this.finishMatch('restarted');
         break;
       }
 

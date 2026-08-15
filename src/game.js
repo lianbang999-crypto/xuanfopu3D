@@ -4186,8 +4186,8 @@ function openTitle() {
   const tn = links.querySelector('#tiNew');
   // 弃档三入口统一确认等级（⋯菜单两击、大厅 askConfirm）：题屏最显眼，不该唯一零确认
   if (tn) (tn               ).onclick = async () => {
-    if (!await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return;
-    titleHide(); cancelVerdict(); startSfp(false);
+    if (!await newRound()) return;   // 三态一线（见 newRound）：单机本地重开／一人在房请服务端收局再开／共修局中不可单独重开
+    titleHide();
   };
   (links.querySelector('#tiHow')               ).onclick = () => openSfpHelp({ backTo: () => openTitle() });
   const tnet = links.querySelector('#tiNet');         // 已在房：直达同修面板
@@ -4239,6 +4239,23 @@ function openTitle() {
   zhDom(b);
   // 环拍已随「不透山」二改撤除：题屏是自足设计底，山被整层盖住，背后空转徒耗电
 }
+// 「新开一局」唯一去处（2026-08-15 发起人点单：一人掷轮时亦接入题屏这条线）。
+// 三态一线：单机＝本地重开；一人在房＝请服务端收去本局、随即开新局（Net.restartSolo，
+// 收局静默不掀结算卡）；共修局中（二人以上）＝不可单独重开，据实相告。
+// 从前一人在房点题屏「新开一局」会本地强开一局，与服务端房态成两本账——此为病根，今归一。
+async function newRound({ confirm = true } = {})                    {
+  if (Net.active && Net.isPlaying() && !Net.isAlone()) {
+    showToast(zh('共修局进行中不可单独重开——结算后全房共同准备下一局'), 3600);
+    return false;
+  }
+  if (sfpTransit || (sfpS.rolling && !(verdictFn && !Net.active))) { showToast('行棋中，稍候再新开'); return false; } // 单机判词期放行（cancelVerdict 在后善后）
+  if (confirm && !await askConfirm('重开一局？', '当前行处将弃置，从头掷起。', '重开', '再想想')) return false;
+  cancelVerdict();
+  if (Net.active) return Net.restartSolo();   // 新局由 match_started 兑现（onMatchStarted 里 startSfp＋开局仪式）
+  startSfp(false);
+  return true;
+}
+
 function titleHide() {
   const b = document.getElementById('boot');
   titleOn = false;
@@ -8421,9 +8438,9 @@ function openSfpMore() {
       <div class="smList">
       ${Net.active ? row('smNet', '同修面板', `${Net.locked ? '🔒 ' : ''}名单与聊天`) : ''}
       ${row('smArt', '观画', '隐一切界面 · 整屏即画')}
-      ${Net.active && Net.isPlaying()
-        ? ''  /* 共修局中无单人重开：旧 restart 协议已退役，本地强开只会与服务器两本账；下一局走结算后共同准备 */
-        : row('smNew', '重开一局', '从头掷', 'warn')}
+      ${Net.active && Net.isPlaying() && !Net.isAlone()
+        ? ''  /* 共修局中（二人以上）无单人重开：本局是全房的，下一局走结算后共同准备 */
+        : row('smNew', '重开一局', Net.active && Net.isPlaying() ? '从头掷 · 本室唯您一人' : '从头掷', 'warn')}
       ${row('smExit', '退出', Net.active ? '离席并回题屏' : '行处已存 · 回题屏', 'warn')}
       </div>
     </div>
@@ -8448,11 +8465,12 @@ function openSfpMore() {
   });
   const newButton = p.querySelector('#smNew')               ;
   if (newButton) newButton.addEventListener('click', function (                 ) {
-    if (Net.active && Net.isPlaying()) { closeOverlay(); showToast(zh('共修局进行中不可单独重开——结算后全房共同准备下一局'), 3600); return; } // 双保险（正常此钮已不渲染）
+    if (Net.active && Net.isPlaying() && !Net.isAlone()) { closeOverlay(); showToast(zh('共修局进行中不可单独重开——结算后全房共同准备下一局'), 3600); return; } // 一人局照开（见 newRound）
     if (sfpTransit || (sfpS.rolling && !(verdictFn && !Net.active))) { closeOverlay(); showToast('行棋中，稍候再新开'); return; } // 单机判词期放行（cancelVerdict 在后善后）
     if (this.dataset.arm) {
-      closeOverlay(); cancelVerdict();
-      startSfp(false); showToast('已新开一局'); return;
+      closeOverlay();
+      newRound({ confirm: false });   // 两击已是确认，不再叠一层卡；棋盘当即归零，「已新开一局」那句回执随之撤
+      return;
     }
     this.dataset.arm = '1'; // 两击确认：误点不至于丢局
     this.classList.add('arm');
@@ -10476,8 +10494,12 @@ function openSfpIntro() {
   // 共修在座＝一律回服务器棋况（netRejoin），不落到本机旧存局、更不本地强开新局与服务器两本账
   if (rs) rs.addEventListener('click', () => { if (netRejoin()) { closeOverlay(); return; } startSfp(true); });
   (p.querySelector('#sfpNew')               ).addEventListener('click', () => {
-    if (netRejoin()) { closeOverlay(); showToast(zh('共修局进行中——已带您回局中；下一局待全房结算后共同开'), 3600); return; }
-    startSfp(false);
+    // 共修局中（二人以上）仍是「带您回局中」——本局是全房的，不由一人重开；一人在房则走 newRound 就地重开
+    if (Net.active && Net.isPlaying() && !Net.isAlone() && netRejoin()) {
+      closeOverlay(); showToast(zh('共修局进行中——已带您回局中；下一局待全房结算后共同开'), 3600); return;
+    }
+    closeOverlay();
+    newRound({ confirm: false });   // 卡上并列「续掷上局／新开一局」，点的即是明确选择
   });
   (p.querySelector('#sfpLog')               ).addEventListener('click', () => { closeOverlay(); openLogbook(); });
   (p.querySelector('#sfpMapB')               ).addEventListener('click', () => openSfpMap());
@@ -11516,7 +11538,6 @@ window.addEventListener('pointerdown', function audioWake() {
       syncRollGlow();
     }
   };
-  Net.onHall = () => openPlaza();                 // 在座也能回大厅看看/换室（不离席）
   Net.onLeft = () => {
     wakeSync(); // v392 离席放屏
     if (sfpS.active) endSfp('已离开真人共修室');
