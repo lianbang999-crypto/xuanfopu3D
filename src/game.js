@@ -58,6 +58,7 @@ const save = {
   sfpFocus: true,
   sfpHelp: false,
   seenBeadTip: false, // v362 触屏「位珠可点」一次性引导（桌面有 hover 浮名，触屏无等价物）
+  tips: {}           , // 2026-08-14 档一③：教学句「见过即记」总台账（teachOnce 与 railOp/locate 皆记于此）
   askq: { d: '', n: 0 }, // 问义日额（每日 100 次）
   zh: 's'             ,
   cardTheme: 'night'  , // 卡片主题：'night' 暗夜（默认，2026-07-31 用户定案改回）/ 'paper' 青纸（可切）
@@ -87,6 +88,7 @@ function loadSave() {
     if (typeof d.sfpFocus === 'boolean') save.sfpFocus = d.sfpFocus;
     save.sfpHelp = !!d.sfpHelp;
     save.seenBeadTip = !!d.seenBeadTip;
+    if (d.tips && typeof d.tips === 'object') save.tips = { ...d.tips }; // 白名单制：漏读则教学句跨会话失忆
     if (d.askq && typeof d.askq.d === 'string') save.askq = { d: d.askq.d, n: Number(d.askq.n) || 0 };
     if (d.zh === 't' || d.zh === 's') save.zh = d.zh;
     if (d.cardTheme === 'paper' || d.cardTheme === 'night') save.cardTheme = d.cardTheme; // 从前漏读此键：写经纸主题一刷新即回落暗夜
@@ -1695,6 +1697,8 @@ NODES.forEach((d          ) => {
   }
   if (!['bodhi', 'gate', 'sravaka', 'pratyeka'].includes(d.id) && !chanL && !['akasa', 'vijnana', 'akimcanya', 'naiva'].includes(d.id)) {
     // v210 菩萨简化；v255 极乐同撤；v258 声闻缘觉不加环线圈；v324 色无色域全撤记号环（用户点单极简：禅天 22 星四档星体自足辨层，四空点本无形）
+    // 【环带透明度宪（2026-08-14 档二⑤成文）】星面装饰环带常态 α ≤ .35、选中/热态 ≤ .55。
+    // 现存诸环审计皆在宪内（此环 .18、专场入口环 .2、禅环 .10）；后来者依此，勿越。
     const halo = new THREE.Mesh(new THREE.RingGeometry(size * 1.7, size * 2.0, 24),
       new THREE.MeshBasicMaterial({ color: gemHue, transparent: true, opacity: 0.18, side: THREE.DoubleSide }));
     halo.userData.billboard = true;
@@ -2865,10 +2869,7 @@ button:not(:disabled):active{transform:scale(.97)}
 #sfpRoll.hold #rollRing{opacity:1}
 #sfpName .nSub{margin-left:8px;font-size:var(--fs-xs);color:var(--note);letter-spacing:.5px;font-weight:400}
 #posReveal i{display:block;font-style:normal;font-size:var(--fs-sm);letter-spacing:1px;margin-top:8px;color:#e8dcb2;text-shadow:0 1px 8px #000;opacity:.95}
-#tierDots{position:absolute;left:22px;top:calc(50% + max(21vh,90px) + 14px);display:flex;flex-direction:column;gap:5px;align-items:center;padding:7px 4px;background:rgba(14,18,26,.5);border:1px solid rgba(215,170,69,.18);border-radius:9px;pointer-events:none;z-index:9} /* v328 用户误读为杂点：离开天梯右列，归左侧截面滑杆下方成控制簇，胶囊＋竖排档名自证身份 */
-#tierDots i{width:6px;height:6px;border-radius:50%;background:rgba(215,170,69,.18);border:1px solid rgba(215,170,69,.3);transition:background .3s,box-shadow .3s}
-#tierDots i.on{background:var(--gold-hi);box-shadow:0 0 6px rgba(232,199,102,.7)}
-#tierDots b{writing-mode:vertical-rl;font-weight:400;font-size:9.5px;letter-spacing:2px;color:rgba(215,170,69,.6);margin-top:3px;line-height:1}
+/* #tierDots 三点档皮已随装置撤（2026-08-14 档二④，缘由见原挂载处注） */
 #hovTag{position:absolute;display:none;padding:3px 9px;font-size:var(--fs-sm);color:#f0dfa8;background:rgba(16,22,30,.85);border:1px solid rgba(215,170,69,.35);border-radius:8px;pointer-events:none;z-index:24;letter-spacing:1px;white-space:nowrap}
 #vX{position:absolute;top:6px;right:6px;width:34px;height:34px;background:rgba(215,170,69,.12);border:1px solid rgba(215,170,69,.4);
   border-radius:8px;color:var(--gold);font-size:var(--fs-lg);line-height:1;cursor:pointer}
@@ -2949,7 +2950,7 @@ button:not(:disabled):active{transform:scale(.97)}
 .bnv.on b{font-weight:700}
 #ladTrack{position:absolute;right:16px;top:0;bottom:0;width:4px;border-radius:2px;
   background:linear-gradient(to top,rgba(176,90,66,.4),rgba(51,144,124,.34) 34%,rgba(91,147,168,.34) 56%,rgba(215,170,69,.4) 76%,rgba(246,236,200,.55))}
-#ladTrack i{position:absolute;right:-2px;width:8px;height:2px;background:rgba(215,170,69,.32)}
+/* 十六根刻度已撤（2026-08-14 十界导航极简）：十五枚门点本身即是刻度，第二套齐平短线是重复装置 */
 #ladMe,#ladAi,#ladNext{display:none}
 /* v151 用户定案：行棋不用球珠标位，现居门位次自身发光 */
 .ladDoor.cur b{color:#ffe9a8;text-shadow:0 0 10px rgba(232,199,102,.85),0 1px 3px rgba(10,8,20,.8)}
@@ -2959,7 +2960,14 @@ button:not(:disabled):active{transform:scale(.97)}
 #ladTop,#ladBot{position:absolute;right:11px;font-size:var(--fs-xs);color:#cbbb8d;letter-spacing:1px;text-shadow:0 0 6px rgba(10,8,20,.95),0 0 2px #000}
 #ladTop{top:-20px}#ladBot{bottom:-20px}
 .ladDoor{position:absolute;left:0;right:0;height:6.66%;display:flex;align-items:center;justify-content:flex-end;gap:5px;cursor:pointer;pointer-events:auto}
-.ladDoor b{font-weight:400;font-size:var(--fs-xs);color:var(--note);letter-spacing:0;white-space:nowrap;transition:color .2s;text-shadow:0 0 6px rgba(10,8,20,.95),0 0 2px #000,0 1px 3px rgba(10,8,20,.8)} /* 四向暗晕：窄屏亮金光带/轨道虚线上门号仍可辨 */
+/* 门号静显当下（2026-08-14 十界导航极简，与菩萨十科签同一语汇）：十五个竖排门号常显是
+   右缘最大的字面噪音——平时只现当前门（.cur）与展开门（.on），手指落杆全现供跳门，离手自敛；
+   桌面 hover 逐门自现。色点与「佛—因」两端字常在：结构在，字才敢退。 */
+.ladDoor b{font-weight:400;font-size:var(--fs-xs);color:var(--note);letter-spacing:0;white-space:nowrap;
+  opacity:0;transition:color .2s,opacity .25s;text-shadow:0 0 6px rgba(10,8,20,.95),0 0 2px #000,0 1px 3px rgba(10,8,20,.8)} /* 四向暗晕：窄屏亮金光带上门号仍可辨 */
+.ladDoor.cur b,.ladDoor.on b,.ladDoor:hover b{opacity:1}
+#ladder.ladAll .ladDoor b{opacity:.62}
+#ladder.ladAll .ladDoor.cur b,#ladder.ladAll .ladDoor.on b{opacity:1}
 .ladDoor i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.28);box-shadow:0 0 5px rgba(10,8,20,.5);margin-right:11px;transition:transform .22s,box-shadow .22s;flex:0 0 auto}
 .ladDoor.on b{color:#f4e6b8}
 .ladDoor .ladPeer{position:absolute;top:50%;width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 4px currentColor;transform:translateY(-50%);pointer-events:none} /* v392 联机同修现居门座色小刻 */
@@ -3219,6 +3227,14 @@ function hideToast() {
   if (toastTimer) { clearTimeout(toastTimer); toastTimer = 0; }
   toast.style.opacity = '0';
   window.setTimeout(() => { toastBusy = false; toastPump(); }, 260);
+}
+// 教学句只出一次（2026-08-14 档一③）：操作说明是说给生人的，见过即记档（跨会话），不再复述——
+// 画面自明处，第二遍解说即噪音。记于 save.tips（与 seenBeadTip/sfp_skiphint 同旨，此后新教学句一律走此口）
+function teachOnce(key        , msg        , ms = 3800) {
+  const tips = ((save       ).tips ||= {});
+  if (tips[key]) return;
+  tips[key] = 1; persist();
+  showToast(msg, ms);
 }
 function showToast(msg        , ms = 2600) {
   if (toastQ.length && toastQ[toastQ.length - 1].msg === msg) return;
@@ -3828,7 +3844,7 @@ function tourPlan() {
   tourT = window.setTimeout(() => {
     tourT = 0;
     if (!tourOn || !tourAuto) return;
-    if (document.hidden || titleOn || inPure || inSky || inBodhi || inNether) { tourPlan(); return; }
+    if (document.hidden || titleOn || artOn || inPure || inSky || inBodhi || inNether) { tourPlan(); return; }  // 观画期同候（档三）：静观此站，不背着人翻站
     if (tourI >= TOUR_STOPS.length - 1) { tourAuto = false; tourPaint(); return; }
     tourGo(tourI + 1);
   }, TOUR_DWELL);
@@ -4264,7 +4280,7 @@ function browseMapMode() {
   if (inNether) netherRestore();
   if (inPure || inSky || inBodhi || inDisc) returnSaha();
   flyTo(new THREE.Vector3(80, 125, 300), new THREE.Vector3(0, 42, 0), 1.4);
-  if (!was) showToast('十五门三段安位：下环世间流转、中阶三学转身、上轨四教入圣——点门展开，双击入场：极乐星径入净土、余门俯冲贴近', 4200);
+  // 「十五门三段安位…」首见长提示已撤（2026-08-14 发起人点单）：拉远即观全图，画面自明，不加解说
 }
 
 // ---------------- 空间/心性切换 ----------------
@@ -5959,7 +5975,7 @@ function doorTap(dno        , isDbl         , wp               ) {
     setBrowseDoor(dno);
     const dir2 = camera.position.clone().sub(wp).setY(0); if (dir2.lengthSq() < 1) dir2.set(1, 0, 1); dir2.normalize();
     flyTo(wp.clone().addScaledVector(dir2, 36).add(new THREE.Vector3(0, 13, 0)), wp, 1.0);
-    showToast(`「${SFP_DOOR_BY[dno].title}」展开——位次依经典坐标布于诸界；点小珠读谱注，双击门星俯冲贴近`, 3800);
+    teachOnce('doorSpread', `「${SFP_DOOR_BY[dno].title}」展开——位次依经典坐标布于诸界；点小珠读谱注，双击门星俯冲贴近`, 3800); // 档一③：门亮珠现画面自明，教学句头一回说过即止
   }
   playSfx('sfx-tap', 0.25);
   if (DISC_DOORS.has(dno)) { // v314/v322 谱页专场：点门转场入页，场内再点本门＝出；场内点他页门＝就地换页
@@ -7087,7 +7103,7 @@ verdictEl.addEventListener('click', (e) => {
 // v225 谱曰出处钮退役：原文小字直陈判词卡内（白话在上、原文为据）
 
 // ── 成佛天梯：十五门竖向刻度，金珠=您、青珠=同修；点开全谱 ──
-const ladder = el(`<div id="ladder" class="ui" title="十五门 · 成佛天梯"><span id="ladTop">佛</span><div id="ladTrack">${Array.from({ length: 16 }, (_, i) => `<i style="bottom:${(i * 100 / 15).toFixed(2)}%"></i>`).join('')}</div>${Array.from({ length: 15 }, (_, i) => {
+const ladder = el(`<div id="ladder" class="ui" title="十五门 · 成佛天梯"><span id="ladTop">佛</span><div id="ladTrack"></div>${Array.from({ length: 15 }, (_, i) => {
   const n = i + 1;
   const col = '#' + new THREE.Color(SFP_DOOR_COLOR[n] ?? 0xd7aa45).lerp(new THREE.Color(0xfaf3da), i / 14 * 0.42).getHexString();
   const cn = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二', '十三', '十四', '十五'][i];
@@ -7095,6 +7111,17 @@ const ladder = el(`<div id="ladder" class="ui" title="十五门 · 成佛天梯"
 }).join('')}<div id="ladName"></div><span id="ladBot">因</span></div>`);
 app.appendChild(ladder);
 ladder.classList.add('show'); // 签栏常驻（v143）：十五门标识不入地图，就在此栏
+// 触显全档（2026-08-14 十界导航极简，与菩萨十科签同案）：手指落杆十五号齐现、离手 1.6s 自敛
+{
+  let ladT = 0;
+  const ladAll = () => {
+    ladder.classList.add('ladAll');
+    if (ladT) clearTimeout(ladT);
+    ladT = window.setTimeout(() => { ladT = 0; ladder.classList.remove('ladAll'); }, 1600);
+  };
+  ladder.addEventListener('pointerdown', ladAll);
+  ladder.addEventListener('pointermove', ladAll);
+}
 // 科名导航（v161 用户反馈右杆难发现：改顶部横排彩签条，转场滑入、居中显眼、窄屏横滑）——只在菩萨道场显示
 const BODHI_NAV_ORDER = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]; // 自左而右由低到高：慧学位→圆教六即
 const bodhiNav = el(`<div id="bodhiNav" class="ui">${BODHI_NAV_ORDER.map(g =>
@@ -7137,13 +7164,13 @@ skyNav.querySelectorAll('.bnv').forEach(n => n.addEventListener('click', () => {
 //   点一门即知这门讲的是什么。不新造版面——仍是那枚 toast，只换里头的话。
 // 操作那一句不全丢：整会话只在头一次点门时缀上，此后不再复述（双击入门是真有用的门路，
 //   但它是学一次的事，不是每次都要被告知的事）。
-let railOpHinted = false;
+let railOpHinted = !!((save       ).tips || {}).railOp; // 档一③：跨会话只说一回（旧为每会话一回）
 function showDoorTip(dno        ) {
   const title = SFP_DOOR_BY[dno] ? SFP_DOOR_BY[dno].title : '';
   const b = (SFP_DOOR_BAIHUA         )[dno];
   const gist = String((b && b.v) || (SFP_DOOR_PLAIN         )[dno] || '').trim();
   const op = railOpHinted ? '' : '（双击门签入门内观照）';
-  railOpHinted = true;
+  if (!railOpHinted) { railOpHinted = true; ((save       ).tips ||= {}).railOp = 1; persist(); }
   const txt = gist ? `「${title}」${gist}${op}` : `「${title}」全亮${op}`;
   // 停留时长随字数走：门13 十八字与门8 八十八字若同用 3.6 秒，后者读不完。
   // 即时换话（非排队）：连点两签，后签门义立顶前签——所指已换，话不该还在排队。
@@ -7277,7 +7304,9 @@ function sfpLocate(pid        ) {
   if (dir.lengthSq() < 1) dir.set(1, 0, 1);
   dir.normalize();
   flyTo(wp.clone().addScaledVector(dir, 30).add(new THREE.Vector3(0, 9, 0)), wp);
-  showToast(`已定位「${p.name}」——第${SFP_CN[p.door - 1]}门；点小珠可读谱注`);
+  // 定位句常在（何位何门是本次信息），教学尾巴只跟头一回（档一③）
+  showToast(`已定位「${p.name}」——第${SFP_CN[p.door - 1]}门${((save       ).tips || {}).locate ? '' : '；点小珠可读谱注'}`);
+  if (!((save       ).tips || {}).locate) { ((save       ).tips ||= {}).locate = 1; persist(); }
 }
 
 // 控制台＝两行制（2026-07-28 重设计）：
@@ -8295,6 +8324,30 @@ window.addEventListener('pointerup', sfpTossUp);
 window.addEventListener('pointercancel', sfpTossUp);
 // 极简行动栏：左「⋯」谱务 · 中掷轮 · 右「问」问义；谱注走点位名，观星入口已撤
 // v316 手机改底部抽屉（拇指区）：现居卡可点开位卡，四事大按钮，下滑即关
+// ── 观画档（2026-08-14 档三，发起人定案）：隐一切界面与题字，整屏即一幅壁画 ──
+// 讲经投屏、截图取景、海报素材皆用此档。出入极简：谱务菜单一行进、右上一枚 ✕ 出；
+// 只动显隐不动状态——转场/联机/巡游照常在底下走（导览的钟在观画期原地候着，见 tourPlan），
+// 回界面一切如旧。#artX 不入 .ui（否则把自己也藏了）。
+let artOn = false;
+const artX = el('<button id="artX" type="button" title="回界面" aria-label="退出观画">✕</button>');
+{
+  const acss = document.createElement('style');
+  acss.textContent = `
+#artX{display:none;position:fixed;top:calc(12px + env(safe-area-inset-top));right:calc(14px + env(safe-area-inset-right));
+  width:44px;height:44px;border:1px solid rgba(255,240,200,.3);border-radius:10px;background:rgba(4,26,30,.42);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);color:#e9dcba;font-size:17px;cursor:pointer;z-index:36}
+body.artView #artX{display:block}
+body.artView .ui,body.artView #labels,body.artView #tourBar{display:none!important}`;
+  document.head.appendChild(acss);
+  document.body.appendChild(artX);
+  artX.addEventListener('click', () => setArtView(false));
+}
+function setArtView(on         ) {
+  artOn = !!on;
+  if (artOn) { closeOverlay(); hideToast(); }   // 卡与话皆不入画
+  document.body.classList.toggle('artView', artOn);
+  playSfx('sfx-tap', 0.2);
+}
 function openSfpMore() {
   // 单菜单原则：全站只有此处承载次级功能。高频入口给大触点，低频入口与危险操作分层。
   const row = (id, t, note = '', cls = '') =>
@@ -8311,6 +8364,7 @@ function openSfpMore() {
     <div class="smSection">
       <div class="smList">
       ${Net.active ? row('smNet', '同修面板', `${Net.locked ? '🔒 ' : ''}名单与聊天`) : ''}
+      ${row('smArt', '观画', '隐一切界面 · 整屏即画')}
       ${Net.active && Net.isPlaying()
         ? ''  /* 共修局中无单人重开：旧 restart 协议已退役，本地强开只会与服务器两本账；下一局走结算后共同准备 */
         : row('smNew', '重开一局', '从头掷', 'warn')}
@@ -8324,6 +8378,7 @@ function openSfpMore() {
   on('smBack', closeOverlay);
   // 「当前行处」纯展示条换「本局升沉」入口（2026-08-12 用户点单）：点开逐掷回看
   on('smTrail', () => { closeOverlay(); openSfpTrail(); });
+  on('smArt', () => { closeOverlay(); setArtView(true); });
   on('smNet', () => { closeOverlay(); Net.openPanel(); });
   // 从前全站没有一处「退出」：局中只能靠成佛或离席，观照期只能关标签页。
   // 单机行处本就随时存档，退出即回题屏，随时可从「续掷」接上。
@@ -10621,13 +10676,10 @@ function beadTipOnce() {
   save.seenBeadTip = true; persist();
   window.setTimeout(() => showToast('星图上诸位珠皆可点：轻点读本位谱注，久按速览，双点飞临', 4200), 900);
 }
-renderer.domElement.addEventListener('pointermove', (e) => {
-  if (!isFinePtr || e.pointerType === 'touch') return;
-  if (e.buttons) { hovEl.style.display = 'none'; return; }
-  const nowH = performance.now(); if (nowH - hovLast < 90) return; hovLast = nowH;
-  if (sfpTransit || overlayEl || sfpS.rolling || starView) { hovEl.style.display = 'none'; return; }
-  const rect = hovRect || (hovRect = renderer.domElement.getBoundingClientRect()); // v392 画布矩形缓存（resize 失效）：悬停不再逐次强制回流
-  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+// 悬停名签驻留 120ms（2026-08-14 档一②）：扫视一圈不再一路频闪，指针停驻方出名签；
+// 已示者同珠微移只随行不重弹。拾取皆屏空间（beadScreenPick），一移一拾不入回流。
+let hovShownNm = '', hovT = 0;
+function hovPickAt(px        , py        ) {
   let nm = '', sub = '', col = '';
   const pidH = beadScreenPick(px, py, 22);
   if (pidH && SFP_BY[pidH]) { // v362 位珠名签补门属：全图观照时「哪一位·属哪门」一眼即得（坐标数值不呈——非谱相）
@@ -10636,11 +10688,32 @@ renderer.domElement.addEventListener('pointermove', (e) => {
     sub = `第${SFP_CN[pp.door - 1]}门${an ? ' · ' + an.d.name : ''}${pp.id === sfpS.pos ? ' · 现居' : ''}`; // v363 掠过即知在何天何洲（地理处所），非坐标数值
     col = '#' + (SFP_DOOR_COLOR[pp.door] ?? 0xd7aa45).toString(16).padStart(6, '0');
   } else { const dh = doorScreenPick(px, py, 22); if (dh && SFP_DOOR_BY[dh.door]) nm = `第${SFP_CN[dh.door - 1]}门 · ${SFP_DOOR_BY[dh.door].title}`; }
-  if (!nm) { hovEl.style.display = 'none'; return; }
-  hovEl.innerHTML = zh(`${esc(nm)}${sub ? `<i style="font-style:normal;opacity:.72;font-size:var(--fs-xs);margin-left:6px;color:${col}">${esc(sub)}</i>` : ''}`);
-  hovEl.style.display = 'block';
+  return { nm, sub, col };
+}
+function hovPlace(px        , py        , rect                 ) {
   hovEl.style.left = Math.min(px + 14, rect.width - 130) + 'px';
   hovEl.style.top = (py + 16) + 'px';
+}
+function hovShowAt(px        , py        , rect                 ) {
+  const { nm, sub, col } = hovPickAt(px, py);
+  if (!nm) { hovEl.style.display = 'none'; hovShownNm = ''; return; }
+  hovShownNm = nm;
+  hovEl.innerHTML = zh(`${esc(nm)}${sub ? `<i style="font-style:normal;opacity:.72;font-size:var(--fs-xs);margin-left:6px;color:${col}">${esc(sub)}</i>` : ''}`);
+  hovEl.style.display = 'block';
+  hovPlace(px, py, rect);
+}
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!isFinePtr || e.pointerType === 'touch') return;
+  if (e.buttons) { hovEl.style.display = 'none'; hovShownNm = ''; return; }
+  const nowH = performance.now(); if (nowH - hovLast < 90) return; hovLast = nowH;
+  if (sfpTransit || overlayEl || sfpS.rolling || starView) { hovEl.style.display = 'none'; hovShownNm = ''; return; }
+  const rect = hovRect || (hovRect = renderer.domElement.getBoundingClientRect()); // v392 画布矩形缓存（resize 失效）：悬停不再逐次强制回流
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const cur = hovPickAt(px, py);
+  if (cur.nm && cur.nm === hovShownNm) { hovPlace(px, py, rect); return; }  // 同珠随行，不闪
+  hovEl.style.display = 'none'; hovShownNm = '';
+  if (hovT) { clearTimeout(hovT); hovT = 0; }
+  if (cur.nm) hovT = window.setTimeout(() => { hovT = 0; hovShowAt(px, py, rect); }, 120);
 });
 let wheelBackAt = 0;
 renderer.domElement.addEventListener('wheel', (e) => {
@@ -10686,18 +10759,8 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
-// v266 档位指示：三粒小点亮当前观照档（全图/门·场/星位），迷路感即除
-const tierDotsEl = el('<div id="tierDots" class="ui"><i title="全图"></i><i title="门·场"></i><i title="星位"></i><b></b></div>');
-app.appendChild(tierDotsEl);
-let tierCur = -1;
-function updateTierDots() {
-  const t = starView ? 2 : (inDoor || inNether || inSky || inBodhi || inPure || inDisc) ? 1 : 0;
-  if (t === tierCur) return;
-  tierCur = t;
-  tierDotsEl.querySelectorAll('i').forEach((d2, i) => d2.classList.toggle('on', i === t));
-  (tierDotsEl.querySelector('b')               ).textContent = zh(['全图', '门场', '星位'][t]); // v328 档名自证：三点旁竖排现档
-}
-updateTierDots(); // 慢网时首帧循环可能延后：控件挂载即呈档名与亮点，避免短暂显示成三个无义杂点
+// v266 三点档位指示已撤（2026-08-14 档二④，发起人定案）：视距本由捏合/滚轮手势直接表达，
+// 与右侧天梯并立的第二套「导航感」装置徒占左下一角——画面还给画。
 // ---------------- 标签投影 ----------------
 const tmpV = new THREE.Vector3();
 const tmpCam = new THREE.Vector3();
@@ -10705,7 +10768,6 @@ let labelTick = 0, labelCamStamp = NaN;          // v392 标签静观降频戳
 let railRects                                                  = null; // v392 导航栏避让矩形缓存（resize 失效）
 let hovRect                  = null;             // v392 悬停用画布矩形缓存
 function updateLabels() {
-  updateTierDots();
   // v392 静观降频：相机/取景/形态/剖面未动时，标签的投影·排序·避让隔拍再算（每 12 帧兜底一算接住纯状态变化）——
   // 这是静止画面里每帧 CPU 的最大一块，白算即白热
   labelTick++;
@@ -10721,7 +10783,7 @@ function updateLabels() {
   // 标签不再挤入竖沟、不再压「因/佛」顶底签；v392 半秒一取——取实时 DOM 矩形是强制回流，导航栏又不逐帧挪窝
   if (!railRects || labelTick % 32 === 0) {
     railRects = [];
-    for (const rail of [ladder, tierDotsEl, secWrap]) {
+    for (const rail of [ladder, secWrap]) {
       if (!rail) continue;
       const rr = rail.getBoundingClientRect();
       if (rr.width < 1 || rr.height < 1) continue;
@@ -10818,7 +10880,8 @@ function updateLabels() {
   const rectsAux                                          = [];
   auxViews.forEach(av => {
     const nv = byId[av.nodeId];
-    let vis = !inPure && !inDoor && !browseDoor && !inSky && !inBodhi && !inDisc && modeTarget === 0 && modeT <= 0.5 && camDist <= 380
+    // 辅标近景才现（2026-08-14 档一①：380→240）：善见城/金刚座等十一枚小字，中远景只是碎点噪音
+    let vis = !inPure && !inDoor && !browseDoor && !inSky && !inBodhi && !inDisc && modeTarget === 0 && modeT <= 0.5 && camDist <= 240
       && (!av.fam || auxFamOK[av.fam]) // 同族同进退接线（原 auxFamOK 算完从未使用）：远于族门整族隐，免「七山只剩一山有名」
       && passFilter(nv.d); // 签栏开门/色界场/菩萨道场/因地星盘中辅标同隐（v143/v314）
     if (vis) {
