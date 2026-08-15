@@ -120,7 +120,7 @@ export function openShareCard({ code = '', zh = (s) => s, toast = () => {} } = {
     if (!wx && navigator.share) {
       try { await navigator.share({ title: zh('十法界须弥山世界'), text, url }); return; } catch (e) { /* 取消则留卡 */ }
     }
-    try { await navigator.clipboard.writeText(`${text}${url}`); toast(zh(code ? '邀请文案已复制——发给好友，点开即入座' : '已复制——发给好友即可')); } // v393 与「邀请好友，同修」一钮同口径：邀的是站外的人
+    try { await navigator.clipboard.writeText(`${text}${url}`); toast(zh('已复制')); } // v393 与「邀请好友，同修」一钮同口径：邀的是站外的人
     catch (e) { toast(zh('复制未成，请长按链接手动复制')); }
   });
   document.body.appendChild(d);
@@ -262,7 +262,7 @@ export async function openPosterCard({ zh = (s) => s, toast = () => {}, station 
     toast(zh('海报已存至下载'));
   }, 'image/jpeg', 0.9));
   d.querySelector('.pcLink').addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(url); toast(zh(station ? '此站链接已复制——点开即落此站' : '链接已复制')); }
+    try { await navigator.clipboard.writeText(url); toast(zh('已复制')); }
     catch (e) { toast(zh('复制未成，请手动复制地址')); }
   });
   document.body.appendChild(d);

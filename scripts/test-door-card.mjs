@@ -246,13 +246,20 @@ console.log('【九 天梯点门 · 报门义白话而非操作说明】');
   ok(/三恶趣|三惡趣/.test(tips[0].txt) && /毗婆沙/.test(tips[0].txt), '门3 报的是四种恶趣门门义', tips[0].txt.slice(0, 40));
   ok(/无漏智慧|無漏智慧/.test(tips[1].txt) && /增上/.test(tips[1].txt), '门8 报的是增上定学门门义', tips[1].txt.slice(0, 40));
   ok(/圆妙|圓妙/.test(tips[2].txt), '门13 报的是圆教位次门门义', tips[2].txt.slice(0, 40));
-  // 本条依赖「本节是整会话头一次点门签」。若日后在本节之前加了别的点签动作，opCount 会成 0，
-  //   届时该把本节前移，而不是把这条删掉——故失败讯息把这层依赖直说出来。
+  // 操作尾巴已全撤（2026-08-15 提示语三刀）：任何一次点签都不得再出「双击门签」教学句。
   const opCount = tips.filter((t) => /双击门签|雙擊門籤/.test(t.txt)).length;
-  ok(opCount === 1 && /双击门签|雙擊門籤/.test(tips[0].txt),
-    '操作那一句只在整会话头一次缀上，此后不复述',
-    opCount === 0 ? '本节之前已有别处点过门签（railOpHinted 已置位）——请把本节前移' : `命中 ${opCount} 次`);
+  ok(opCount === 0, '操作教学句全撤，任一签不复述', `命中 ${opCount} 次`);
   await closeAll();
+}
+
+console.log('【十 卡上文字可选可复制】');
+{
+  const sel = await page.evaluate(() => {
+    const d = document.createElement('div'); d.className = 'overlay'; document.body.appendChild(d);
+    const ov = getComputedStyle(d).userSelect; d.remove();
+    return { ov, vd: getComputedStyle(document.querySelector('#verdict')).userSelect };
+  });
+  ok(sel.ov === 'text' && sel.vd === 'text', '卡与判词正文 user-select:text（发起人点单：卡片文字允许复制）', JSON.stringify(sel));
 }
 
 const scriptErrors = errors.filter((e) => !/Failed to load resource/.test(e));

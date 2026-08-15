@@ -148,9 +148,9 @@ try {
   await page.locator('#netPanel.on').waitFor({ state: 'visible', timeout: 15_000 });
   ok(await page.evaluate(() => localStorage.getItem('sm10.net.name') === '慧明'), '入座成功后在本机保存名号');
 
-  // 情境主按钮三改（2026-08-14 发起人定案「房间可自修可共修」）：独自在房主钮＝一人行谱·就地开局；
+  // 情境主按钮三改（2026-08-14 发起人定案「房间可自修可共修」，同日随词再改）：独自在房主钮＝「开始掷轮」；
   // 邀请归底行「邀请同修」常在——旧「邀请为主」断言随定案更替
-  ok((await page.locator('#netStartBtn').innerText()).includes('一人行谱'), '独自在房时主按钮＝一人行谱·就地开局');
+  ok((await page.locator('#netStartBtn').innerText()).includes('开始掷轮'), '独自在房时主按钮＝开始掷轮');
   ok((await page.locator('#netInvBtn').innerText()).includes('邀请同修'), '底行邀请钮题「邀请同修」');
   const readyPending = await page.locator('#netReadyBtn').evaluate((button) => {
     for (let index = 0; index < 6; index++) button.click();
@@ -167,8 +167,8 @@ try {
   await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('取消准备'), null, { polling: 250 });
   ok(await page.locator('#netReadyBtn').getAttribute('aria-pressed') === 'true'
     && (await page.locator('#netRoster').innerText()).includes('已准备'), '服务端确认后名单和按钮统一显示已准备');
-  ok((await page.locator('#netStartBtn').innerText()).includes('一人行谱')
-    && (await page.locator('#netGuide').innerText()).includes('一人行谱'), '独自已准备主钮仍是一人行谱，指引明说可自修可共修');
+  ok((await page.locator('#netStartBtn').innerText()).includes('开始掷轮')
+    && (await page.locator('#netGuide').innerText()).includes('一人即可开始掷轮'), '独自已准备主钮是开始掷轮，指引明说一人即可开');
   await capture(page, 'ready-confirmed-mobile');
 
   const cancelPending = await page.locator('#netReadyBtn').evaluate((button) => {
