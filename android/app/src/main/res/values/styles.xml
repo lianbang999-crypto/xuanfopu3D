@@ -17,8 +17,14 @@
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <!-- 纯色开屏（重型位图已撤）：与 Web 题屏底色同调，换幕无声 -->
+        <!-- 开机屏＝米白底＋居中莲台（2026-08-17 二改）。
+             取 SplashScreen API 的正体：纯色底一枚色值、图标一张透明底小图，
+             系统自会居中与裁切。此前用铺满全屏的位图，24 张各密度共 5.8MB，
+             把 APK 顶到 27.46MB、越过 Cloudflare 25MiB 硬限而传不上去；
+             今五密度图标合计 1.2MB，且米白底由色值直出、不占一字节。 -->
         <item name="android:background">@color/splashBackground</item>
         <item name="windowSplashScreenBackground">@color/splashBackground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

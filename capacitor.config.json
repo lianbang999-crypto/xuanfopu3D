@@ -3,7 +3,8 @@
   "appName": "须弥山世界",
   "webDir": "dist",
   "android": {
-    "allowMixedContent": false
+    "allowMixedContent": false,
+    "backgroundColor": "#faf1e6"
   },
   "plugins": {
     "CapacitorUpdater": {

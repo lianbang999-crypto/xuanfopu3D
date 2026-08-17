@@ -14,3 +14,6 @@ outputs/
 tmp/
 resources/splash*.png
 dist/download/  # APK 与 release.json：发版前由 stage-apk 注入 dist，不入库
+
+# 停用的铺满式开机屏源图（改走 SplashScreen API 纯色底＋图标，见 resources/_splash-src/README）
+resources/_splash-src/*.png

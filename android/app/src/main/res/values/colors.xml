@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 原生开屏底色＝题屏同色深底（index.html theme-color #0b0d12）：
-         重型 splash 位图已撤（42MB 不入包），第一幅画交给 Web 题屏本地秒出 -->
-    <color name="splashBackground">#0B0D12</color>
+    <!-- 开机屏底色＝图标本底米白（2026-08-17 二改，发起人报「Logo 突兀，没融入背景」）：
+         一改用过深黑 #0B0D12，可图标自带米白圆底，压在黑上是一枚硬边方块，边界毕现。
+         今底色与图标本底同源，莲台坐在自己的底上，边界自然消失；
+         米白亦与题屏壁画殿宇的暖米（#f3dbb8 一带）同色系，接题屏时不跳。
+         明暗两档同色：开机屏不随系统深浅变脸，免夜间深色档又生一次黑底硬边。 -->
+    <color name="splashBackground">#FAF1E6</color>
 </resources>
