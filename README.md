@@ -65,7 +65,8 @@ cd .. && npm run stage:apk        # APK 归位 public/download/ 并出 release.j
 npm run deploy                    # 站点与安装包一并上线
 ```
 
-**下载地址**：<https://game.foyue.org/app.html>（下载页：二维码＋安装引导＋校验码）
+**下载地址**：<https://game.foyue.org/app>（下载页：二维码＋安装引导＋校验码。
+`.html` 后缀会被平台 307 去尾，与 `/read` 同例，故对外一律给无后缀短址）
 安装包直链 <https://game.foyue.org/download/sumeru.apk>（固定短名，二维码与外发链接永不变；
 存盘名由 worker 的 `Content-Disposition` 给中文带版本）。两条路径已列入 `wrangler.jsonc` 的
 `run_worker_first`——命中静态资源的路径默认不进 worker，不列则自定义响应头是白附的。
