@@ -101,6 +101,19 @@ console.log('\n【三 无存局 · 亦零翻面】');
   ok(first.go === after.go, '主钮文案就绪前后逐字相同', `前=[${first.go}] 后=[${after.go}]`);
   ok(first.links === after.links, '细字行就绪前后逐字相同', `前=[${first.links}] 后=[${after.links}]`);
   ok(errs.length === 0, '无脚本报错', errs.slice(0, 2).join(' | '));
+  // 在场句三段降级（2026-08-17 发起人点单「一进站就显示共修在线人数」）：
+  // 独自在站是本站最常见的情形，这一行不得再空——三句必中其一，且句句是真话。
+  const presence = await page.waitForFunction(() => {
+    const node = document.querySelector('#bootPresence');
+    if (!node || node.hidden) return false;
+    const tx = (node.innerText || '').replace(/\s+/g, ' ').trim();
+    return tx ? { tx, dot: !!node.querySelector('i') } : false;
+  }, null, { polling: 300, timeout: 20_000 }).then(h => h.jsonValue()).catch(() => null);
+  ok(!!presence && /位莲友在线|位莲友共修|共修第/.test(presence.tx),
+    '题屏在场句恒在，三段降级必中其一', presence ? presence.tx : '（整行未出）');
+  // 呼吸青点是「此刻有他人」的信号：今日／站史两段不得借它假装实时
+  ok(!presence || presence.tx.includes('位莲友在线') || !presence.dot,
+    '非「此刻在线」段不挂呼吸点', presence ? `${presence.tx} · dot=${presence.dot}` : '—');
   await ctx.close();
 }
 

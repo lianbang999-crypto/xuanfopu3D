@@ -1,7 +1,7 @@
 {
   "name": "shifajie-sumeru",
   "private": true,
-  "version": "0.406.0",
+  "version": "0.410.0",
   "type": "module",
   "description": "十法界须弥山世界——依经立象的须弥山十法界教学模型（三界二十八天·四大部洲·处处注明经据），附蕅益大师《選佛譜》修行对局，最多四人实时联机",
   "scripts": {
@@ -56,6 +56,8 @@
   "dependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
     "@capgo/capacitor-updater": "^8.51.13",
     "qrcode-generator": "^2.0.4",
     "three": "^0.169.0"

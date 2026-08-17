@@ -249,14 +249,39 @@ export function renderStream(data, ui) {
 // 2026-08-05 收口：页头右上原另有一份「N 位在座 · N 桌行谱中」，与此处同义，已撤——
 // 同一组数不在一屏里说两遍。「已参加 N 人」并入「共修动态」页头（那里本就有一份完整名单）。
 // 2026-08-11 再拆：静的（共修第 N 天·累计 N 掷）沉到页脚 .pzStill——数字不是大厅的主角。
+// ── 在场一句 · 三段降级（2026-08-17 发起人点单「一进站就显示共修在线人数」）──
+// 病根不在没做，在两条家法把它挡住了：① 去己（莲友专指他人）② 不报零（无人则整句不出）。
+// 两条叠起来，独自在站时永远看不到任何在场信息——而那正是本站最常见的情形。
+// 两条家法本身是对的（不假装热闹、不把自己充作别人），故绕过而非推翻：
+// 把这个对小众修行站天然稀薄的指标，沿时间窗逐级放大——窗越大，人越厚：
+//   有他人在线 → 「3 位莲友在线」        （此刻 · 现成 onlineNow 去己）
+//   只剩自己   → 「今日 12 位莲友共修」   （今日 · 服务端 peopleToday，真掷过轮者）
+//   今日无人   → 「本站共修第 386 天 · 已参加 1,204 人」（站史 · 恒为真）
+// 三句都是真话，从不报零、从不把自己算成别人；末句永远立得住，故这一行永不空。
+// live 只在真有他人在线时为真——那枚呼吸青点是「此刻有人」的信号，今日与站史不得假装实时。
+// opts.site=false：大厅顶条用。那一屏页脚 .pzStill 已在报站史，同一屏不说两遍（§5.0b 信息只出一次）。
+export function presenceSay(data, { site = true } = {}) {
+  // v393 在线人数合一：单机联机不再分说两句——服务端 onlineNow 已并计（旧服务端逐级回退）
+  const raw = Number(data.onlineNow
+    ?? Math.max(Number(data.onlineAll ?? data.online ?? 0),
+      (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length));
+  const others = raw - (selfOnline() ? 1 : 0);
+  const b = (v) => `<b>${num(v)}</b>`;
+  if (others > 0) return { kind: 'live', live: true, text: `${num(others)} 位莲友在线`, html: `${b(others)} 位莲友在线` };
+  const today = Number(data.peopleToday || 0);
+  if (today > 0) return { kind: 'today', live: false, text: `今日 ${num(today)} 位莲友共修`, html: `今日 ${b(today)} 位莲友共修` };
+  if (!site) return null;
+  const days = Number(data.days || 1);
+  const people = Number(data.people || 0);
+  return {
+    kind: 'site',
+    live: false,
+    text: `本站共修第 ${num(days)} 天 · 已参加 ${num(people)} 人`,
+    html: `本站共修第 ${b(days)} 天 · 已参加 ${b(people)} 人`,
+  };
+}
 function sayHtml(data) {
-  // v393 在线人数合一（发起人点单极简）：单机行谱者从前不入「在座/行谱」两数，明明有人在玩却满屏是零——
-  // 今只报一个「在线」（服务端 onlineNow＝页面开着的人，心跳制并计单机与联机；旧服务端回退在座数）；
-  // 无人则整句不出——不展示数字 0，与题屏「不假装热闹」同一条家法
-  // 2026-08-13 去己：本机心跳在窗内时自减一——「莲友」指同修他人，独自在站不再见
-  // 「1 位莲友在线」的假热闹（那一位就是自己）
-  const n = Number(data.onlineNow ?? data.online ?? 0) - (selfOnline() ? 1 : 0);
-  return n > 0 ? `<b>${num(n)}</b> 位莲友在线` : '';
+  return presenceSay(data, { site: false })?.html || '';
 }
 // 页脚静数字：站史与累计，动也是一天一动，不必占顶条
 function stillHtml(data) {

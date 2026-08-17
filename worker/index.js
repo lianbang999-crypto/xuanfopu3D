@@ -485,7 +485,14 @@ export class RoomDO {
     this.plazaInit();
     const today = dayKey();
     const todayStart = Date.parse(`${today}T00:00:00+08:00`);
-    void todayStart;
+    // 今日共修人数（2026-08-17 发起人点单「一进站就看得见共修在线人数」）：
+    // 题屏在场句的第二段用它——同时在线对小众修行站天然稀薄，独自在站是最常见的情形，
+    // 那时把时间窗从「此刻」放大到「今日」，一句真话便有了着落（见 plaza.js presenceSay 的三段降级）。
+    // 取 plaza_practice.lastAt 而非 plaza_presence.ts：presence 是「页面开着的心跳」，
+    // practice 才是真掷过轮的人——「共修」二字要配得上它的数。lastAt 已有降序索引。
+    const peopleToday = Number([...this.state.storage.sql.exec(
+      'SELECT COUNT(*) n FROM plaza_practice WHERE lastAt >= ?', todayStart,
+    )][0]?.n || 0);
     // 共修动态：一人一行，按最近用功时刻倒序。时间先后即次序，不列名次——
     // 念佛记录上不该出现排名（不作修证高下）。同名者缀莲号尾四位以分。
     const streamRows = [...this.state.storage.sql.exec(
@@ -548,6 +555,7 @@ export class RoomDO {
     )][0];
     return json({
       days, people, since,                       // 本站共修第 N 天 · 已参加 N 人
+      peopleToday,                               // 今日真掷过轮的人数（在场句第二段）
       tosses: this.plazaGet('tosses'),           // 全站累计掷轮（一掷一称念）
       tossesToday: this.plazaGet(`tosses:${today}`),
       wins: this.plazaGet('wins'),

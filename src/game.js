@@ -4209,14 +4209,17 @@ function openTitle() {
   };
   (links.querySelector('#tiShare')               ).onclick = () =>
     quickShare({ code: Net.active ? Net.code : '', zh, toast: showToast }); // 荐游戏；已在房则荐的即邀请
-  // 在场一句（活封面）：没人时整句不出现——不留空盒，也不假装热闹。
+  // 在场一句（活封面）。
   // 显示方案三改（2026-08-13 用户点单优化）：
-  //   ① 去己——本机心跳在服务端 presence 窗内时自减一（Plaza.selfOnline）：「莲友」专指同修他人，
-  //      独自在站整句不出，不再见「1 位莲友在线」的假热闹（那一位就是自己）；
+  //   ① 去己——本机心跳在服务端 presence 窗内时自减一（Plaza.selfOnline）：「莲友」专指同修他人；
   //   ② 常新——题屏亮着每 60 秒轻刷一拍（后台页不拉，回前台由启动段补拍）：
   //      从前只在点亮那一刻取一次，在题屏停留多久数字就死多久；
   //   ③ 不闪——回题屏不再先藏后现，旧句原位换字（dataset.raw 比对，同值不动 DOM），
   //      无→有才走入场动画，拉取失败保持上一句不清空。
+  // 2026-08-17 四改（发起人点单「一进站就显示共修在线人数」）：从「没人则整句不出」
+  //   改为三段降级恒在——句子与口径归 Plaza.presenceSay 一处所有（大厅顶条同源）。
+  //   那枚呼吸青点只在真有他人在线时挂（say.live）：点是「此刻有人」的信号，
+  //   今日与站史两段不得借它假装实时。取数失败仍保持上一句、首拍失败仍不出——没数据不编数。
   const presence = b.querySelector('#bootPresence')               ;
   const paintPresence = () => {
     // 首拍在 titleOn 置真之前同步发出，此处不查 titleOn（查了首拍必被自己拦下，
@@ -4224,16 +4227,12 @@ function openTitle() {
     if (gen !== titleGen || document.hidden) return;
     Plaza.fetchPlaza().then((data) => {
       if (gen !== titleGen || !titleOn) return;   // 已离开或已重点亮：迟到的在场句不落笔
-      // v393 在线人数合一：单机联机不再分说两句——服务端 onlineNow 已并计（旧服务端回退逐级兼容）
-      const raw = Number(data.onlineNow
-        ?? Math.max(Number(data.onlineAll ?? data.online ?? 0),
-          (data.stream || []).filter(r => Date.now() - Number(r.at || 0) < 600000).length));
-      const n = raw - (Plaza.selfOnline() ? 1 : 0);
-      const html = n > 0 ? `<i></i>${zh(`${n} 位莲友在线`)}` : ''; // 无人则整行不出——不报零
+      const say = Plaza.presenceSay(data);
+      const html = `${say.live ? '<i></i>' : ''}${zh(say.text)}`;
       if (presence.dataset.raw === html) return;
       presence.dataset.raw = html;
       presence.innerHTML = html;
-      presence.hidden = !html;
+      presence.hidden = false;
     }).catch(() => {});
   };
   paintPresence();

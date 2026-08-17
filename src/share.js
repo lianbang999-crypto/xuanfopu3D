@@ -52,6 +52,13 @@ export function drawQr(canvas, text, px = 160) {
 export async function quickShare({ code = '', zh = (s) => s, toast = () => {} } = {}) {
   const url = shareUrl(code);
   const text = shareText(code, zh);
+  // 壳内先走原生（2026-08-17）：WebView 里 navigator.share 根本不存在，下面那一路必落空，
+  // 点转发遂像没反应。原生插件唤的是系统分享面板，微信、短信、复制皆在其中。
+  if (IS_APP) {
+    const mod = await import('./app-share.js').catch(() => null);
+    if (mod && await mod.nativeShareText({ title: zh('十法界须弥山世界'), text, url })) return;
+    // 原生也不成（插件缺失或系统无面板）才落分享卡，仍留二维码与复制两条路
+  }
   if (navigator.share && !isWeChat()) {
     try {
       // 兑现之诺加时限（2026-08-14 修）：有些环境（部分安卓 WebView、无头浏览器）
@@ -251,7 +258,16 @@ export async function openPosterCard({ zh = (s) => s, toast = () => {}, station 
   d.addEventListener('click', (e) => { if (e.target === d) closePosterCard(); });
   d.querySelector('.pcX').addEventListener('click', closePosterCard);
   const sv = d.querySelector('.pcSave');
-  if (sv) sv.addEventListener('click', () => cv.toBlob(async (blob) => {
+  if (sv) sv.addEventListener('click', async () => {
+    // 壳内走原生（2026-08-17）：WebView 不支持 <a download> 存 blob，点了静默失败——
+    // 海报存不下来正是此故。改为落 Cache 再唤系统分享面板，存相册或直发微信由用户在面板里择。
+    if (IS_APP) {
+      const mod = await import('./app-share.js').catch(() => null);
+      if (mod && await mod.nativeSharePoster(cv, { title: zh('十法界须弥山世界') })) return;
+      toast(zh('存图未成，可长按图片保存'));
+      return;
+    }
+    cv.toBlob(async (blob) => {
     if (!blob) { toast(zh('生成未成，请长按图片保存')); return; }
     const file = new File([blob], 'shifajie-xumishan.jpg', { type: 'image/jpeg' });
     if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
@@ -263,7 +279,8 @@ export async function openPosterCard({ zh = (s) => s, toast = () => {}, station 
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     toast(zh('海报已存至下载'));
-  }, 'image/jpeg', 0.9));
+    }, 'image/jpeg', 0.9);
+  });
   d.querySelector('.pcLink').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(url); toast(zh('已复制')); }
     catch (e) { toast(zh('复制未成，请手动复制地址')); }

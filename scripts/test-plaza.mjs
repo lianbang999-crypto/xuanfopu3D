@@ -69,6 +69,9 @@ const practiceA = p1.stream.find(row => row.name.startsWith('慧明'));
 ok(practiceA && practiceA.tosses >= 68, '共修动态按累计掷轮记数（不按天清零）');
 ok(p1.stream[0] && p1.stream[0].at >= p1.stream[p1.stream.length - 1].at, '共修动态按最近用功时刻倒序');
 ok(p1.days >= 1 && p1.people >= 1, '本站共修第 N 天与已参加人数一并给出');
+// 在场句第二段的料（2026-08-17）：独自在站时报「今日 N 位莲友共修」，数须来自真掷过轮者
+ok(typeof p1.peopleToday === 'number' && p1.peopleToday >= 1 && p1.peopleToday <= p1.people,
+  `今日共修人数一并给出，且不超过已参加总人数（实见 ${p1.peopleToday}/${p1.people}）`);
 await tick(4, ACTOR_B, '慧明');
 const p1SameName = await plaza();
 ok(p1SameName.people >= 2, '同名莲友按匿名身份分别记功课，不会错误合并');

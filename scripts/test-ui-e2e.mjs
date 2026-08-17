@@ -471,8 +471,20 @@ try {
   tail.leave();
   // 2026-08-15 重写（v396 房间可自修可共修）：剩一人不再中止——余者孤座续局，服务端 order.length<1 方收局
   await page.waitForFunction(() => document.querySelectorAll('#netRoster .netP').length === 1);
-  ok((await page.locator('#netRoomState').innerText()).includes('第 1 轮'), '只剩一人时本局不中止，孤座续局照常行谱');
-  ok(!(await page.locator('#netRoomState').innerText()).includes('本局中止'), '状态行不再误报中止');
+  // 2026-08-17 改读 textContent 并带诊断：等候期状态行已收（见 net.js $state.hidden），
+  // 而 playwright 的 innerText 对隐藏元素返回空串——此处要验的是「房态仍在第 1 轮」这个事实，
+  // 不是「那一行看得见」。房态另由 #netPanel 的 is-playing／is-waiting 类坐实，失败时一并报出。
+  const soloRoom = await page.evaluate(() => {
+    const state = document.querySelector('#netRoomState');
+    return {
+      tx: (state?.textContent || '').replace(/\s+/g, ' ').trim(),
+      hidden: !!state?.hidden,
+      cls: document.querySelector('#netPanel')?.className || '',
+    };
+  });
+  ok(soloRoom.tx.includes('第 1 轮') && soloRoom.cls.includes('is-playing'),
+    `只剩一人时本局不中止，孤座续局照常行谱（实见 ${JSON.stringify(soloRoom)}）`);
+  ok(!soloRoom.tx.includes('本局中止'), '状态行不再误报中止');
   await capture(page, '05-solo-continues');
 
   // 孤座局中离席＝无人续行：确认卡把这层后果说明白（copy 与 confirmLeaveMatch stillIn<=1 分支同源）
