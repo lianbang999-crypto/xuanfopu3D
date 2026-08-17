@@ -41,6 +41,18 @@ const manifest = files.map(f => ({
   download_url: `${SITE}/${f.split('/').map(encodeURIComponent).join('/')}`,
 }));
 
+// 站上最新安装包的版本（2026-08-17 增）：热更只换 web 层，图标、开机屏、原生插件、
+// 权限这些换不动——那些只能重装 APK。故清单须另报一个 nativeVersion，
+// App 以本机内置版（CapacitorUpdater.getBuiltinVersion）与之比对，据以出「有新版可装」。
+// 取自 stage-apk 落的 release.json（deploy 链中它先于本脚本跑）；未出包则不报此字段。
+let nativeVersion = null;
+try {
+  nativeVersion = JSON.parse(readFileSync(join(dist, 'download/release.json'), 'utf8')).version || null;
+} catch (e) { /* 尚未 stage APK：不报，App 侧便不提示装机 */ }
+
 const totalBytes = files.reduce((sum, f) => sum + statSync(join(dist, f)).size, 0);
-writeFileSync(join(dist, SELF), JSON.stringify({ version, builtAt: new Date().toISOString(), manifest }, null, 1));
-console.log(`app-manifest.json：v${version} · ${manifest.length} 文件 · 共 ${(totalBytes / 1048576).toFixed(1)}MB`);
+writeFileSync(join(dist, SELF), JSON.stringify({
+  version, nativeVersion, builtAt: new Date().toISOString(), manifest,
+}, null, 1));
+console.log(`app-manifest.json：v${version} · 安装包 v${nativeVersion || '（未出包）'}`
+  + ` · ${manifest.length} 文件 · 共 ${(totalBytes / 1048576).toFixed(1)}MB`);

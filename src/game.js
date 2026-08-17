@@ -9279,7 +9279,17 @@ function openMine() {
       const row = main.querySelector('#myAppRow');
       if (row) import('./app-shell.js').then(async (shell) => {
         const v = await shell.currentVersion();
-        row.innerHTML = `${zh('App 版本')} ${v} · <span id="myAppReset" style="text-decoration:underline;cursor:pointer">${zh('回到内置版')}</span>`;
+        const st = shell.updateState || {};
+        // 更新之报（2026-08-17）：只在此行添一句，不弹卡不红点——静默设计，不催人。
+        //   已备待启＝web 层新包下好了，重启即用（热更能办的）
+        //   有新安装包＝图标、开机屏、原生插件这些热更换不动之物，唯重装可得，故引去下载页
+        const note = st.pending
+          ? ` · ${zh('新版已备，下次启动即用')}`
+          : (st.apkNew ? ` · <span id="myApkNew" style="text-decoration:underline;cursor:pointer">${zh('有新安装包')} ${st.apkNew} ›</span>` : '');
+        row.innerHTML = `${zh('App 版本')} ${v}${note} · <span id="myAppReset" style="text-decoration:underline;cursor:pointer">${zh('回到内置版')}</span>`;
+        (row.querySelector('#myApkNew')                     )?.addEventListener('click', () => {
+          window.open(`${API_BASE}/app`, '_blank', 'noopener');
+        });
         (row.querySelector('#myAppReset')               ).addEventListener('click', async () => {
           showToast(zh('正在退回内置版……'), 2000);
           const ok = await shell.resetToBuiltin();  // 成则插件即刻重载内置包，无需善后

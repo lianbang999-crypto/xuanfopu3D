@@ -1,5 +1,13 @@
 apply plugin: 'com.android.application'
 
+// 版本单一正源＝package.json（2026-08-17）：此前 versionCode/versionName 写死在下方，
+// 须手工与 package.json 对齐，v405／v406 两改遂皆遗忘，三处齐停在 0.403.0——
+// 而热更提示正靠版本比对，版本不推进则「有新版可装」永不出。今直读之，永不失同步。
+//   0.406.0 → versionName "0.406.0"、versionCode 406（取中段：Google Play 要求单调递增整数）
+def pkgVersion = new groovy.json.JsonSlurper()
+        .parse(file('../../package.json')).version
+def pkgVersionCode = pkgVersion.tokenize('.')[1].toInteger()
+
 // 发布签名：口令等在 keystore/signing.properties（与库同 gitignore，务必自行备份——
 // 丢失即无法给已装用户升级 APK）。文件不在时仍可出 debug 包，release 报错提示补齐。
 def signingProps = new Properties()
@@ -13,9 +21,8 @@ android {
         applicationId "org.foyue.sumeru"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // 与 package.json 同源（0.403.0 ↔ v403）：versionCode 取中段，随站版推进
-        versionCode 403
-        versionName "0.403.0"
+        versionCode pkgVersionCode
+        versionName pkgVersion
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

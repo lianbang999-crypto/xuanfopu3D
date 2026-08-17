@@ -10,6 +10,32 @@ import { API_BASE } from './app-env.js';
 
 const PENDING_KEY = 'sm10.app.pending'; // 已备妥待启的版本，防同版重复下载
 
+// 更新之况：供「我的」页取用，不主动弹卡（静默设计：无红点、无未读数、不催人）。
+//   pending＝web 层新包已下好，下次启动即用（热更能办的）
+//   apkNew ＝站上安装包比本机新，须重装（热更办不到的：图标、开机屏、原生插件与权限）
+export const updateState = { pending: '', apkNew: '', builtin: '' };
+
+// 版本比较（0.406.0 式三段数字，段数不齐者短的补零）：不引 semver，此处够用
+function newerThan(a, b) {
+  if (!a || !b) return false;
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0; const y = pb[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
+// 本机 APK 自带的版本。不可用 __APP_VERSION__ 代替——那是 vite 烧进 JS 的，
+// 热更换掉 JS 后它就变成新 web 包的版本了，不再代表原生层。
+async function builtinVersion() {
+  try {
+    const r = await CapacitorUpdater.getBuiltinVersion();
+    return r?.version || r?.builtinVersion || '';
+  } catch (e) { return ''; }
+}
+
 export async function currentVersion() {
   try {
     const { bundle } = await CapacitorUpdater.current();
@@ -27,14 +53,29 @@ export async function bootAppShell() {
     const remote = await res.json();
     const cur = await currentVersion();
     if (!remote?.version || !Array.isArray(remote.manifest)) return;
-    if (remote.version === cur) { try { localStorage.removeItem(PENDING_KEY); } catch (e) {} return; }
-    if (localStorage.getItem(PENDING_KEY) === remote.version) return; // 已备待启
+
+    // 一、原生层：站上安装包比本机新即记下，「我的」页据此现「有新版可装」。
+    //     此路与热更无涉——图标、开机屏、原生插件热更换不动，唯重装可得。
+    updateState.builtin = await builtinVersion();
+    updateState.apkNew = newerThan(remote.nativeVersion, updateState.builtin) ? remote.nativeVersion : '';
+
+    // 二、web 层：热更能办的
+    if (remote.version === cur) {
+      updateState.pending = '';
+      try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
+      return;
+    }
+    if (localStorage.getItem(PENDING_KEY) === remote.version) { // 已备待启
+      updateState.pending = remote.version;
+      return;
+    }
     const bundle = await CapacitorUpdater.download({
       version: remote.version,
       url: `${API_BASE}/app-manifest.json`, // manifest 模式逐文件走 download_url；url 为必填形参
       manifest: remote.manifest,
     });
     await CapacitorUpdater.next({ id: bundle.id });
+    updateState.pending = remote.version;
     try { localStorage.setItem(PENDING_KEY, remote.version); } catch (e) {}
   } catch (e) { /* 弱网或离线：下次启动再探，不扰局不提示 */ }
 }
