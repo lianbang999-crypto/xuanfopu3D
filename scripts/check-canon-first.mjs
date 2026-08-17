@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { SFP_POS } from '../src/sfp-data.js';
 import { SFP_POS_BAIHUA } from '../src/sfp-pos-baihua.js';
 import { SFP_DOOR_BAIHUA } from '../src/sfp-door-baihua.js';
-import { sfpCanonVerdict } from '../src/sfp-verdict-canon.js';
+import { sfpCanonVerdict, sfpVerdictCanonReady } from '../src/sfp-verdict-canon.js';
 
 const SEALED = ['sfp-why-plain.js', 'sfp-pos-plain.js'];
 // 用 fileURLToPath 而非 .pathname：本仓路径含中文，.pathname 拿到的是百分号编码串，readdirSync 会 ENOENT
@@ -37,6 +37,11 @@ assert.deepEqual(offenders, [], `已封存的旧白话本被 src/ 引回主包�
 console.log(`✓ 封存本零回流（查 src/ 下 ${readdirSync(SRC).filter((f) => f.endsWith('.js')).length} 个模块）`);
 
 // ── 二 正本全覆盖：旧本撤了，正本就得顶得住 ──
+// 须先候装载（2026-08-17 修）：v398 切懒装载后，十五门改内部 import()，
+// sfpCanonVerdict 在装载前按设计返回 null。本闸自 08-12 未随之改，遂自 08-15 起
+// 格格皆判「缺白话」而报 4620 格全缺——数据其实完好，是闸自己坏了。
+// 且它一红即退出，其后「门义十五门」与「位注领起句」两道闸从此再未跑过。
+await sfpVerdictCanonReady();
 const FACES = '那謨阿彌陀佛';
 const COMBOS = [];
 for (let i = 0; i < 6; i++) for (let j = i; j < 6; j++) COMBOS.push(FACES[i] + FACES[j]);

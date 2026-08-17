@@ -194,10 +194,13 @@ const agentUp = async () => {
   try { const r = await fetch('http://localhost:8788/v1/health'); return (await r.json()).ok === true; } catch { return false; }
 };
 if (!(await agentUp())) {
-  agentProc = spawn('npx', ['wrangler', 'dev', '--config', 'agent/worker/wrangler.toml', '--port', '8788'],
+  // wrangler@latest 而非裸 wrangler（2026-08-17 修）：npx 缓存里那份是旧版，
+  // 起不来本项目的 compatibility_date，自起遂必败——而本条一红，整套 57 项就差这一项，
+  // 看着像阅读器坏了，其实是问谱 worker 没起来。与 npm run server 等处口径归一。
+  agentProc = spawn('npx', ['wrangler@latest', 'dev', '--config', 'agent/worker/wrangler.toml', '--port', '8788'],
     { stdio: 'ignore', detached: false });
   let up = false;
-  for (let i = 0; i < 40; i++) { await wait(1000); if (await agentUp()) { up = true; break; } }
+  for (let i = 0; i < 60; i++) { await wait(1000); if (await agentUp()) { up = true; break; } }
   ok(up, '问谱 worker 已自起（wrangler dev :8788）');
 }
 {

@@ -24,15 +24,24 @@ Object.defineProperty(globalThis, 'navigator', { value: { sendBeacon: () => true
 const Plaza = await import('../src/plaza.js');
 
 // ── 掷轮攒批 ──
+// 2026-08-17 随现行规矩重写：v392（08-13）为「在场新鲜度」加了时间闸——
+//   批量之外三分钟必送，而 lastFlushAt 初值为 0，故**首掷必立报**。
+//   本节写于 07-26（时间闸之前），自 08-13 起五条皆红，非产品之失，是尺子停在旧规矩。
+//   慢掷之人若攒满十掷才报，在广场上会一直「不在场」，题屏「10 分钟内在行谱」即立不住——
+//   故首掷立报是本设计所欲，不可改回。
 console.log('\n【掷轮攒批】');
-for (let i = 0; i < 9; i++) await Plaza.tick(1);
-ok(posts.length === 0, '未满十掷不发请求（省请求）');
-ok(localStorage.getItem('sm10.plaza.pending') === '9', '未送达的掷数留在本地，不丢');
 await Plaza.tick(1);
-ok(posts.length === 1 && posts[0].body.n === 10, '第十掷触发上报，一次送十');
+ok(posts.length === 1 && posts[0].body.n === 1, '首掷即报（v392 在场闸：慢掷者也要在广场上现身）');
 ok(/^p_[a-f0-9]{24}$/.test(posts[0].body.actor), '上报携带本机稳定匿名功课身份');
 ok(/^莲友·[A-F0-9]{4}$/.test(posts[0].body.name), '未报名号时使用不重复的匿名莲友名');
 ok(Plaza.practiceId() === posts[0].body.actor, '匿名功课身份跨批保持稳定');
+
+posts.length = 0;
+for (let i = 0; i < 9; i++) await Plaza.tick(1);
+ok(posts.length === 0, '既报之后，未满十掷不再发请求（省请求）');
+ok(localStorage.getItem('sm10.plaza.pending') === '9', '未送达的掷数留在本地，不丢');
+await Plaza.tick(1);
+ok(posts.length === 1 && posts[0].body.n === 10, '第十掷触发上报，一次送十');
 ok(localStorage.getItem('sm10.plaza.pending') === '0', '送达后本地余额归零');
 
 posts.length = 0;

@@ -81,22 +81,13 @@ try {
   ok(seam?.materialCount === 1 && seam?.colorBlend === true, '四宝山面改为连续宝色，消除蓝白材质硬切');
   await capture(page, '00-sumeru-seam-fixed');
 
-  console.log('\n【V90 保留：左侧视角档位】');
-  const tier = await page.evaluate(() => {
-    const el = document.querySelector('#tierDots');
-    const rect = el?.getBoundingClientRect();
-    return {
-      count: el?.querySelectorAll('i').length,
-      label: el?.querySelector('b')?.textContent,
-      active: [...(el?.querySelectorAll('i') || [])].findIndex((dot) => dot.classList.contains('on')),
-      left: rect?.left,
-      width: rect?.width,
-    };
-  });
-  ok(tier.count === 3, '三点是全图／门场／星位三档指示，不是残留控件');
-  ok(['全图', '门场', '星位'][tier.active] === tier.label, '当前档位有文字与亮点双重反馈');
-  ok((tier.left ?? 999) < 80 && (tier.width ?? 0) > 10, '档位胶囊已归到左侧截面滑杆下方');
-  await capture(page, '00b-tier-dots');
+  console.log('\n【左侧视角档位 · v399 已撤（改验其不在）】');
+  // 2026-08-17 随现行形制重写：v399（08-15「星图极简三档」）撤了三点档位胶囊——
+  //   档位本可由镜头远近自明，另立一枚常驻控件是重复告知。此处遂反过来验它确已不在，
+  //   免得日后谁把它捡回来。本节三条自 08-15 起皆红，非产品之失，是尺子停在旧形制。
+  const tierGone = await page.evaluate(() => !document.querySelector('#tierDots'));
+  ok(tierGone, '三点档位胶囊已撤（v399：档位由镜头远近自明，不另立常驻控件）');
+  await capture(page, '00b-no-tier-dots');
 
   console.log('\n【V90 保留：全局光影】');
   const lighting = await page.evaluate(() => ({
