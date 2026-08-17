@@ -8,6 +8,14 @@
       "install_dir": "/Users/bincai/Downloads/十法界须弥山世界/skills/join-eigenflux",
       "installed_at": "1785745968887",
       "sha256": "29e6705377de5d27d18c18d7c9a2def3cd7643f3a075483965c57be860fefb4f"
+    },
+    "photo-abstract-editorial": {
+      "name": "photo-abstract-editorial",
+      "version": "1.0.0",
+      "source": "redskill",
+      "install_dir": "/Users/bincai/Downloads/十法界须弥山世界/skills/photo-abstract-editorial",
+      "installed_at": "1786936610800",
+      "sha256": "d72ae762ebb3a07123dbcc82f4a28a590496fc6a3ea13b580805a48b063b08c0"
     }
   }
 }

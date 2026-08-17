@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 背景用色资源（assets 工具误写成未生成的 @mipmap 位图，构建必败，改回）：深底与前景补边同色 -->
-    <background android:drawable="@color/ic_launcher_background"/>
+    <background>
+        <inset android:drawable="@mipmap/ic_launcher_background" android:inset="16.7%" />
+    </background>
     <foreground>
         <inset android:drawable="@mipmap/ic_launcher_foreground" android:inset="16.7%" />
     </foreground>

@@ -15,5 +15,26 @@ export const IS_APP = !!(globalThis.Capacitor?.isNativePlatform?.());
 export const SITE_ORIGIN = 'https://game.foyue.org';
 
 export const API_BASE = IS_APP ? SITE_ORIGIN : '';
+
+// ── 装机之判（2026-08-17）：只分安卓与 iPhone 两路，余者一概不劝装 ──
+// 已在壳内、已添加到主屏幕者不劝（再劝是噪音）；桌面不劝（下载页自有二维码）。
+const UA = () => (globalThis.navigator?.userAgent || '');
+// 已添到主屏幕：iOS 用 navigator.standalone，安卓 PWA 用 display-mode 媒体查询
+export const IS_STANDALONE = !IS_APP && !!(
+  globalThis.navigator?.standalone
+  || globalThis.matchMedia?.('(display-mode: standalone)')?.matches
+);
+export const IS_ANDROID = /Android/i.test(UA());
+// iPadOS 13+ 报的是 Macintosh，须以触点数补判
+export const IS_IOS = /iPhone|iPad|iPod/i.test(UA())
+  || (/Macintosh/.test(UA()) && (globalThis.navigator?.maxTouchPoints || 0) > 1);
+export const IS_WECHAT = /MicroMessenger/i.test(UA());
+// 站外浏览器（非 Safari）在 iOS 16.4 前不能添加到主屏幕；微信内置浏览器至今不能
+export const IS_IOS_SAFARI = IS_IOS && !IS_WECHAT && !/CriOS|FxiOS|EdgiOS/i.test(UA());
+
+// 装机去处：'apk'＝安卓下载页，'ios'＝添加到主屏幕引导，''＝不劝装
+export const INSTALL_KIND = (IS_APP || IS_STANDALONE) ? ''
+  : IS_ANDROID ? 'apk'
+  : IS_IOS ? 'ios' : '';
 // globalThis.location?.：测试脚本在 Node 里直 import 本层（test-plaza-client 等），无 location 不可掷错
 export const PUBLIC_ORIGIN = IS_APP ? SITE_ORIGIN : (globalThis.location?.origin || SITE_ORIGIN);

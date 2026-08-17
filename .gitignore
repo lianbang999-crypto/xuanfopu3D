@@ -13,4 +13,4 @@ outputs/
 .dev.vars
 tmp/
 resources/splash*.png
-public/download/
+dist/download/  # APK 与 release.json：发版前由 stage-apk 注入 dist，不入库

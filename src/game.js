@@ -33,7 +33,7 @@ import { Net } from './net.js'; // 联机同修：房间/轮次/聊天（渲染�
 import { quickShare, openPosterCard } from './share.js'; // 分享卡＋分享海报：荐此界/邀莲友/单站海报（二维码+一键转发）
 import * as Plaza from './plaza.js'; // 共修大厅：12 桌网格·动态广播·念佛功课榜
 import { mountChalou, chalouApi, mountChalouFeed, mountChalouInput, CHALOU_CSS } from './chalou.js'; // 莲友茶寮（2026-08-11 与主站脱钩）：本站自建留言，全屏页与大厅右墙共用
-import { IS_APP, API_BASE } from './app-env.js'; // 安卓壳（2026-08-17）：一份构建网页/壳运行时分辨；壳下 API 指站点正源、启动挂热更壳
+import { IS_APP, API_BASE, INSTALL_KIND, IS_IOS_SAFARI, IS_WECHAT } from './app-env.js'; // 安卓壳（2026-08-17）：一份构建网页/壳运行时分辨；壳下 API 指站点正源、启动挂热更壳
 // 六卷原文阅读器已迁独立页面 read.html（2026-08-12，src/reader-page.js）——本文件不再 import sfp-reader，openReader 只作跳转
 import { ico, ICON_CSS } from './icons.js'; // 内联 SVG 图标：去处与行项先认形，再认字
 import { sfpDirOf as sfpDirOfRule } from './sfp-rules.js'; // 行棋升降判定（与 check-dir 核证脚本同源）
@@ -2726,6 +2726,9 @@ button:not(:disabled):active{transform:scale(.97)}
 #sfpConfirm .cfBody{color:#b9b09a;font-size:var(--fs-sm);line-height:1.7}
 #sfpConfirm .cfBody b{color:var(--gold-hi);font-weight:500}
 #sfpConfirm .gbtn{display:block;width:100%;min-height:46px;margin-top:10px}
+/* 单钮告知卡（noText 传空）：display:block 会盖过 hidden 属性，须显式收起，
+   否则留一枚无字空钮杵在下面——看着像卡没画完 */
+#sfpConfirm .gbtn[hidden]{display:none}
 /* 我的功课（2026-08-05 极简改版 · 用户点单）：一页只答一问——「我修了多少、连了几天、还能去哪」。
    此前四格卡把全站与我的两组数摆成平级，可这是「我的」页，全站数在大厅顶条已有一份，
    平级即是稀释主角；月历又占去 ~640px，把唯一的功能入口挤出屏外。故三处收束：
@@ -3256,9 +3259,13 @@ function askConfirm(title        , body        , okText = '确定', noText = '�
   (confirmEl.querySelector('#cfT')               ).textContent = zh(title);
   (confirmEl.querySelector('.cfBody')               ).innerHTML = zh(body);
   (confirmEl.querySelector('#cfOk')               ).textContent = zh(okText);
-  (confirmEl.querySelector('#cfNo')               ).textContent = zh(noText);
+  // noText 传空＝单钮告知卡（无可否之事，只须「知道了」）：取消钮整枚隐去，
+  //   否则留一枚无字空钮，且焦点还落在它上面。焦点随之改投确定钮。
+  const noBtn = (confirmEl.querySelector('#cfNo')               )                     ;
+  noBtn.textContent = zh(noText);
+  noBtn.hidden = !noText;
   confirmEl.classList.add('on');
-  setTimeout(() => (confirmEl.querySelector('#cfNo')                      )?.focus(), 60);
+  setTimeout(() => (confirmEl.querySelector(noText ? '#cfNo' : '#cfOk')                      )?.focus(), 60);
   return new Promise((resolve) => { confirmResolve = resolve; });
 }
 (confirmEl.querySelector('#cfOk')               ).addEventListener('click', () => closeConfirm(true));
@@ -9226,6 +9233,7 @@ function openMine() {
         <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文</span><i>›</i></button>
         <button class="gbtn myRow" id="myBo">${ico('sound')}<span>净土法音</span><i>听经 · 念佛 ›</i></button>
         <button class="gbtn myRow" id="myWenchao">${ico('book')}<span>印光法师文钞</span><i>文白对照 ›</i></button>
+        ${INSTALL_KIND ? `<button class="gbtn myRow" id="myInstall">${ico('install')}<span>${INSTALL_KIND === 'apk' ? '装到手机' : '添加到主屏幕'}</span><i>${INSTALL_KIND === 'apk' ? '安卓版 ›' : 'iPhone ›'}</i></button>` : ''}
         <button class="gbtn myRow" id="mySet">${ico('sliders')}<span>设置</span><i>›</i></button>
       </div>
       <div class="cNote">一掷一称念「南无阿弥陀佛」，只作随喜记录，不作修证高下。功课记在本机莲号下，换设备会另计。</div>
@@ -9251,6 +9259,20 @@ function openMine() {
     // 不收 closeOverlay——看完回来，「我的」还在原处，与站内子页「同路往返」是两种去向两种礼数。
     (main.querySelector('#myBo')               ).addEventListener('click', () => { window.open('https://bo.foyue.org/', '_blank', 'noopener'); });
     (main.querySelector('#myWenchao')               ).addEventListener('click', () => { window.open('https://wenchao.foyue.org/', '_blank', 'noopener'); });
+    // 装机（2026-08-17）：只两路——安卓径去下载页；iPhone 无从程序化触发（iOS 从不支持
+    //   beforeinstallprompt），唯有引一句手动之法。极简：一句话说完，不列步骤条、不配图。
+    //   微信内置浏览器至今不能添加到主屏幕，故先请其转 Safari，免得照做无果反疑站坏。
+    const installBtn = main.querySelector('#myInstall');
+    if (installBtn) installBtn.addEventListener('click', () => {
+      if (INSTALL_KIND === 'apk') { window.open('/app', '_blank', 'noopener'); return; }
+      askConfirm('添加到主屏幕',
+        IS_IOS_SAFARI
+          ? '点下方工具栏的<b>分享</b>钮，选<b>添加到主屏幕</b>。此后从图标进来即是全屏，断网亦可行谱与读原文。'
+          : (IS_WECHAT
+            ? '微信内不能添加。请点右上角<b>⋯</b>，选<b>在 Safari 中打开</b>，再点分享钮选「添加到主屏幕」。'
+            : '请以 <b>Safari</b> 打开本页，点分享钮，选<b>添加到主屏幕</b>。'),
+        '知道了', '');
+    });
     // 安卓壳（2026-08-17）：版本行＋「回到内置版」文字链——热更包出问题时的用户侧后门；
     // 排查前提也在此（先知用户跑的是哪个包）。守金钮唯一律，不另立大钮。
     if (IS_APP) {

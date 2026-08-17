@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "npx wrangler dev --port 8787",
-    "deploy": "npm run build && node scripts/gen-app-manifest.mjs && npx wrangler deploy",
+    "deploy": "npm run build && node scripts/stage-apk.mjs && node scripts/gen-app-manifest.mjs && npx wrangler deploy",
     "gen:app-manifest": "node scripts/gen-app-manifest.mjs",
     "stage:apk": "node scripts/stage-apk.mjs",
     "api:build": "node api/build.mjs",
