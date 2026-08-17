@@ -1,7 +1,7 @@
 {
   "name": "shifajie-sumeru",
   "private": true,
-  "version": "0.410.0",
+  "version": "0.411.0",
   "type": "module",
   "description": "十法界须弥山世界——依经立象的须弥山十法界教学模型（三界二十八天·四大部洲·处处注明经据），附蕅益大师《選佛譜》修行对局，最多四人实时联机",
   "scripts": {

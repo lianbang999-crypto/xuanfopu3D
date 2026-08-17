@@ -63,50 +63,75 @@ function installId() {
   } catch (e) { return ''; }
 }
 
+// ── 更新检查（2026-08-17 重构为可重入）：冷启一次、回前台节流一次、「我的」页手动随时 ──
+// 从前只在冷启查一次，而安卓 App 常驻后台可达数日不冷启——网站日日更新，App 却一直旧着。
+// 今三路同归此函数：结果三态 'latest' | 'ready' | 'apk'（另 'offline' 弱网），
+// 皆静默备妥（next() 下次启动生效，绝不打断当局）；提示与否由调用处定（自动路不吱声，
+// 手动路 toast 一句）。防并发：查询进行中再触发即复用同一承诺。
+let checking = null;
+export function checkForUpdate() {
+  return checking ||= (async () => {
+    try {
+      // 走 /api/app-manifest（worker 内转生成件附 CORS）：直取 /app-manifest.json 不进 worker，无跨域头
+      const res = await fetch(`${API_BASE}/api/app-manifest`, { cache: 'no-store' });
+      if (!res.ok) return 'offline';
+      const remote = await res.json();
+      const cur = await currentVersion();
+      if (!remote?.version || !Array.isArray(remote.manifest)) return 'offline';
+
+      // 一、原生层：站上安装包比本机新即记下，「我的」页据此现「有新版可装」。
+      //     此路与热更无涉——图标、开机屏、原生插件热更换不动，唯重装可得。
+      updateState.builtin = await builtinVersion();
+      updateState.apkNew = newerThan(remote.nativeVersion, updateState.builtin) ? remote.nativeVersion : '';
+
+      // 二、web 层：热更能办的
+      if (remote.version === cur) {
+        updateState.pending = '';
+        try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
+        return updateState.apkNew ? 'apk' : 'latest';
+      }
+      if (localStorage.getItem(PENDING_KEY) !== remote.version) { // 未备则下载备妥
+        const bundle = await CapacitorUpdater.download({
+          version: remote.version,
+          url: `${API_BASE}/app-manifest.json`, // manifest 模式逐文件走 download_url；url 为必填形参
+          manifest: remote.manifest,
+        });
+        await CapacitorUpdater.next({ id: bundle.id });
+        try { localStorage.setItem(PENDING_KEY, remote.version); } catch (e) {}
+      }
+      updateState.pending = remote.version;
+      return 'ready';
+    } catch (e) { return 'offline'; /* 弱网或离线：下回再探，不扰局不提示 */ }
+    finally { checking = null; }
+  })();
+}
+
+const RECHECK_GAP_MS = 10 * 60 * 1000; // 回前台节流：十分钟内不重查（发版以日计，再密是白问）
+let lastCheckAt = 0;
+
 export async function bootAppShell() {
   try { await CapacitorUpdater.notifyAppReady(); } catch (e) {}
-  try {
-    // 走 /api/app-manifest（worker 内转生成件附 CORS）：直取 /app-manifest.json 不进 worker，无跨域头
-    const res = await fetch(`${API_BASE}/api/app-manifest`, { cache: 'no-store' });
-    if (!res.ok) return;
-    const remote = await res.json();
-    const cur = await currentVersion();
-    if (!remote?.version || !Array.isArray(remote.manifest)) return;
+  lastCheckAt = Date.now();
+  checkForUpdate();
 
-    // 一、原生层：站上安装包比本机新即记下，「我的」页据此现「有新版可装」。
-    //     此路与热更无涉——图标、开机屏、原生插件热更换不动，唯重装可得。
-    updateState.builtin = await builtinVersion();
-    updateState.apkNew = newerThan(remote.nativeVersion, updateState.builtin) ? remote.nativeVersion : '';
+  // 装机报到：与首查同一趟启动里捎带，不另起一次唤醒。失手即罢，不重试不扰用户。
+  const install = installId();
+  if (install) {
+    currentVersion().then((cur) => fetch(`${API_BASE}/api/app/hello`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ install, plat: 'android', ver: cur, nat: updateState.builtin }),
+    })).catch(() => {});
+  }
 
-    // 装机报到：与热更同一趟启动里捎带，不另起一次唤醒。失手即罢，不重试不扰用户。
-    const install = installId();
-    if (install) {
-      fetch(`${API_BASE}/api/app/hello`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ install, plat: 'android', ver: cur, nat: updateState.builtin }),
-      }).catch(() => {});
-    }
-
-    // 二、web 层：热更能办的
-    if (remote.version === cur) {
-      updateState.pending = '';
-      try { localStorage.removeItem(PENDING_KEY); } catch (e) {}
-      return;
-    }
-    if (localStorage.getItem(PENDING_KEY) === remote.version) { // 已备待启
-      updateState.pending = remote.version;
-      return;
-    }
-    const bundle = await CapacitorUpdater.download({
-      version: remote.version,
-      url: `${API_BASE}/app-manifest.json`, // manifest 模式逐文件走 download_url；url 为必填形参
-      manifest: remote.manifest,
-    });
-    await CapacitorUpdater.next({ id: bundle.id });
-    updateState.pending = remote.version;
-    try { localStorage.setItem(PENDING_KEY, remote.version); } catch (e) {}
-  } catch (e) { /* 弱网或离线：下次启动再探，不扰局不提示 */ }
+  // 回前台即查（发起人点单「网站一更新 App 就能收到并下载」）：安卓 App 常驻后台，
+  // 冷启动可数日不遇一回；WebView 的 visibilitychange 在壳内可靠，不需再引原生插件。
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (Date.now() - lastCheckAt < RECHECK_GAP_MS) return;
+    lastCheckAt = Date.now();
+    checkForUpdate();
+  });
 }
 
 // 「我的」页自救钮：退回 APK 内置版（热更包出问题时的用户侧后门）

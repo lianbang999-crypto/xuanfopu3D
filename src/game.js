@@ -2166,7 +2166,13 @@ button.gbtn.primary{background:rgba(215,170,69,.32);color:#fff}
   #title{letter-spacing:2px}
 }
 /* 罗盘已撤（极简屏定案）：元素、样式与 updateCompass 一并清除——若复用须重算与 #topbar 右上两钮的位置关系 */
-#freeDock{bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center}
+/* z:16 层序正名（2026-08-17 发起人报「十界导航条挡到主钮字」）：底坞是操作件，
+   天梯（#ladder z:14）是导航装置——操作件永远在上。几何上两者常态不交叠，
+   但安卓 WebView 跟随系统大字体（钮随之增高上移）或横屏矮窗一旦贴上，
+   旧层序（坞 z:10 继承 .ui）是梯压钮、色点盖字；今序既正，纵交叠钮也完整。 */
+#freeDock{bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:10px;align-items:center;z-index:16}
+/* 短屏收梯：矮窗（横屏手机之属）天梯及早收短让出底坞领地，从源头减少交叠 */
+@media (max-height:560px){#ladder{top:12%;height:46vh}}
 #joy{left:calc(14px + env(safe-area-inset-left));bottom:calc(104px + env(safe-area-inset-bottom));width:108px;height:108px;border-radius:50%;display:none;z-index:12;
   background:rgba(26,22,44,.45);border:1px solid rgba(215,170,69,.45);touch-action:none}
 #joy.show{display:block}
@@ -3091,13 +3097,15 @@ app.appendChild(freeDock);
 // 共修回局：本机不留联机棋况（sfpSave 遇 Net.active 即早退），故一律按服务器快照回位。
 // 挂实见「联机接线」段；未在座或本局不在进行时返回 false，由本机存局链路接手。
 let netRejoin = ()          => false;
-const quickSfp = el('<button class="gbtn primary" style="border-radius:24px;padding:13px 30px;font-size:var(--fs-lg);letter-spacing:3px">选佛</button>');
+const quickSfp = el('<button class="gbtn primary" style="border-radius:24px;padding:13px 30px;font-size:var(--fs-lg);letter-spacing:3px">掷轮</button>');
 quickSfp.addEventListener('click', () => { // 共修在座＝回局中；否则有存局直接续掷，无则入大厅（一钮一义）
   if (netRejoin()) return;
   if (save.sfp && SFP_BY[save.sfp.pos]) startSfp(true); else openPlaza();
 });
 freeDock.appendChild(quickSfp);
-// 底坞主钮一钮一义：有存局说「续掷」，没有才说「选佛」（大厅入口已移至右上角）
+// 底坞主钮一钮一义：有存局说「续掷」，没有才说「掷轮」（大厅入口已移至右上角）
+// ——「选佛」改「掷轮」（2026-08-17 发起人定）：钮上写动作不写归趣，一眼即知点了做什么；
+//   「选佛」是全谱之旨，留给题字与谱意卡说，不必压在一枚钮上。
 function syncFreeDock() {
   if (Net.active && Net.isPlaying()) { // 共修局中：钮即回局中（本机存局与本局无关，不得据以标名）
     quickSfp.textContent = zh('回局中');
@@ -3105,7 +3113,7 @@ function syncFreeDock() {
     return;
   }
   const resume = !!(save.sfp && SFP_BY[save.sfp.pos]);
-  quickSfp.textContent = zh(resume ? '续掷' : '选佛');
+  quickSfp.textContent = zh(resume ? '续掷' : '掷轮');
   quickSfp.title = zh(resume ? `续上局：现居「${SFP_BY[save.sfp.pos].name}」` : '共修大厅 · 一人可自修，莲友来即共修');
 }
 // 单菜单原则：自由观照期底坞也带「⋯」，谱务抽屉全程可达（局中入口在 sfpBar）
@@ -3776,8 +3784,16 @@ function tourBar() {
   </div>`);
   const css = document.createElement('style');
   css.textContent = `
-#tourBar{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);
-  z-index:34;width:min(640px,94vw);display:flex;flex-direction:column;align-items:center;gap:8px;
+/* 让出天梯右缘（2026-08-17 发起人报「十界导航条挡到字」）：本台居中而宽 94vw，
+   窄屏下字幕行右端正伸进天梯领地（#ladder right:6px 宽 52px），字与色点相叠而两皆难辨。
+   今宽度减去右缘那 64px，锚点亦随之左移半份（left:calc(50% - 32px)）——
+   本台遂居于「让出天梯后的余幅」正中，非硬挪偏心。
+   为何调 left 而不调 transform：transform 已被下方避让态（html.ovOn）写死为
+   translate(-50%,12px)，在此叠偏移会被那一条整个吃掉；margin 对 fixed 定位件亦不生偏移。
+   不缩字号、不加底色、不动天梯：只把两者的地界划开。 */
+#tourBar{position:fixed;left:calc(50% - 32px);bottom:calc(14px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  z-index:34;width:min(640px,calc(94vw - 64px));
+  display:flex;flex-direction:column;align-items:center;gap:8px;
   pointer-events:none;transition:opacity .25s ease,transform .25s ease}
 /* 字幕行：无框浮字，靠投影立住（题屏字影同语汇）——底下是 3D 景，不再垫一块底色 */
 #tourBar .tgLine{pointer-events:auto;max-width:100%;text-align:center;line-height:1.65;
@@ -9277,23 +9293,38 @@ function openMine() {
     if (IS_APP) {
       const row = main.querySelector('#myAppRow');
       if (row) import('./app-shell.js').then(async (shell) => {
-        const v = await shell.currentVersion();
-        const st = shell.updateState || {};
         // 更新之报（2026-08-17）：只在此行添一句，不弹卡不红点——静默设计，不催人。
         //   已备待启＝web 层新包下好了，重启即用（热更能办的）
         //   有新安装包＝图标、开机屏、原生插件这些热更换不动之物，唯重装可得，故引去下载页
-        const note = st.pending
-          ? ` · ${zh('新版已备，下次启动即用')}`
-          : (st.apkNew ? ` · <span id="myApkNew" style="text-decoration:underline;cursor:pointer">${zh('有新安装包')} ${st.apkNew} ›</span>` : '');
-        row.innerHTML = `${zh('App 版本')} ${v}${note} · <span id="myAppReset" style="text-decoration:underline;cursor:pointer">${zh('回到内置版')}</span>`;
-        (row.querySelector('#myApkNew')                     )?.addEventListener('click', () => {
-          window.open(`${API_BASE}/app`, '_blank', 'noopener');
-        });
-        (row.querySelector('#myAppReset')               ).addEventListener('click', async () => {
-          showToast(zh('正在退回内置版……'), 2000);
-          const ok = await shell.resetToBuiltin();  // 成则插件即刻重载内置包，无需善后
-          if (!ok) showToast(zh('退回未成，请重试'), 3000);
-        });
+        // 「检查更新」（同日发起人点单）：自动查有冷启与回前台两路，此链是第三路——
+        //   等不及的人手动即问，答案 toast 一句便罢，行文与自动路同一套三态。
+        const rowPaint = async () => {
+          const v = await shell.currentVersion();
+          const st = shell.updateState || {};
+          const note = st.pending
+            ? ` · ${zh('新版已备，下次启动即用')}`
+            : (st.apkNew ? ` · <span id="myApkNew" style="text-decoration:underline;cursor:pointer">${zh('有新安装包')} ${st.apkNew} ›</span>` : '');
+          row.innerHTML = `${zh('App 版本')} ${v}${note}`
+            + ` · <span id="myAppCheck" style="text-decoration:underline;cursor:pointer">${zh('检查更新')}</span>`
+            + ` · <span id="myAppReset" style="text-decoration:underline;cursor:pointer">${zh('回到内置版')}</span>`;
+          (row.querySelector('#myApkNew')                     )?.addEventListener('click', () => {
+            window.open(`${API_BASE}/app`, '_blank', 'noopener');
+          });
+          (row.querySelector('#myAppCheck')               ).addEventListener('click', async () => {
+            showToast(zh('正在检查更新……'), 1600);
+            const r = await shell.checkForUpdate();
+            showToast(zh(r === 'ready' ? '新版已备好，重启 App 即用'
+              : r === 'apk' ? '有新安装包，点「有新安装包」去下载'
+              : r === 'latest' ? '已是最新' : '联网未成，稍后再试'), 3000);
+            rowPaint(); // 查毕重画本行：pending/apkNew 之变即时可见
+          });
+          (row.querySelector('#myAppReset')               ).addEventListener('click', async () => {
+            showToast(zh('正在退回内置版……'), 2000);
+            const ok = await shell.resetToBuiltin();  // 成则插件即刻重载内置包，无需善后
+            if (!ok) showToast(zh('退回未成，请重试'), 3000);
+          });
+        };
+        rowPaint();
       }).catch(() => { row.textContent = ''; });
     }
   };
