@@ -114,7 +114,9 @@ async function proxyAsk(request, env) {
   const headers = new Headers(upstream.headers);
   headers.set('cache-control', 'no-store');
   headers.set('x-ask-proxy', 'service-binding');
-  headers.delete('access-control-allow-origin');
+  // 2026-08-17 安卓壳：壳内页面 origin 是 https://localhost，此路跨域取流——
+  // 与 json() 同一口径放开（此前删头是同域时代的洁癖，壳一来便成了断粮）；ndjson 流身不动。
+  headers.set('access-control-allow-origin', '*');
   headers.delete('vary');
   return new Response(upstream.body, { status: upstream.status, headers });
 }
@@ -158,6 +160,50 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // ---- 跨域预检（2026-08-17 安卓壳）----
+    // 壳内页面 origin 是 https://localhost（Capacitor 本地资源服务器），POST application/json
+    // 必先发 OPTIONS。json() 素来带 access-control-allow-origin:*（本站 API 公开口径），
+    // 独缺预检应答——补齐即通。101 WebSocket 升级不涉跨域，原样不动。
+    if (request.method === 'OPTIONS' && path.startsWith('/api/')) {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'GET, POST, OPTIONS',
+          'access-control-allow-headers': 'content-type',
+          'access-control-max-age': '86400',
+        },
+      });
+    }
+
+    // ---- 安卓安装包（2026-08-17）：短链固定名，中文名在下载时才给 ----
+    // 链接与二维码恒为 /download/sumeru.apk（ASCII 短名，码疏易扫、外发不带百分号编码）；
+    // 存盘名由 Content-Disposition 给中文带版本，用户下载文件夹里一眼认得出是哪一版。
+    // MIME 须是 vnd.android.package-archive：静态资源默认给 octet-stream 时部分安卓浏览器
+    // 不认作可安装包，落地成一个打不开的文件。
+    if (path === '/download/sumeru.apk') {
+      const res = await env.ASSETS.fetch(request);
+      if (!res.ok) return res;
+      let ver = '';
+      try { ver = (await (await env.ASSETS.fetch(new Request(new URL('/download/release.json', url.origin)))).json()).version || ''; } catch (e) {}
+      const headers = new Headers(res.headers);
+      headers.set('content-type', 'application/vnd.android.package-archive');
+      headers.set('content-disposition',
+        `attachment; filename="sumeru-${ver || 'latest'}.apk"; filename*=UTF-8''${encodeURIComponent(`须弥山世界-v${ver || 'latest'}.apk`)}`);
+      return new Response(res.body, { status: res.status, headers });
+    }
+
+    // ---- 热更清单（2026-08-17 安卓壳）：App 启动时跨域拉取比对版本 ----
+    // 两个入口同归一处：/api/app-manifest（前端在用）与直取 /app-manifest.json
+    // （已列入 wrangler 的 run_worker_first，否则命中静态资源即不进 worker，头是白附的）。
+    if (path === '/api/app-manifest' || path === '/app-manifest.json') {
+      const res = await env.ASSETS.fetch(new Request(new URL('/app-manifest.json', url.origin), { method: 'GET' }));
+      const headers = new Headers(res.headers);
+      headers.set('access-control-allow-origin', '*');
+      headers.set('cache-control', 'no-store'); // 版本探针不缓存，发布即见
+      return new Response(res.body, { status: res.status, headers });
+    }
 
     // ---- 问义 API：同域入口 → Cloudflare Service Binding → 经据智能体 ----
     if (path === '/api/ask') return proxyAsk(request, env);

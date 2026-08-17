@@ -274,16 +274,25 @@ try {
   ok(await page.locator('#netRoster .netP').count() === 1, '重复点击入座仍只生成一个自己');
   ok((await page.locator('#netRoster').innerText()).includes('房主')
     && !/[东南西北]·主/.test(await page.locator('#netRoster').innerText()), '房间只显示房主，不再显示方位座次');
-  ok((await page.locator('#netRoomState').innerText()).includes('准备室'), '入座后进入准备室而非直接开局');
-  // W3（2026-07-30）：状态行只报人数，开局条件由指引句说一次
+  // 2026-08-16 三改（发起人点单「交互层级偏重」）：等候期状态行收起——「准备室 · N 人在线 · N 人已准备」
+  // 与紧邻的名单、指引句三处同义。在不在准备室，改由「动作条在场且棋盘未起」坐实，不再读那一行字。
+  ok(await page.locator('#netRoomState').isHidden()
+    && await page.locator('#netRoundActions').isVisible()
+    && !(await page.locator('#sfpBar.show').isVisible()), '入座后进入准备室而非直接开局，且等候期不再另立状态行');
+  // W3（2026-07-30）：人数只报一处，开局条件由指引句说一次
   // 2026-08-15 重写：孤座指引已随 v396「房间可自修可共修」改词——一人即可开始掷轮，邀请是可选不是前提
-  ok((await page.locator('#netRoomState').innerText()).includes('人在线')
-    && (await page.locator('#netGuide').innerText()).includes('一人即可开始掷轮'), '状态行只报人数，孤座指引明说一人即可开始掷轮');
+  ok(await page.locator('#netRoster .netP').count() === 1
+    && (await page.locator('#netGuide').innerText()).includes('一人即可开始掷轮'), '人数只由名单报一处，孤座指引明说一人即可开始掷轮');
   ok((await page.locator('#netGuide').innerText()).includes('邀请同修'), '孤座指引同句给出「邀请同修」共修之路');
+  ok((await page.locator('#netGuideHelp').innerText()).includes('玩法速览'), '玩法速览降为指引行末文字链，不再首次入房夺屏');
   await page.setViewportSize({ width: 375, height: 667 });
-  ok(await page.locator('#netReadyBtn').isVisible()
-    && await page.locator('#netStartBtn').isVisible()
-    && await page.locator('#netLeaveBtn').isVisible(), 'iPhone 小屏准备室首屏看得到准备、开始和离开');
+  // 2026-08-16 单人房只留一个主动作：「我已准备」在孤座时是无效钮（开局由主钮内部代办），故撤
+  ok(await page.locator('#netStartBtn').isVisible()
+    && await page.locator('#netLeaveBtn').isVisible()
+    && await page.locator('#netReadyBtn').isHidden(), 'iPhone 小屏孤座首屏只见开始与离开，不出无效的「我已准备」');
+  // 金钮唯一律：全房任何时刻至多一枚金钮
+  const waitingGold = await page.locator('#netPanel .pri:visible').allInnerTexts();
+  ok(waitingGold.length === 1 && waitingGold[0].includes('开始掷轮'), `孤座等候期只有一枚金钮且是开始掷轮（实见 ${waitingGold.length} 枚：${waitingGold.join('|')}）`);
   const waitingPanelBox = await page.locator('#netPanel').boundingBox();
   const waitingFooterBox = await page.locator('#netBtns').boundingBox();
   ok(!!waitingPanelBox && !!waitingFooterBox
@@ -313,6 +322,11 @@ try {
   const invBox = await page.locator('#netInvBtn').boundingBox();
   ok(!!leaveBox2 && !!invBox && leaveBox2.x < invBox.x && invBox.width > leaveBox2.width,
     '依用惯排位：离席缩在左侧，邀请同修占主位铺右');
+  // 人一到齐，「我已准备」即回来（孤座才撤）；此时开局钮尚按不动，金归准备
+  ok(await page.locator('#netReadyBtn').isVisible(), '室内有他人时「我已准备」回到动作条');
+  const manyGold = await page.locator('#netPanel .pri:visible').allInnerTexts();
+  ok(manyGold.length === 1 && manyGold[0].includes('我已准备'),
+    `多人未准备时唯一金钮是「我已准备」（实见 ${manyGold.length} 枚：${manyGold.join('|')}）`);
   await capture(page, '01-waiting-room-desktop');
 
   await page.locator('#netReadyBtn').evaluate((button) => button.click());
@@ -320,6 +334,9 @@ try {
   peerC.send({ type: 'ready_set', ready: true, requestId: 'ui:c-ready' });
   await waitEnabled(page, '#netStartBtn');
   ok((await page.locator('#netStartBtn').innerText()).includes('共同开局'), '三人准备后房主主按钮明确显示共同开局');
+  const readyGold = await page.locator('#netPanel .pri:visible').allInnerTexts();
+  ok(readyGold.length === 1 && readyGold[0].includes('共同开局'),
+    `可开局时金转到「共同开局」，准备钮退白（实见 ${readyGold.length} 枚：${readyGold.join('|')}）`);
   await page.locator('#netStartBtn').click({ force: true });
   await page.locator('#sfpBar.show').waitFor({ state: 'visible', timeout: 12_000 });
   ok(!await page.locator('#netPanel').isVisible(), '共同开局后房间面板自动收起，不遮挡棋盘');
@@ -328,6 +345,9 @@ try {
   await page.locator('#sfpChat').click({ force: true });
   await page.locator('#netPanel.on').waitFor({ state: 'visible' });
   ok(await page.locator('#netGuide').isHidden() && await page.locator('#netRoundActions').isHidden(), '开局后自动切换为聊天视图，不再保留准备操作');
+  // 局中金归底坞掷轮：面板内一枚金也不留（邀请同修降描边、发送去金洗底）
+  ok(await page.locator('#netPanel .pri:visible').count() === 0,
+    '局中房间面板内零金钮，唯一的金让给底坞掷轮');
   let remoteChatSeen = false;
   for (let attempt = 0; attempt < 3 && !remoteChatSeen; attempt++) {
     peerB.send({ type: 'chat', text: '乙同修已到', requestId: `ui:b-chat:${attempt}` });

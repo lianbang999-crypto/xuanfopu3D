@@ -3,11 +3,14 @@
 // 转发优先 navigator.share（系统分享面板，微信外的社交软件可直转）；
 // 微信内置浏览器无 share——检测 MicroMessenger 时出「右上角 ⋯ 转发」引导＋复制文案兜底。
 import qrcode from 'qrcode-generator';
+import { IS_APP, PUBLIC_ORIGIN } from './app-env.js'; // 安卓壳下 location 是 https://localhost：分享链接与海报款识一律以站点正源为准
 
 export function isWeChat() { return /MicroMessenger/i.test(navigator.userAgent); }
 
 export function shareUrl(code) {
-  return `${location.origin}${location.pathname}${code ? `#r=${code}` : ''}`;
+  // 壳内 pathname 固定取根（本地资源服务器的路径不可外传）；网页照旧带当前路径
+  const path = IS_APP ? '/' : location.pathname;
+  return `${PUBLIC_ORIGIN}${path}${code ? `#r=${code}` : ''}`;
 }
 
 // 邀请码形如 H1T2 或 H1T2.1234（后半是本室密码）：拆开呈现，不揉成一长串
@@ -209,7 +212,7 @@ async function drawPoster({ url, zh, station, room, roomLabel }) {
   g.fillText(zh('三界廿八天 · 处处注明经据'), 76, qy + 102);
   g.fillText(zh('附蕅益大师《选佛谱》修行对局'), 76, qy + 156);
   g.fillStyle = '#9aa3b5'; g.font = '400 27px ui-monospace,Menlo,Consolas,monospace';
-  g.fillText(location.host + (location.pathname === '/' ? '' : location.pathname), 76, qy + 232);
+  g.fillText(new URL(PUBLIC_ORIGIN).host + (IS_APP || location.pathname === '/' ? '' : location.pathname), 76, qy + 232);
   return cv;
 }
 

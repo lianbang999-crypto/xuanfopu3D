@@ -4,6 +4,7 @@
 // 名字口径：进大厅／看广播／一人行谱皆不问名；真人入座才问，功课榜沿用该名或稳定匿名莲号。
 
 import { ico } from './icons.js'; // 内联 SVG：一人／众人两张模式卡先认形，再认字
+import { API_BASE } from './app-env.js'; // 安卓壳下指向站点正源；网页下空串，行为不变
 
 const PENDING_KEY = 'sm10.plaza.pending'; // 未送达的掷数（关页面也不丢）
 const NAME_KEY = 'sm10.net.name';         // 与联机名号共用，免重复填写
@@ -72,7 +73,7 @@ export function selfOnline() {
 // 改名后即便无待送掷数，也发一次空报让榜上那一行换名（服务端只认 actor，不改计数）
 export async function pushName() {
   try {
-    const r = await fetch('/api/plaza/tick', {
+    const r = await fetch(`${API_BASE}/api/plaza/tick`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ n: 0, actor: practiceId(), name: practiceName() }),
     });
@@ -87,7 +88,7 @@ export async function flush() {
   try {
     // 服务端单次封顶 60，超出留待下批，免默默丢数
     const send = Math.min(60, n);
-    const r = await fetch('/api/plaza/tick', {
+    const r = await fetch(`${API_BASE}/api/plaza/tick`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ n: send, actor: practiceId(), name: practiceName() }),
     });
@@ -102,14 +103,14 @@ export function flushOnExit() {
   if (!n || !navigator.sendBeacon) return;
   try {
     const blob = new Blob([JSON.stringify({ n, actor: practiceId(), name: practiceName() })], { type: 'application/json' });
-    if (navigator.sendBeacon('/api/plaza/tick', blob)) setPending(pending() - n);
+    if (navigator.sendBeacon(`${API_BASE}/api/plaza/tick`, blob)) setPending(pending() - n);
   } catch (e) {}
 }
 
 // 一人行谱的成佛：带莲号上报，才记得到本人名下（共修室的由本室服务器出具）
 export async function record(run) {
   try {
-    const r = await fetch('/api/plaza/record', {
+    const r = await fetch(`${API_BASE}/api/plaza/record`, {
       method: 'POST', headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...run, actor: practiceId() }),
     });
@@ -119,7 +120,7 @@ export async function record(run) {
 
 // 我的功课：累计·成佛·共修天数·连续日·逐日（月历）·逐局记录
 export async function fetchMine() {
-  const r = await fetch('/api/plaza/me', {
+  const r = await fetch(`${API_BASE}/api/plaza/me`, {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ actor: practiceId() }),
   });
@@ -128,7 +129,7 @@ export async function fetchMine() {
 }
 
 export async function fetchPlaza(hall = 0) {
-  const r = await fetch(`/api/plaza${hall ? `?hall=${hall}` : ''}`);
+  const r = await fetch(`${API_BASE}/api/plaza${hall ? `?hall=${hall}` : ''}`);
   if (!r.ok) throw new Error(`HTTP ${r.status}`);
   return r.json();
 }
@@ -395,12 +396,54 @@ export function renderPlaza(data, ui) {
   return p;
 }
 
+// ── 名号字段：入座卡与「我的」页名号卡同用的一份行为与一张皮 ──
+// 2026-08-16 极简重做（发起人点单「字体·字号·输入框·布局」）：
+//   字体改走展示族 --f-display（得意黑，缺字回退宋体）——与页面题字同族，名号落笔即是题名，
+//   不再与说明文字同用 UI 黑体；字号只留三档：名号 30px、注脚 11px、按钮 14px，
+//   中间的 12.5／16／19 三档在此卡内一概不用：极简不是少放东西，是少放层级。
+//   输入框由「白底圆角金框＋聚焦光晕」改为一条底线：框是纸的边界，字才是主角；
+//   聚焦时底线由暖墨转泥金，此外别无动静。建议名去掉胶囊章框，只留字与间距。
+const NAME_POOL = ['慧明', '净安', '照心', '澄怀', '若水', '闻钟', '静远', '莲舟', '初心', '望岳', '拾阶', '归元'];
+const NAME_MAX = 12;
+export const cleanName = (v) => Array.from(String(v ?? '').replace(/\s+/g, ' ').trim()).slice(0, NAME_MAX).join('');
+// 共用件：截字·计数·建议名三事。两处各自的主钮字样、错字行由 onChange 回调各管各的。
+// zh：建议名是本站文案，换一批时须随站点简繁走——从前只有首屏那批经 zhDom 转过，
+// 点 ↻ 换出来的下一批就退回简体（繁体版看着突兀）。今每批落笔即转。
+function bindNameField(root, onChange, zh = (s) => s) {
+  const input = root.querySelector('.bigIn');
+  const count = root.querySelector('.nameCount');
+  const sync = () => {
+    const chars = Array.from(input.value);
+    if (chars.length > NAME_MAX) input.value = chars.slice(0, NAME_MAX).join('');
+    count.textContent = `${Array.from(input.value).length} / ${NAME_MAX}`;
+    onChange?.(cleanName(input.value));
+  };
+  input.addEventListener('input', sync);
+  // 建议名：点即填好并同步主钮——不 focus 输入框（免手机弹键盘），看主钮变字即知已取
+  const chips = [...root.querySelectorAll('.nameChips .chip')];
+  let poolAt = Math.floor(Math.random() * NAME_POOL.length);
+  const deal = () => { chips.forEach((c) => { c.textContent = zh(NAME_POOL[poolAt % NAME_POOL.length]); poolAt++; }); };
+  deal();
+  root.querySelector('.chipMore')?.addEventListener('click', deal);
+  root.querySelector('.nameChips')?.addEventListener('click', (event) => {
+    const c = event.target.closest('.chip');
+    if (!c || input.disabled) return;
+    input.value = c.textContent || '';
+    sync();
+  });
+  return { input, sync };
+}
+// 建议名一排（三枚＋换批）：两处同形，故只写一遍
+const nameChipsHtml = () => `<div class="nameChips" aria-label="名号建议">
+  <button type="button" class="chip"></button><button type="button" class="chip"></button><button type="button" class="chip"></button>
+  <button type="button" class="chipMore" aria-label="换一批建议名" title="换一批">↻</button>
+</div>`;
+
 // 入座前问名（只在没有存名时出现一次；留空即「莲友」，此后自动带上）
 // 一张卡两用：入座前留名号，或单从功课榜来改名号（ui.rename）
 // 2026-08-12 极简重做（用户点单）：八层收六层——标题下即输入框，label 行与 lead 句撤
 // （义归 aria-label 与 scope 一句）；「选填／留空即莲友／存本机」三句并作输入框下一句；
 // 新增三枚建议名章：不想费神起名的人点一枚即填好（不弹键盘），再点主钮即入——两点进房。
-const NAME_POOL = ['慧明', '净安', '照心', '澄怀', '若水', '闻钟', '静远', '莲舟', '初心', '望岳', '拾阶', '归元'];
 export function renderSitName(code, ui) {
   const { el } = ui;
   const rename = !!ui.rename;
@@ -415,13 +458,10 @@ export function renderSitName(code, ui) {
           spellcheck="false" aria-label="共修名号，选填" aria-describedby="pzNameNote pzNameScope" placeholder="如「慧明」，可留空">
         <div class="fieldMeta"><!-- 计数只在输入时浮现（focus-within 控 opacity，innerText 恒新以保回归断言） -->
           <span id="pzNameNote" aria-live="polite"></span>
-          <span id="pzNameCount">0 / 12</span>
+          <span id="pzNameCount" class="nameCount">0 / 12</span>
         </div>
       </div>
-      <div class="nameChips" aria-label="名号建议">
-        <button type="button" class="chip"></button><button type="button" class="chip"></button><button type="button" class="chip"></button>
-        <button type="button" class="chipMore" aria-label="换一批建议名" title="换一批">↻</button>
-      </div>
+      ${nameChipsHtml()}
       <p class="scope" id="pzNameScope">${rename
         ? '功课与成佛记在此名下 · 显示在本室名单与共修动态 · 只存本机'
         : '将显示在本室名单与共修动态 · 只存本机 · 留空即「莲友」'}</p>
@@ -430,55 +470,37 @@ export function renderSitName(code, ui) {
       </button>
       <button class="pzAskBack" id="pzNameBack" type="button">${rename ? '返回' : '返回大厅'}</button>
     </form></div>`);
-  const input = p.querySelector('#pzName');
   const form = p.querySelector('#pzNameForm');
   const note = p.querySelector('#pzNameNote');
-  const count = p.querySelector('#pzNameCount');
   const submit = p.querySelector('#pzNameSubmit');
   const go = p.querySelector('#pzNameGo');
   const back = p.querySelector('#pzNameBack');
   let submitting = false;
-  const syncName = () => {
-    const chars = Array.from(input.value);
-    if (chars.length > 12) input.value = chars.slice(0, 12).join('');
-    const value = Array.from(input.value);
-    count.textContent = `${value.length} / 12`;
-    const name = input.value.replace(/\s+/g, ' ').trim() || '莲友';
-    go.textContent = `以「${name}」${verb}`;
+  const zh = ui.zh || ((s) => s);
+  // 名号是莲友自由文本，一律不过简繁（与茶寮正文同则）；「莲友／记名」是本站文案，须转
+  const { input, sync: syncName } = bindNameField(form, (name) => {
+    go.textContent = `以「${name || zh('莲友')}」${zh(verb)}`;
     note.classList.remove('err');
     note.textContent = '';   // 「留空即莲友」已并入 scope 一句；此行只在出错时说话
-  };
-  input.addEventListener('input', syncName);
-  // 建议名章：点即填好并同步主钮——不 focus 输入框（免手机弹键盘），看主钮变字即知已取
-  const chips = [...p.querySelectorAll('.nameChips .chip')];
-  let poolAt = Math.floor(Math.random() * NAME_POOL.length);
-  const dealChips = () => { chips.forEach((c) => { c.textContent = NAME_POOL[poolAt % NAME_POOL.length]; poolAt++; }); };
-  dealChips();
-  p.querySelector('.chipMore').addEventListener('click', dealChips);
-  p.querySelector('.nameChips').addEventListener('click', (event) => {
-    const c = event.target.closest('.chip');
-    if (!c || submitting) return;
-    input.value = c.textContent || '';
-    syncName();
-  });
+  }, zh);
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (submitting) return;
-    const name = Array.from(input.value.replace(/\s+/g, ' ').trim()).slice(0, 12).join('') || '莲友';
+    const name = cleanName(input.value) || '莲友';
     saveName(name);
     submitting = true;
     form.setAttribute('aria-busy', 'true');
     input.disabled = true;
     submit.disabled = true;
     back.disabled = true;
-    go.textContent = rename ? '正在记名…' : '正在入座…';
+    go.textContent = zh(rename ? '正在记名…' : '正在入座…');
     let failed = false;
     try {
       await ui.onSit(code, name);
     } catch {
       failed = true;
       if (p.isConnected) {
-        note.textContent = '暂时无法入座，请稍后再试';
+        note.textContent = zh('暂时无法入座，请稍后再试');
         note.classList.add('err');
       }
     } finally {
@@ -488,7 +510,7 @@ export function renderSitName(code, ui) {
         input.disabled = false;
         submit.disabled = false;
         back.disabled = false;
-        if (failed) go.textContent = `以「${name}」${verb}`;
+        if (failed) go.textContent = `以「${name}」${zh(verb)}`;
         else syncName();
       }
     }
@@ -497,6 +519,94 @@ export function renderSitName(code, ui) {
   if (rename && savedName()) { input.value = savedName(); syncName(); }   // 改名先带出现名
   if (!matchMedia('(max-width:640px)').matches) setTimeout(() => input.focus(), 80);
   return p;
+}
+
+// 「我的」页内名号卡（2026-08-16 新立 · 发起人点单「放在我的页里，随时可改」）
+// 从前名号只是页头右上一枚「…」小钮：点它先关掉整张「我的」，再开一层全屏卡，改完还要退回来——
+// 三层之遥，且那枚钮既不说「这是你的名号」，也不说「点了能改」。
+// 今就地一张卡立在页首：平时一行看清「我是谁」，点即原地展开输入框，记下即收——不离页、不换层。
+// 与入座卡同一份行为（bindNameField）同一张皮（.pzAskName/.myId 共用底线输入框规则），改一处两处齐动。
+export function renderIdentity(ui) {
+  const { el } = ui;
+  const zh = ui.zh || ((s) => s);
+  const card = el(`<section class="myId" aria-label="我的名号">
+    <div class="myIdView">
+      <div class="myIdTx"><span class="myIdK">名号</span><b class="myIdName" data-nozh></b><span class="myIdSub"></span></div>
+      <button type="button" class="myIdGo" id="myIdEdit">改</button>
+    </div>
+    <form class="myIdForm" id="myIdForm" novalidate hidden>
+      <label class="myIdK" for="myIdIn">名号</label>
+      <div class="nameField">
+        <input id="myIdIn" class="bigIn" maxlength="24" autocomplete="nickname" enterkeyhint="done"
+          spellcheck="false" aria-describedby="myIdNote myIdScope" placeholder="如「慧明」，可留空">
+        <div class="fieldMeta">
+          <span id="myIdNote" aria-live="polite"></span>
+          <span id="myIdCount" class="nameCount">0 / 12</span>
+        </div>
+      </div>
+      ${nameChipsHtml()}
+      <p class="scope" id="myIdScope">功课与成佛记在此名下 · 显示在本室名单与共修动态 · 只存本机</p>
+      <div class="myIdAct">
+        <button class="gbtn primary" id="myIdSave" type="submit">记下</button>
+        <button type="button" class="myIdCancel" id="myIdCancel">取消</button>
+      </div>
+    </form>
+  </section>`);
+  const view = card.querySelector('.myIdView');
+  const form = card.querySelector('#myIdForm');
+  const nameEl = card.querySelector('.myIdName');
+  const subEl = card.querySelector('.myIdSub');
+  const goBtn = card.querySelector('#myIdEdit');
+  const note = card.querySelector('#myIdNote');
+  const saveBtn = card.querySelector('#myIdSave');
+  const cancelBtn = card.querySelector('#myIdCancel');
+  let busy = false;
+  const { input, sync } = bindNameField(form, () => { note.textContent = ''; note.classList.remove('err'); }, zh);
+
+  // 静态一行：大字是名号，小字是本机身份与去处——「我是谁·记在哪」一眼看完。
+  // 名号挂 data-nozh（元素上已标）且此处不过 zh：那是莲友自取的字，本站无权替他改写；
+  // 其余皆本站文案，逐句过 zh——此函数改名后还会再跑，不能只靠首屏那一次 zhDom。
+  const paintView = () => {
+    const named = savedName();
+    nameEl.textContent = named || zh(practiceName());   // 未取名时那句「莲友·XXXX」是本站给的称呼，须转
+    // 未取名时大字已含莲号（「莲友·6C6E」），副文便不再报一遍——同一串码不在一张卡上说两次
+    subEl.textContent = zh(named ? `莲号 ${practiceId().slice(-4).toUpperCase()} · 只存本机` : '尚未取名 · 只存本机');
+    goBtn.textContent = zh(named ? '改' : '取名');
+  };
+  const setEdit = (on) => {
+    view.hidden = on;
+    form.hidden = !on;
+    card.classList.toggle('editing', on);
+    if (!on) return;
+    input.value = savedName();
+    sync();
+    // 手机不抢键盘（与入座卡同则）：先让人看清这卡在说什么，要打字自会去点那一行
+    if (!matchMedia('(max-width:640px)').matches) setTimeout(() => input.focus(), 60);
+  };
+  goBtn.addEventListener('click', () => setEdit(true));
+  cancelBtn.addEventListener('click', () => { if (!busy) setEdit(false); });
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const name = cleanName(input.value) || '莲友';
+    busy = true;
+    form.setAttribute('aria-busy', 'true');
+    input.disabled = saveBtn.disabled = cancelBtn.disabled = true;
+    saveBtn.textContent = zh('正在记名…');
+    // 名号本就只存本机：saveName 一落即算记下，网上那一份尽力送达即可，不因断网而说「记不上」
+    saveName(name);
+    try { await ui.onSave?.(name); } catch { /* 送不出不碍本机记名，下次 flush 自会带上 */ }
+    if (!card.isConnected) return;
+    busy = false;
+    form.setAttribute('aria-busy', 'false');
+    input.disabled = saveBtn.disabled = cancelBtn.disabled = false;
+    saveBtn.textContent = zh('记下');
+    setEdit(false);
+    paintView();
+  });
+  paintView();
+  card.refresh = paintView;   // 名号若从别处（茶寮问名等）改过，宿主回页时唤一声即同步
+  return card;
 }
 
 // 入座上锁之室：先问密码
@@ -773,36 +883,86 @@ export const PLAZA_CSS = `
 .pzAsk .hint.err{color:var(--aq-woe)}
 .pzAsk .gbtn.big{width:100%;padding:13px 0;font-size:var(--fs-md,14px);letter-spacing:3px}
 .pzAsk .gbtn.ghost{width:100%;background:none;border-color:var(--aq-line);color:var(--aq-note)}
-.pzAskName{width:min(420px,92vw);padding:23px 22px 18px!important}
-.pzAskName .askEyebrow{margin:0 46px 8px 0;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:2px}
-.pzAskName h2{margin:0 46px 5px 0;font-size:clamp(22px,4.6vw,28px);letter-spacing:3px}
-.pzAskName .body{gap:14px;text-align:left}
-.pzAskName .nameField{display:grid;gap:7px}
-/* 建议名章（2026-08-12 极简重做）：三枚泥金小章＋一枚 ↻ 换批——两点进房的那条近路 */
-.pzAskName .nameChips{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-.pzAskName .chip{min-height:34px;padding:5px 13px;border:1px solid var(--aq-goldline);border-radius:17px;
-  background:rgba(255,255,255,.5);color:var(--aq-tx);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
-.pzAskName .chip:hover,.pzAskName .chip:focus-visible{background:var(--aq-goldwash)}
-.pzAskName .chipMore{width:34px;height:34px;flex:none;border:1px solid var(--aq-line);border-radius:50%;
-  background:none;color:var(--aq-note);font:inherit;font-size:var(--fs-md,14px);cursor:pointer}
-.pzAskName .chipMore:hover,.pzAskName .chipMore:focus-visible{border-color:var(--aq-goldline);color:var(--aq-strong)}
-.pzAskName .bigIn{min-height:52px;padding:13px 14px;font-size:var(--fs-xl);letter-spacing:1.5px;text-indent:0;text-align:left}
-.pzAskName .bigIn::placeholder{letter-spacing:1px}
-.pzAskName .fieldMeta{display:flex;justify-content:space-between;gap:12px;min-height:17px;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:.5px}
-.pzAskName .fieldMeta span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums;
+/* ══ 名号卡 · 极简形制（2026-08-16 发起人点单「字体·字号·输入框·布局」）══
+   入座问名卡 .pzAskName 与「我的」页内名号卡 .myId 共用此段——一份皮，改一处两处齐动。
+   四条家法：
+     一、一条底线代一只框：白底、圆角、金描边、聚焦光晕，四层装置尽撤，只余一线；
+         聚焦时线由暖墨转泥金，此外别无动静——框是纸的边界，字才是主角。
+     二、字号只留三档：名号 30px（--f-display，与页面题字同族）、注脚 11px、按钮 14px；
+         中间的 12.5／16／19 三档在此卡内一概不用——极简不是少放东西，是少放层级。
+     三、主次归位：标题从 28px 降到 19px 常规字重。从前标题比所填的名号还大，
+         是把「问」摆在了「答」之上；今名号 30px 独大，标题退作一行引导。
+     四、建议名去章框：三枚胶囊描边撤，只留字与间距，hover 才现一记金线示其可点；
+         ↻ 换批推到行末——同一排里，能点的字与换批的手势各归各位。 */
+.pzAskName .nameField,.myId .nameField{display:grid;gap:5px}
+.pzAskName .bigIn,.myId .bigIn{width:100%;box-sizing:border-box;min-height:52px;appearance:none;-webkit-appearance:none;
+  background:none;border:0;border-bottom:1px solid var(--aq-line);border-radius:0;box-shadow:none;
+  padding:8px 2px 10px;color:var(--aq-title);font-family:var(--f-display);
+  font-size:30px;line-height:1.25;letter-spacing:4px;text-align:left;text-indent:0;outline:none;
+  transition:border-color var(--t-fast,.18s)}
+.pzAskName .bigIn::placeholder,.myId .bigIn::placeholder{color:var(--aq-note);opacity:.42;
+  font-size:var(--fs-lg,16px);letter-spacing:2px}
+.pzAskName .bigIn:focus,.myId .bigIn:focus{border-bottom-color:var(--aq-gold);box-shadow:none}
+.pzAskName .fieldMeta,.myId .fieldMeta{display:flex;justify-content:space-between;gap:12px;min-height:15px;
+  color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:.5px}
+.pzAskName .nameCount,.myId .nameCount{white-space:nowrap;font-variant-numeric:tabular-nums;
   opacity:0;transition:opacity var(--t-fast,.18s)}   /* 计数平时不占眼，动笔才浮现 */
-.pzAskName .nameField:focus-within .fieldMeta span:last-child{opacity:.9}
-.pzAskName .fieldMeta .err{color:var(--aq-woe)}
-.pzAskName .scope{margin:0;padding:9px 0;border-top:1px solid var(--aq-line);border-bottom:1px solid var(--aq-line);
-  color:var(--aq-note);font-size:var(--fs-xs,11px);line-height:1.65;letter-spacing:.5px}
-.pzAskName .gbtn.big{min-height:50px;margin-top:1px}
+.pzAskName .nameField:focus-within .nameCount,.myId .nameField:focus-within .nameCount{opacity:.85}
+.pzAskName .fieldMeta .err,.myId .fieldMeta .err{color:var(--aq-woe)}
+.pzAskName .nameChips,.myId .nameChips{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.pzAskName .chip,.myId .chip{min-height:34px;padding:0;border:0;border-bottom:1px solid transparent;
+  background:none;color:var(--aq-note);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:3px;cursor:pointer;
+  transition:color var(--t-fast,.18s),border-color var(--t-fast,.18s)}
+.pzAskName .chip:hover,.myId .chip:hover,.pzAskName .chip:focus-visible,.myId .chip:focus-visible{
+  color:var(--aq-title);border-bottom-color:var(--aq-goldline)}
+.pzAskName .chipMore,.myId .chipMore{min-width:34px;min-height:34px;margin-left:auto;padding:0;border:0;border-radius:50%;
+  background:none;color:var(--aq-note);font:inherit;font-size:var(--fs-md,14px);opacity:.68;cursor:pointer;
+  transition:opacity var(--t-fast,.18s),color var(--t-fast,.18s)}
+.pzAskName .chipMore:hover,.myId .chipMore:hover,.pzAskName .chipMore:focus-visible,.myId .chipMore:focus-visible{
+  opacity:1;color:var(--aq-strong)}
+/* 用途一句：上下双线撤——两条线换不来一分明白，留一句最小字即可 */
+.pzAskName .scope,.myId .scope{margin:0;padding:0;border:0;color:var(--aq-note);
+  font-size:var(--fs-xs,11px);line-height:1.7;letter-spacing:.5px;opacity:.9}
+.pzAskName{width:min(400px,92vw);padding:26px 24px 20px!important}
+.pzAskName .askEyebrow{margin:0 46px 9px 0;color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:3px;opacity:.85}
+.pzAskName h2{margin:0 46px 2px 0;font-size:var(--fs-xl);font-weight:400;letter-spacing:3px}
+.pzAskName .body{gap:18px;text-align:left}
+.pzAskName .gbtn.big{min-height:50px;margin-top:2px}
 .pzAskName .pzAskBack{min-height:44px;border:0;background:none;color:var(--aq-note);font-family:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
 .pzAskName .pzAskBack:hover{color:var(--aq-title)}
 .pzAskName .pzAskBack:focus-visible{outline:2px solid rgba(150,112,32,.72);outline-offset:2px;border-radius:9px}
 .pzAskName button:disabled,.pzAskName input:disabled{cursor:wait;opacity:.62}
+/* ── 「我的」页首名号卡：静态一行看清「我是谁」，点即就地展开，不离页不换层 ── */
+.myPanel .myId{margin:0 0 14px;padding:16px 16px 15px;border:1px solid var(--aq-line);border-radius:12px;
+  background:rgba(255,255,255,.6)}
+.myId .myIdView{display:flex;align-items:center;gap:14px}
+.myId .myIdTx{flex:1 1 auto;min-width:0;display:grid;gap:2px}
+.myId .myIdK{color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:3px;opacity:.85}
+.myId .myIdName{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--aq-title);font-family:var(--f-display);font-size:26px;font-weight:400;letter-spacing:4px;line-height:1.3}
+.myId .myIdSub{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:var(--aq-note);font-size:var(--fs-xs,11px);letter-spacing:.5px;opacity:.85}
+/* 「改」不常驻下划线：一条金线钉在两个字底下，看着像被划错的字；手指过来才现，点得着即可 */
+.myId .myIdGo{flex:none;min-height:34px;padding:4px 2px;border:0;border-bottom:1px solid transparent;
+  background:none;color:var(--aq-strong);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer;
+  transition:color var(--t-fast,.18s),border-color var(--t-fast,.18s)}
+.myId .myIdGo:hover,.myId .myIdGo:focus-visible{color:var(--aq-title);border-bottom-color:var(--aq-goldline)}
+.myId .myIdForm{display:grid;gap:13px}
+.myId .myIdForm .myIdK{display:block;margin-bottom:-9px}
+.myId .myIdAct{display:flex;align-items:center;gap:16px}
+.myId .myIdAct .gbtn.primary{flex:1 1 auto;min-height:46px;border:1px solid var(--aq-goldline);
+  background:var(--aq-goldwash);color:var(--aq-tx);font-size:var(--fs-md,14px);font-weight:600;letter-spacing:3px}
+.myId .myIdCancel{flex:none;min-height:44px;padding:0 4px;border:0;background:none;
+  color:var(--aq-note);font:inherit;font-size:var(--fs-sm,12.5px);letter-spacing:2px;cursor:pointer}
+.myId .myIdCancel:hover{color:var(--aq-title)}
+.myId button:disabled,.myId input:disabled{cursor:wait;opacity:.62}
+.myId [hidden]{display:none!important}   /* .myIdView/.myIdForm 自带 display，须显式压过 */
 @media(max-width:640px){
-  .pzAskName{width:min(92vw,420px);padding:21px 18px 16px!important}
-  .pzAskName h2{font-size:24px}
+  .pzAskName{width:min(92vw,400px);padding:22px 18px 18px!important}
+  .pzAskName .body{gap:16px}
+  .pzAskName .bigIn,.myId .bigIn{font-size:26px;letter-spacing:3px}
+  .myPanel .myId{padding:14px 14px 13px}
+  .myId .myIdName{font-size:23px;letter-spacing:3px}
 }
 /* 莲友茶寮样式已随 2026-08-11 脱钩改版迁至 chalou.js（CHALOU_CSS）——一行一言极简皮，此处不再持有 .cl* */
 `;

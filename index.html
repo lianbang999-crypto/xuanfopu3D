@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/favicon.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <meta name="description" content="十法界须弥山世界——依经立象的须弥山佛教宇宙教学模型：三界二十八天、四大部洲、从地狱到佛十法界，处处注明经据；附蕅益大师《选佛谱》修行对局，四人实时联机。">
 <title>十法界须弥山世界 · 须弥山十法界教学模型（附选佛谱）</title>
 <meta property="og:type" content="website">
@@ -255,5 +258,13 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
 })();
 </script>
 <script type="module" src="./src/game.js"></script>
+<script>
+// 站点服务工（2026-08-17）：回访提速与断网兜底，规矩见 public/sw.js 头注。
+// 只在正式域名注册：安卓壳内资源已本地且与热更切包相冲；dev 件不带指纹，
+// SWR 会让改完代码第一次刷新见旧值——本地开发不受此扰。
+if ('serviceWorker' in navigator && location.hostname === 'game.foyue.org') {
+  addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+}
+</script>
 </body>
 </html>

@@ -18,6 +18,7 @@
 import { quickShare, shareUrl } from './share.js';
 import { ico } from './icons.js'; // 头两枚钮走内联 SVG 图标层（旧用文本字形 ⤢，冷僻符在多数安卓/Windows 字体栈里掉豆腐块）
 import { SFP_PROTOCOL_VERSION } from './sfp-engine.js';
+import { API_BASE } from './app-env.js'; // 安卓壳下指向站点正源；网页下空串，行为不变
 
 const NET_KEY = 'sm10.net.v2';
 const OLD_NET_KEY = 'sm10.net.v1';
@@ -124,6 +125,7 @@ export const Net = {
   onToss: null,
   onNotice: null,   // 行棋公事播报（贈掷施与等）：宿主接去状态行＋消息回看，聊天室只留人语与人事
   onSeat: null,     // 等候期来人/离席（{kind:'join'|'leave', name}）——宿主接去放磬
+  onHelp: null,     // 指引行末「玩法速览」：谱意卡归宿主开（game.js 的 openSfpHelp），本模块不持谱义
   onMatchStarted: null,
   onMatchFinished: null,
   onCommandError: null,
@@ -219,8 +221,9 @@ export const Net = {
   },
 
   _wsUrl(code) {
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${proto}//${location.host}/api/room/${code}/ws`;
+    // 安卓壳下 location 是 https://localhost（本地资源服务器），须以 API_BASE 为准
+    const root = API_BASE || location.origin;
+    return `${root.replace(/^http/, 'ws')}/api/room/${code}/ws`;
   },
 
   // 一人同时只占一座。但这道锁只该拦「跑去坐另一间室」，不该拦回到同一间室——
@@ -789,6 +792,7 @@ export const Net = {
 #netMinBtn .ico,#netFullBtn .ico{width:19px;height:19px;stroke-width:1.6} /* 头部字号小，描边随之收一线，免得两枚钮比室名还重 */
 #netRoomState{flex:none;padding:8px 12px;color:var(--aq-tx);line-height:1.5}
 #netRoomState b{color:var(--aq-strong)}
+#netRoomState[hidden]{display:none}   /* 等候期收起，见 _uiRoomSync：与名单、指引三处同义 */
 /* 面板是定高的：名单、指引、聊天三处可压缩（flex:0 1 auto + min-height:0），
    准备/开局、聊天输入、密码邀请大厅三排永远 flex:none——空间不够时宁可挤掉说明文字，
    也不能把操作按钮挤出面板（overflow:hidden 会让它们彻底点不到）。
@@ -797,6 +801,15 @@ export const Net = {
 #netGuide{flex:0 1 auto;min-height:0;overflow:hidden;padding:0 12px 9px}
 #netGuide[hidden]{display:none}
 #netGuide p{margin:0;color:var(--aq-note);font-size:var(--fs-sm);line-height:1.5}
+/* 玩法速览（2026-08-16 发起人点单「首次进房不要被全屏说明遮住」）：
+   从前首次入座 400ms 后自动开全屏玩法卡，把刚看清的房间整个盖掉——最该看清房间的一刻被夺屏。
+   今降为指引句下一枚文字链：入口显眼、零打断，要看自己点；谱意本就该在人愿意读时读。 */
+#netGuideHelp{display:inline-block;margin-top:5px;padding:4px 0;border:0;border-bottom:1px solid transparent;
+  background:none;color:var(--aq-strong);font:inherit;font-size:var(--fs-xs);letter-spacing:1px;cursor:pointer;
+  transition:color var(--t-fast,.18s),border-color var(--t-fast,.18s)}
+#netGuideHelp::after{content:' ›'}
+#netGuideHelp:hover,#netGuideHelp:focus-visible{color:var(--aq-title);border-bottom-color:var(--aq-goldline)}
+#netGuideHelp[hidden]{display:none}
 #netGuideAct{display:block;width:100%;min-height:44px;margin-top:8px;border-radius:10px;cursor:pointer;
   border:1px solid var(--aq-goldline);background:var(--aq-goldwash);color:var(--aq-tx);font:inherit;font-size:var(--fs-sm);letter-spacing:2px;font-weight:600}
 #netGuideAct[hidden]{display:none}
@@ -815,9 +828,13 @@ export const Net = {
 #netRoundActions button,#netBtns button{min-height:46px;border-radius:10px;cursor:pointer;border:1px solid var(--aq-line);background:rgba(255,255,255,.55);color:var(--aq-tx);font:inherit;font-size:var(--fs-sm);letter-spacing:1px}
 #netRoundActions button{flex:1}
 #netRoundActions button:not(:disabled):not(.pri):hover,#netBtns button:not(.pri):not(.danger):hover{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
-#netRoundActions button.pri:not(:disabled):hover,#netBtns button.pri:hover,#netInput button:hover{filter:brightness(1.04)}
+#netRoundActions button.pri:not(:disabled):hover,#netBtns button.pri:hover{filter:brightness(1.04)}
 #netBtns .danger{border-color:rgba(139,74,58,.4);background:rgba(139,74,58,.06);color:var(--aq-woe)}
 #netBtns .danger:hover{border-color:rgba(139,74,58,.62);background:rgba(139,74,58,.11)}
+/* 金钮唯一律（2026-08-16 发起人点单）：.pri 不再写死在 class 上，由 _uiRoomSync 按状态派——
+   全房任何时刻至多一枚金，且金＝「此刻唯一能推进局面的那一枚」，不是「重要的那几枚」。
+   从前 #netStartBtn／#netInvBtn 写死 .pri、#netInput button 另披一身金洗底，
+   单人等候期同屏四枚金（我已准备／开始掷轮／邀请同修／发送），其中「我已准备」还是个无效钮。 */
 #netRoundActions button.pri,#netBtns button.pri{background:var(--aq-goldwash);color:var(--aq-tx);border-color:var(--aq-goldline);font-weight:600;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 #netRoundActions button:disabled{opacity:.42;cursor:not-allowed}
@@ -848,7 +865,10 @@ export const Net = {
 #netChatHint:empty{display:none}
 #netInput input{flex:1;min-width:0;min-height:44px;box-sizing:border-box;background:rgba(255,255,255,.7);border:1px solid var(--aq-line);border-radius:10px;color:var(--aq-tx);padding:9px 11px;font-size:var(--fs-lg);outline:none}
 #netInput input:focus{border-color:rgba(150,112,32,.6);box-shadow:0 0 0 2px rgba(176,131,28,.1)}
-#netInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-goldline);background:var(--aq-goldwash);color:var(--aq-tx);border-radius:10px;cursor:pointer;font-weight:600}
+/* 发送钮降为描边次级（金钮唯一律）：局中金归底坞掷轮，面板内不留第二枚金——
+   聊天是随手事，从前一身金洗底＋600 字重，与掷轮在同一屏里争最重的那一眼 */
+#netInput button{min-width:64px;min-height:44px;border:1px solid var(--aq-line);background:rgba(255,255,255,.55);color:var(--aq-tx);border-radius:10px;cursor:pointer;font:inherit;font-size:var(--fs-sm);letter-spacing:1px}
+#netInput button:hover{border-color:var(--aq-goldline);background:rgba(176,131,28,.07)}
 /* 底行四钮（2026-08-14 极简批）：线形图标＋字，一钮一形一眼可辨；图标随字色走，主/险两级照旧 */
 /* 底行二钮（2026-08-15 发起人点单）：密码撤（少人用，先不上）、大厅撤（顶栏「大厅」常在，此处是第二遍）。
    位置依用惯：离席是破坏性动作，缩在左侧不占拇指区；邀请同修是这一栏真正常用的事，占主位铺右。 */
@@ -931,13 +951,13 @@ export const Net = {
       <div id="netHead"><b></b><button class="code" type="button" title="点按复制房号，可口头报给莲友"></button><button id="netFullBtn" aria-label="放大共修面板" aria-pressed="false" title="放大／还原">${ico('expand')}</button><button id="netMinBtn" aria-label="收起真人共修面板" title="收起">${ico('chevronDown')}</button></div>
       <div id="netRoomState" aria-live="polite"></div>
       <div id="netRoster" aria-label="本室成员"></div>
-      <div id="netRoundActions"><button id="netReadyBtn"></button><button id="netStartBtn" class="pri"></button></div>
-      <div id="netGuide" aria-live="polite"><p></p><button id="netGuideAct" type="button" hidden></button></div>
+      <div id="netRoundActions"><button id="netReadyBtn"></button><button id="netStartBtn"></button></div>
+      <div id="netGuide" aria-live="polite"><p></p><button id="netGuideHelp" type="button" hidden>玩法速览</button><button id="netGuideAct" type="button" hidden></button></div>
       <div id="netChatHead"><button id="netNew" type="button">仅本室可见</button></div>
       <div id="netMsgs" role="log" aria-live="polite" aria-relevant="additions" aria-label="聊天消息"></div>
       <div id="netQuick"><button>南無阿彌陀佛</button><button>隨喜讚歎 🙏</button></div>
       <div id="netInput"><input maxlength="200" aria-label="聊天内容" placeholder="说一句…"><button aria-label="发送聊天">发送</button><span id="netChatHint" aria-live="polite"></span></div>
-      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">${ico('leave')}<span>离席</span></button><button id="netInvBtn" class="pri" title="转发邀请，莲友点开即入座">${ico('share')}<span>邀请同修</span></button></div>
+      <div id="netBtns"><button id="netLeaveBtn" class="danger" aria-label="离开共修室" title="离席并让出座位">${ico('leave')}<span>离席</span></button><button id="netInvBtn" title="转发邀请，莲友点开即入座">${ico('share')}<span>邀请同修</span></button></div>
     </section>`);
     document.body.appendChild(this.$panel);
     this.$msgs = this.$panel.querySelector('#netMsgs');
@@ -1037,6 +1057,8 @@ export const Net = {
       // 情境钮归暂离者专用（孤座开局已升为主钮「开始掷轮」）
       if (this.isAway() && this.wakeUp()) this._toastCb?.(this.zh('已归队'));
     });
+    // 玩法速览：卡由宿主开（谱意讲解归 game.js 的 openSfpHelp），此处只递一声
+    this.$panel.querySelector('#netGuideHelp').addEventListener('click', () => this.onHelp?.());
     this.$panel.querySelector('#netReadyBtn').addEventListener('click', () => this.setReady(!this.me()?.ready));
     // 情境主按钮（批B W1，§七 明文落地）：独自在房时此钮＝邀请，人到齐才回归开局
     this.$panel.querySelector('#netStartBtn').addEventListener('click', () => {
@@ -1243,6 +1265,9 @@ export const Net = {
     if (this._connState === 'lost') return '<b>连接已断</b> · 请重新进入共修室';
     if (this.room.status === 'waiting') {
       // W3：状态行只报事实（人数）；「两位即可开局」的规则归指引句说一次，不在此复述
+      // 2026-08-16 起此句不再上屏：等候期整条状态行已收（见 _uiRoomSync 的 $state.hidden），
+      // 人数改由名单独报。留着这一支是因为连线一断，上面两句就要占回这一行——
+      // 那时若无词可说，断线反倒成了满屏无话。此句备而不用，勿当死码删。
       const ready = this.players.filter((p) => p.ready && p.online).length;
       const online = this.players.filter((p) => p.online).length;
       return `<b>准备室</b> · ${online} 人在线 · ${ready} 人已准备`;
@@ -1289,9 +1314,18 @@ export const Net = {
     this.$code.textContent = `${this.locked ? '🔒 ' : ''}${this.code}`;
     this.$code.setAttribute('aria-label', this.zh(`房号 ${this.code}，点按复制`));
     this.$state.innerHTML = this.zh(this._stateText());
+    // 等候期收状态行（2026-08-16 发起人点单「信息与按钮层级需要整理」）：
+    // 「准备室 · N 人在线 · N 人已准备」与紧邻的名单（逐人一枚，各带「已准备／等待准备」小字）
+    // 及指引句三处同义——同一件事在一屏里说三遍。等候期只留名单与指引，各说各的一半。
+    // 连接异常时仍须报（那不是人数，是「你还连着吗」），故只在连线正常的等候期收。
+    this.$state.hidden = this.room.status === 'waiting' && this._connState === 'ok';
     this.$roster.innerHTML = '';
+    // 孤座等候期不写「等待准备」（2026-08-16 随「单人房只留一个主动作」同批）：
+    // 准备钮已撤，房里没有「准备」这个动作，名字后面却挂着「等待准备」——人会去找那个不存在的钮。
+    // 无人可等、无处可备，此格便留空：下一步由主钮「开始掷轮」独说。
+    const soloWaiting = this.room.status === 'waiting' && this.players.filter((p) => p.online).length <= 1;
     for (const player of this.players) {
-      let status = '等待准备';
+      let status = soloWaiting ? '' : '等待准备';
       if (!player.online) status = '离线';
       else if (player.spectator) status = '候下局';
       else if (player.away) status = '暂离';
@@ -1305,7 +1339,7 @@ export const Net = {
         <span class="dot" style="background:${player.color}"></span>
         ${player.host ? `<span class="role">${this.zh('房主')}</span>` : ''}
         <span class="nm">${esc(player.name)}${player.id === this.myId ? '（我）' : ''}</span>
-        <span class="st">${this.zh(status)}</span>
+        ${status ? `<span class="st">${this.zh(status)}</span>` : ''}
       </div>`);
       this.$roster.appendChild(chip);
     }
@@ -1324,22 +1358,24 @@ export const Net = {
     const readyPending = !!this._pendingReady;
     const readyTarget = this._pendingReady?.value;
     const startPending = !!this._pendingStart;
+    // 情境主按钮三改（2026-08-14 发起人定案：房间可自修也可共修；自修不落锁）：
+    // 独自在房＝主钮即「开始掷轮」——一点到底（内部自动准备＋开局），不再让人对着邀请钮干等；
+    // 邀请归底行「邀请同修」常在。人一到齐即回归「共同开局」。
+    const aloneRoom = this.players.filter((p) => p.online).length <= 1;
     actionBar.hidden = !waiting;
-    readyButton.style.display = waiting ? '' : 'none';
+    // 独自在房时「我已准备」撤（2026-08-16 发起人点单「单人房只保留一个主动作」）：
+    // 单人开局由主钮内部代办（_soloArm→ready 回执落地→_soloFire），点这一枚推进不了任何事——
+    // 一个按了不发生事情的钮，不是多余，是净负债。多人在房才把它请回来。
+    readyButton.style.display = waiting && !aloneRoom ? '' : 'none';
     readyButton.textContent = this.zh(readyPending
       ? (readyTarget ? '正在准备…' : '正在取消…')
       : (me?.ready ? '取消准备' : (finishedRoom ? '准备下一局' : '我已准备')));
-    readyButton.classList.toggle('pri', !me?.ready);
     readyButton.disabled = readyPending || this._connState !== 'ok';
     readyButton.setAttribute('aria-busy', readyPending ? 'true' : 'false');
     readyButton.setAttribute('aria-pressed', me?.ready ? 'true' : 'false');
     readyButton.setAttribute('aria-label', this.zh(readyPending
       ? (readyTarget ? '正在确认准备状态' : '正在取消准备状态')
       : (me?.ready ? '取消准备' : (finishedRoom ? '准备下一局' : '我已准备'))));
-    // 情境主按钮三改（2026-08-14 发起人定案：房间可自修也可共修；自修不落锁）：
-    // 独自在房＝主钮即「开始掷轮」——一点到底（内部自动准备＋开局），不再让人对着邀请钮干等；
-    // 邀请归底行「邀请同修」常在。人一到齐即回归「共同开局」。
-    const aloneRoom = this.players.filter((p) => p.online).length <= 1;
     this._startAsSolo = waiting && aloneRoom;
     const mayStart = this.isHost() || this.canStart();
     if (this._startAsSolo) {
@@ -1358,8 +1394,17 @@ export const Net = {
         || (me?.ready ? (readyCount < 2 || !this.canStart()) : !hostQuick);
       startButton.setAttribute('aria-busy', startPending ? 'true' : 'false');
     }
+    // 金钮唯一律（2026-08-16 发起人点单「每个状态只允许一个金色主按钮」）：
+    // 金＝此刻唯一能把局面推进一步的那一枚，不是「重要的那几枚」。派法只一条——
+    //   开局钮按得动 → 金归它（单人「开始掷轮」／多人「共同开局 · N 人」／房主一点即备即开）；
+    //   否则若还没准备 → 金归「我已准备」；
+    //   两者皆不成立（已准备但人不够、局中、连线断）→ 全房无金：那是候，不是动作，不该有钮在催。
+    const startShown = startButton.style.display !== 'none';
+    const startLive = startShown && !startButton.disabled;
+    startButton.classList.toggle('pri', startLive);
+    readyButton.classList.toggle('pri', !startLive && !aloneRoom && !me?.ready);
     const invButton = this.$panel.querySelector('#netInvBtn');
-    if (invButton) invButton.style.display = '';
+    if (invButton) invButton.style.display = '';   // 邀请常在，但永远描边次级——它是可选之路，不是当下这一步
 
     // 指引只剩一行：说「下一步做什么」，不复述状态行的人数、也不图解正上方那两个按钮。
     // 局中仍保留，专给两种「在室但不在局」的人：中途入室的旁观者、超时暂离者——
@@ -1368,10 +1413,13 @@ export const Net = {
     const away = this.isAway();
     const hint = this.$guide.querySelector('p');
     const guideAct = this.$guide.querySelector('#netGuideAct');
+    const guideHelp = this.$guide.querySelector('#netGuideHelp');
     this.$guide.hidden = !(waiting || spectating || away);
     // 上轮「本地局」方案已撤（2026-08-14 发起人裁定改为真房局）：情境钮归暂离者专用，
     // 一人开局升为正门——主钮「开始掷轮」（见上方情境主按钮三改）。
     guideAct.hidden = !away;
+    // 玩法速览只在等候期出（局中不添第二条去路；暂离者眼前该是「我回来了」，不是读物）
+    guideHelp.hidden = !(waiting && !away && !spectating);
     if (away) {
       hint.textContent = this.zh('您已暂离本局，轮次会跳过您。');
       guideAct.textContent = this.zh('我回来了');

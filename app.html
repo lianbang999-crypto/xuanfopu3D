@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>下载安卓版 · 十法界须弥山世界</title>
+<meta name="description" content="十法界须弥山世界安卓版：装机即可离线遨游须弥山、行选佛谱、读六卷原文；联机共修与问谱需连网。扫码或点按下载安装。">
+<meta name="theme-color" content="#0b0d12">
+<link rel="icon" type="image/png" href="/icons/favicon.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://game.foyue.org/app.html">
+<meta property="og:title" content="十法界须弥山世界 · 安卓版">
+<meta property="og:description" content="装机即可离线遨游须弥山、行选佛谱、读六卷原文。">
+<meta property="og:image" content="https://game.foyue.org/assets/title-key.jpg">
+<link rel="stylesheet" href="./css/fonts.css">
+<style>
+/* 纸墨形制（与阅读器同调）：深底托一张浅纸，全页只此一张卡，不设导航不设浮层。
+   此页是给「还没装 App 的人」看的第一面，故不引 three、不引主包——只一小段 JS 画码。 */
+:root{--bg:#0b0d12;--paper:#f6f1e6;--ink:#2b2a26;--sub:#6f6a5f;--gold:#a8863c;--line:#ddd4c0}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{background:var(--bg);color:var(--ink);
+  font-family:'Noto Serif SC',Songti SC,serif;line-height:1.75;
+  display:flex;align-items:center;justify-content:center;
+  padding:calc(24px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+  background-image:linear-gradient(#12141b,#0b0d12)}
+.sheet{width:100%;max-width:560px;background:var(--paper);border-radius:4px;
+  padding:36px 30px 30px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
+.eyebrow{font-size:11px;letter-spacing:.42em;text-indent:.42em;color:var(--gold);margin:0 0 10px}
+h1{font-size:27px;margin:0 0 6px;font-weight:600;letter-spacing:.04em}
+.sub{color:var(--sub);font-size:14px;margin:0 0 24px}
+.rule{height:1px;background:var(--line);margin:24px 0}
+.qrBox{display:flex;gap:22px;align-items:center;flex-wrap:wrap}
+#qr{width:150px;height:150px;flex:none;background:#fff;padding:8px;border-radius:3px}
+.qrWord{flex:1;min-width:170px;font-size:14px;color:var(--sub)}
+.qrWord b{display:block;color:var(--ink);font-size:15px;font-weight:600;margin-bottom:5px}
+.dl{display:block;margin:24px 0 10px;padding:15px 20px;background:var(--gold);color:#fff8e8;
+  text-align:center;text-decoration:none;border-radius:3px;font-size:16px;letter-spacing:.06em;font-weight:600}
+.dl:active{opacity:.85}
+.meta{text-align:center;font-size:12.5px;color:var(--sub);margin:0 0 4px}
+h2{font-size:14px;margin:26px 0 10px;letter-spacing:.1em;color:var(--gold);font-weight:600}
+ol,ul{margin:0;padding-left:1.3em;font-size:14px;color:#4a463e}
+li{margin:6px 0}
+.note{font-size:12.5px;color:var(--sub);margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.note a{color:var(--gold)}
+code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;word-break:break-all;color:var(--sub)}
+@media (max-width:420px){.sheet{padding:28px 20px 24px}h1{font-size:23px}.qrBox{justify-content:center}}
+</style>
+</head>
+<body>
+<main class="sheet">
+  <p class="eyebrow">安卓版</p>
+  <h1>十法界须弥山世界</h1>
+  <p class="sub">依经立象的须弥山十法界教学模型，附蕅益大师《选佛谱》修行对局</p>
+
+  <div class="qrBox">
+    <canvas id="qr" width="150" height="150" aria-label="扫码下载安卓安装包"></canvas>
+    <div class="qrWord">
+      <b>手机扫码即装</b>
+      用手机相机或浏览器扫左边的码，下载后点开安装。
+      也可以直接把本页地址发到手机上打开。
+    </div>
+  </div>
+
+  <a class="dl" id="dl" href="/download/sumeru.apk">下载安装包</a>
+  <p class="meta" id="meta">正在取版本信息……</p>
+
+  <div class="rule"></div>
+
+  <h2>装机后可以做什么</h2>
+  <ul>
+    <li><b>不连网也能用</b>：须弥山世界、选佛谱对局、六卷原文全在包内，飞行模式照常开局。</li>
+    <li><b>连网再添三事</b>：与莲友共修同局、莲友茶寮闲话、向问谱提问。</li>
+    <li><b>自动跟随更新</b>：站上一有新版，App 下次启动即已换新，不必重装。</li>
+  </ul>
+
+  <h2>若手机拦下安装</h2>
+  <ol>
+    <li>浏览器提示「此类文件可能有害」——本包由本站签名，点<b>仍要下载</b>。</li>
+    <li>安装时提示「未知来源」——按提示进设置，允许该浏览器<b>安装未知应用</b>，返回再点一次。</li>
+    <li>装好后可在设置里把该权限收回，不影响已装应用。</li>
+  </ol>
+
+  <p class="note">
+    需要 Android 7.0 及以上。安装包由本站自行签名，非应用商店分发；
+    校验码与版本见上。<br>
+    也可直接在浏览器里玩：<a href="/">game.foyue.org</a> ·
+    读六卷原文：<a href="/read.html">選佛譜</a><br>
+    <code id="sha"></code>
+  </p>
+</main>
+<script type="module" src="./src/app-page.js"></script>
+</body>
+</html>

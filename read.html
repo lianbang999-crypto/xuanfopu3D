@@ -6,6 +6,9 @@
 <title>選佛譜</title>
 <meta name="description" content="蕅益大师《選佛譜》六卷全文，原文白话对照阅读，并可向问谱提问。十五门二百二十位，逐位白话译注。">
 <meta name="theme-color" content="#f6f1e6">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/favicon.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
 <!-- 主题闪白防护：CSS 到位前先把存档里的主题写上 <html>，暗色用户不吃一帧白光 -->
 <script>try{var t=JSON.parse(localStorage.getItem('sfpr.theme'));if(t==='night'||t==='plain')document.documentElement.dataset.theme=t;}catch(e){}</script>
 <!-- 字体自托管（延用 wenchao 之制，见 public/css/fonts.css 头注）：宋体 Noto Serif SC + 楷体兜底霞鹜文楷GB；
@@ -80,5 +83,12 @@
 </section>
 
 <script type="module" src="./src/reader-page.js"></script>
+<script>
+// 站点服务工注册（与 index.html 同一段规矩，见 public/sw.js 头注）：只在正式域名——
+// 壳内不注册、本地 dev 不受 SWR 旧值之扰
+if ('serviceWorker' in navigator && location.hostname === 'game.foyue.org') {
+  addEventListener('load', () => { navigator.serviceWorker.register('./sw.js').catch(() => {}); });
+}
+</script>
 </body>
 </html>

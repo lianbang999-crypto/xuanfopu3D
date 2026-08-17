@@ -5,6 +5,8 @@
 // 静默设计：无红点、无未读数、无「正在输入」、无音效——道场聊天室，不催人。
 // 消息流控件（mountChalouFeed）独立可挂：全屏茶寮页与大厅右墙共用同一份逻辑与样式。
 
+import { API_BASE } from './app-env.js'; // 安卓壳下指向站点正源；网页下空串，行为不变
+
 const HELLO_KEY = 'sm10.cl.hello';   // 初到之约只说一次（沿用旧茶寮的记号，老莲友不再被叨扰）
 const PULL_MS = 6000;                // 6 秒增量轮询，离页即停（与旧茶寮同刻度）
 const KEEP_ROWS = 220;               // DOM 里留的行数上限（服务端本就只存 300）
@@ -16,14 +18,14 @@ export function chalouApi(actorId) {
   return {
     // 增量拉取：after=0 取尾部 50 条；带 actor 让服务端标出「我」的行（莲号不外发）
     async pull(after = 0) {
-      const r = await fetch(`/api/plaza/chat?after=${after}&actor=${encodeURIComponent(actorId)}`);
+      const r = await fetch(`${API_BASE}/api/plaza/chat?after=${after}&actor=${encodeURIComponent(actorId)}`);
       if (!r.ok) throw new Error(String(r.status));
       const data = await r.json();
       return data.items || [];
     },
     // 发言：错误一律取 json.error 中文短句直接呈给用户
     async send(name, text) {
-      const r = await fetch('/api/plaza/chat', {
+      const r = await fetch(`${API_BASE}/api/plaza/chat`, {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ actor: actorId, name, text }),
       });

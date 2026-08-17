@@ -12,3 +12,5 @@ scripts/.cbeta-cache/
 outputs/
 .dev.vars
 tmp/
+resources/splash*.png
+public/download/

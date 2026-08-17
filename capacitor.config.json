@@ -1,0 +1,15 @@
+{
+  "appId": "org.foyue.sumeru",
+  "appName": "须弥山世界",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "statsUrl": "",
+      "appReadyTimeout": 10000
+    }
+  }
+}

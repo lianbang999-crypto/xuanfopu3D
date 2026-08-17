@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 原生开屏底色＝题屏同色深底（index.html theme-color #0b0d12）：
+         重型 splash 位图已撤（42MB 不入包），第一幅画交给 Web 题屏本地秒出 -->
+    <color name="splashBackground">#0B0D12</color>
+</resources>

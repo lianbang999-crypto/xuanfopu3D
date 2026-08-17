@@ -15,8 +15,9 @@
 // 流式解析与答语排版取自共用内核 src/ask-core.js（2026-08-12 收束：
 // 此处与游戏站各写一份，是同一件事抄两遍，排版规则一改必漏其一）。
 import { streamAsk as askStream, askFormat, historyOf } from './ask-core.js';
+import { API_BASE } from './app-env.js'; // 安卓壳下指向站点正源；网页下空串，行为不变
 
-const ASK_API = '/api/ask';                       // 与游戏侧同一路（dev 由 vite 代理到 8788，prod 由主 Worker service binding 内转）
+const ASK_API = `${API_BASE}/api/ask`;            // 与游戏侧同一路（dev 由 vite 代理到 8788，prod 由主 Worker service binding 内转）
 const CHIPS = [
   ['这部谱怎么玩', '这部《选佛谱》是怎么玩的？'],
   ['谁写的', '选佛谱是谁写的，为什么要做这个谱？'],

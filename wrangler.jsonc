@@ -9,7 +9,11 @@
   ],
   "assets": {
     "directory": "./dist",
-    "binding": "ASSETS"
+    "binding": "ASSETS",
+    // 命中静态资源的路径默认不进 worker（平台之制）——这两条须先过 worker 才有各自的头：
+    //   /download/sumeru.apk：附中文带版本的 Content-Disposition（存盘名一眼认得出是哪一版）
+    //   /app-manifest.json  ：热更探针的 CORS 与 no-store（另有 /api/app-manifest 一路，此为直取兜底）
+    "run_worker_first": ["/download/sumeru.apk", "/app-manifest.json"]
   },
   "durable_objects": {
     "bindings": [

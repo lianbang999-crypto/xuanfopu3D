@@ -33,6 +33,7 @@ import { Net } from './net.js'; // 联机同修：房间/轮次/聊天（渲染�
 import { quickShare, openPosterCard } from './share.js'; // 分享卡＋分享海报：荐此界/邀莲友/单站海报（二维码+一键转发）
 import * as Plaza from './plaza.js'; // 共修大厅：12 桌网格·动态广播·念佛功课榜
 import { mountChalou, chalouApi, mountChalouFeed, mountChalouInput, CHALOU_CSS } from './chalou.js'; // 莲友茶寮（2026-08-11 与主站脱钩）：本站自建留言，全屏页与大厅右墙共用
+import { IS_APP, API_BASE } from './app-env.js'; // 安卓壳（2026-08-17）：一份构建网页/壳运行时分辨；壳下 API 指站点正源、启动挂热更壳
 // 六卷原文阅读器已迁独立页面 read.html（2026-08-12，src/reader-page.js）——本文件不再 import sfp-reader，openReader 只作跳转
 import { ico, ICON_CSS } from './icons.js'; // 内联 SVG 图标：去处与行项先认形，再认字
 import { sfpDirOf as sfpDirOfRule } from './sfp-rules.js'; // 行棋升降判定（与 check-dir 核证脚本同源）
@@ -45,6 +46,10 @@ const C = {
   gold: 0xd7aa45, paleGold: 0xd8c58b, paper: '#efe0b4', deep: 0x25354d,
 };
 const app = document.getElementById('app')               ;
+
+// 安卓壳启动务（2026-08-17）：报到（不报则插件 10s 自动回滚）＋静默热更探针。
+// 动态 import 自成 chunk，网页用户永不下载；失败静默——壳的事不扰网页一分。
+if (IS_APP) import('./app-shell.js').then((m) => m.bootAppShell()).catch(() => {});
 
 // ---------------- 存档 ----------------
 const SAVE_KEY = 'sm10.save.v1';
@@ -2727,12 +2732,11 @@ button:not(:disabled):active{transform:scale(.97)}
      一、我的数字独占一卡（大数＋一行副文），全站降为卡下一行注脚；
      二、全月月历移入 .myCalPop 弹窗，主页面只留「近七日」一条迷你格，一眼见连续；
      三、名号收进页头右上 .myName，点即改名，省下整整一行。
-   页高由 ~1460px 收到 ~600px，390×844 一屏看完。 */
+   页高由 ~1460px 收到 ~600px，390×844 一屏看完。
+   2026-08-16 三之改（发起人点单「名号卡放进我的页，随时可改」）：页头右上那枚「…」小钮撤，
+   名号升为页首一张卡（.myId，皮与行为在 plaza.js，与入座问名卡同源）——那枚小钮省下的是一行，
+   代价却是「我是谁」无处可看、要改还得跳出整页；今就地一卡，看与改都在这一页上。 */
 .myPanel .myLoad{padding:36px 0;text-align:center;color:var(--aq-note);letter-spacing:2px}
-.myPanel .myName{max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none;
-  align-self:center;min-height:32px;padding:5px 12px;border:1px solid var(--aq-line);border-radius:9px;
-  background:rgba(255,255,255,.55);color:var(--aq-note);font:inherit;font-size:var(--fs-xs);letter-spacing:1px;cursor:pointer}
-.myPanel .myName:hover,.myPanel .myName:focus-visible{border-color:var(--aq-goldline);color:var(--aq-strong)}
 .myPanel .pzTop{padding-right:52px;gap:10px}
 /* 主数字卡：一个大数说「我修了多少」，一行小字说其余四项——不再四格平分注意力 */
 .myPanel .myCard{padding:15px 16px 14px;border:1px solid var(--aq-line);border-radius:12px;background:rgba(176,131,28,.1)}
@@ -9115,7 +9119,7 @@ function openPlazaSitName(code, keyArg = '', locked = false) {
     openPlaza();
   };
   const p = Plaza.renderSitName(code, {
-    el, esc,
+    el, esc, zh,
     onSit: (c, name) => {
       overlayOnClose = null;
       return plazaSit(c, name, locked, keyArg);   // locked 原样带回：上锁室问完名接着问密码，不先发注定失败的请求
@@ -9178,15 +9182,28 @@ function openMine() {
   Net.closePanel();          // 同上：全屏页期间收起同修面板，看完再点「聊」唤回
   const lg = save.lg;
   const p = el(`<div class="panel pzPanel myPanel"><div class="fsShell">
-    <header class="pzTop"><div><span class="pzEyebrow">选佛谱</span><h2>我的</h2></div>
-      <button class="myName" id="myRename" title="改名号">…</button></header>
-    <div class="fsBody"><div class="fsWrap body"><div class="myLoad">正在取功课……</div></div></div>
+    <header class="pzTop"><div><span class="pzEyebrow">选佛谱</span><h2>我的</h2></div></header>
+    <div class="fsBody"><div class="fsWrap body"><div id="myMain"><div class="myLoad">正在取功课……</div></div></div></div>
   </div></div>`);
   openOverlay(p);
   zhDom(p);
   const body = p.querySelector('.body')               ;
-  const nameBtn = p.querySelector('#myRename')                                 ;
+  const main = p.querySelector('#myMain')               ;
   let mine                    = null;
+
+  // 名号卡立在页首，只建一次、不随 paint 重绘（重绘会把正在输入的半个名号冲掉）。
+  // 2026-08-16 发起人点单「放在我的页里，随时可改」：从前名号是页头右上一枚「…」小钮，
+  // 点它先关掉整张「我的」再开一层全屏卡——今就地展开就地记下，改完还在这一页上。
+  const idCard = Plaza.renderIdentity({
+    el, zh,
+    onSave: async (name) => {
+      await Plaza.flush();      // 先把未送达的掷数送走，再推新名——否则那一拉取比改名快，动态上还是旧名
+      await Plaza.pushName();
+      showToast(zh(`功课自此记在「${name}」名下`), 3600);
+    },
+  });
+  body.insertBefore(idCard, main);
+  zhDom(idCard);
 
   const paint = () => {
     // 2026-08-05 极简收束（用户点单）：主页面只留「我的一张卡＋近七日一条＋三行去处」，
@@ -9195,7 +9212,8 @@ function openMine() {
     // 2026-08-14 本地骨架即刻上屏（三失败修其三）：见闻/原文/设置皆本机之事，不该被功课取数绑架——
     // 从前整页只挂「正在取功课…」，断网或本地单跑（无 /api/plaza）时连设置都点不开。
     // 今功课卡自成一格：先占位、取到补数、取不到卡内如实说并可点重试，页其余照常可用。
-    body.innerHTML = `
+    // 只重绘 #myMain：页首名号卡自管自的两态，不该被一次取数冲掉半截输入。
+    main.innerHTML = `
       <div class="myCard">${mine ? `
         <i>我的累计</i><b>${myNum(mine.tosses)}</b>
         <span>今日 ${myNum(mine.today)} · 共修 ${myNum(mine.days)} 天 · 连续 ${myNum(mine.streak)} 日 · 成佛 ${myNum(mine.wins)}</span>`
@@ -9206,29 +9224,48 @@ function openMine() {
       <div class="myList">
         <button class="gbtn myRow" id="myLg">${ico('eye')}<span>行谱见闻</span><i>见 ${lg.seen.length}/${(SFP_POS         ).length} 位 ›</i></button>
         <button class="gbtn myRow" id="myCanon">${ico('scroll')}<span>六卷原文</span><i>›</i></button>
+        <button class="gbtn myRow" id="myBo">${ico('sound')}<span>净土法音</span><i>听经 · 念佛 ›</i></button>
+        <button class="gbtn myRow" id="myWenchao">${ico('book')}<span>印光法师文钞</span><i>文白对照 ›</i></button>
         <button class="gbtn myRow" id="mySet">${ico('sliders')}<span>设置</span><i>›</i></button>
       </div>
       <div class="cNote">一掷一称念「南无阿弥陀佛」，只作随喜记录，不作修证高下。功课记在本机莲号下，换设备会另计。</div>
+      ${IS_APP ? `<div class="cNote" id="myAppRow">App 版本查询中……</div>` : ''}
       <button class="gbtn primary" id="myOk" style="margin-top:14px;margin-bottom:4px;width:100%">${sfpS.active ? '回到局中' : '关闭'}</button>`;
-    nameBtn.textContent = Plaza.practiceName();
-    zhDom(p);
-    (body.querySelector('#myCal')               ).addEventListener('click', () => openMyCal(p, mine.daily || {}));
-    (body.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
+    zhDom(main);
+    (main.querySelector('#myCal')               ).addEventListener('click', () => openMyCal(p, mine.daily || {}));
+    (main.querySelector('#myOk')               ).addEventListener('click', closeOverlay);
     // 子页一律同路往返回「我的」（原先唯改名号能回，设置/原文/见闻三条单程出走落裸场景）
-    (body.querySelector('#myLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(openMine); });
+    (main.querySelector('#myLg')               ).addEventListener('click', () => { closeOverlay(); openLogbook(openMine); });
     // 「六卷原文」入独立阅读器（2026-08-11 上线，src/sfp-reader.js）。
     // 2026-08-08 所立的待办已了：那时说「须待二百二十位白话全部译毕再动手」，
     //   今门义 15/15、位注 220/220、逐组判词 4620/4620、卷首卷末四篇与位下后论六段皆译毕。
     // 不带 pos：从「我的」进来是「读书」，该续上次读到的那一节（save.reader.at），
     //   不是跳到棋子当前所在之位——那是位卡「读原文」的来路（见 posCardObj）。
-    (body.querySelector('#myCanon')               ).addEventListener('click', () => {
+    (main.querySelector('#myCanon')               ).addEventListener('click', () => {
       closeOverlay();
       openReader({ backTo: openMine });
     });
-    (body.querySelector('#mySet')               ).addEventListener('click', () => { closeOverlay(); openSettings(openMine); });
+    (main.querySelector('#mySet')               ).addEventListener('click', () => { closeOverlay(); openSettings(openMine); });
+    // 同门两站（2026-08-17 发起人点单接入）：净土法音（bo，听经念佛电台）与印光法师文钞（wenchao，文白对照）。
+    // 皆是站外去处：网页开新页；安卓壳内 Capacitor 对外域一律转系统浏览器，App 不被顶走。
+    // 不收 closeOverlay——看完回来，「我的」还在原处，与站内子页「同路往返」是两种去向两种礼数。
+    (main.querySelector('#myBo')               ).addEventListener('click', () => { window.open('https://bo.foyue.org/', '_blank', 'noopener'); });
+    (main.querySelector('#myWenchao')               ).addEventListener('click', () => { window.open('https://wenchao.foyue.org/', '_blank', 'noopener'); });
+    // 安卓壳（2026-08-17）：版本行＋「回到内置版」文字链——热更包出问题时的用户侧后门；
+    // 排查前提也在此（先知用户跑的是哪个包）。守金钮唯一律，不另立大钮。
+    if (IS_APP) {
+      const row = main.querySelector('#myAppRow');
+      if (row) import('./app-shell.js').then(async (shell) => {
+        const v = await shell.currentVersion();
+        row.innerHTML = `${zh('App 版本')} ${v} · <span id="myAppReset" style="text-decoration:underline;cursor:pointer">${zh('回到内置版')}</span>`;
+        (row.querySelector('#myAppReset')               ).addEventListener('click', async () => {
+          showToast(zh('正在退回内置版……'), 2000);
+          const ok = await shell.resetToBuiltin();  // 成则插件即刻重载内置包，无需善后
+          if (!ok) showToast(zh('退回未成，请重试'), 3000);
+        });
+      }).catch(() => { row.textContent = ''; });
+    }
   };
-  // 名号在页头常驻，不随 paint 重绘：只绑一次，取数失败时也仍能改名号
-  nameBtn.addEventListener('click', () => { closeOverlay(); openPlazaRename(); });
 
   paint();   // 本地骨架不等网：设置/见闻/原文即点即用，功课卡随后补数
   const load = async () => {
@@ -9241,7 +9278,7 @@ function openMine() {
     } catch (e) {
       if (!p.isConnected) return;
       // 失败态收进功课卡一格（从前整页换成重试钮，本地三行去处陪葬）：如实说、点即重试
-      const hint = body.querySelector('#myCardHint')                    ;
+      const hint = main.querySelector('#myCardHint')                    ;
       if (hint) {
         hint.textContent = zh('功课暂取不到——点此重试（本机记录仍在）');
         hint.style.cursor = 'pointer';
@@ -9364,7 +9401,7 @@ function openPlazaRename(backTo = openMine) {
   plazaNavAway();
   const back = () => { overlayOnClose = null; backTo(); };
   const p = Plaza.renderSitName('', {
-    el, esc, rename: true,
+    el, esc, zh, rename: true,
     onSit: async (_c, name) => {
       Plaza.saveName(name);
       // 先把改名送达再回页，否则那一拉取比改名快，动态上还是旧名
@@ -10049,7 +10086,7 @@ function openSfpNote(pid         ) {
 // 客户端日配额（ASK_LIMIT／askQuotaLeft／save.askq）2026-08-12 撤：
 //   配额之事归后端一处管（guard.js 按客户端指纹行日配额，额满降级原文直出不拒答），
 //   前端另记一份既拦不住绕行者，又与后端各说各话，读者看见的余量还未必是真的。
-const SFP_ASK_API = '/api/ask';
+const SFP_ASK_API = `${API_BASE}/api/ask`;
 function askQFor(c        , d        , fId         , toId         )         {
   const at = (x     ) => `第${SFP_CN[x.door - 1]}门「${x.name}」位`;
   const b = toId ? SFP_BY[toId] : null;
@@ -11348,28 +11385,17 @@ window.addEventListener('pointerdown', function audioWake() {
   };
   Net.onJoined = ({ reconnecting = false } = {}) => {
     netHydrateMode = reconnecting ? 'drift' : 'force';
-    if (!reconnecting) {
-      // 关厅/开面板的去留已归 plazaSit（2026-08-11 等候室入厅）：此刻房态首拍未到，
-      // isPlaying 在这里不可靠——「等候留厅、行谱切星图」的判定只能在 joinRoom 兑现后做。
-      // 首次入座：趁准备室还没有任何计时，把玩法速览看完；开局后就不再打断了
-      if (!(save       ).sfpHelp) {
-        (save       ).sfpHelp = true;
-        persist();
-        setTimeout(() => {
-          if (!Net.active || Net.isPlaying()) return;
-          plazaNavAway();   // 速览会顶掉大厅：先解除大厅手关回调，免 openOverlay 连锁把题屏顶出来
-          Net.closePanel(); // 速览期间收等候面板（读毕回厅随手重开）——否则两层叠一屏各挡半边
-          openSfpHelp();
-          // 速览看毕回厅续等（openSfpHelp 不自设回调，此处挂上安全）：等候的底仍是大厅。
-          // openPlaza 同步段会按旧约收面板——等候面板要跟着厅一起回来，随手重开。
-          overlayOnClose = () => {
-            if (!Net.active || Net.isPlaying()) return;
-            openPlaza();
-            Net.openPanel();
-          };
-        }, 400);
-      }
-    }
+    // 首次入座自动开全屏玩法卡已撤（2026-08-16 发起人点单「首次进房不要被全屏说明遮住」）：
+    // 旧法趁「准备室还没有任何计时」把速览塞给人看，出发点是不打断局中——代价却是打断入房，
+    // 而那一刻正是最该看清房间的时候（谁在、我该按哪一枚）。今降为指引行末一枚「玩法速览 ›」
+    // 文字链（见 net.js #netGuideHelp）：入口显眼、零打断，要读自己点。
+    // save.sfpHelp 那面旗不再在此处落——题屏「开始行谱」仍会为首次单人行谱者开卡，那是合宜的时机。
+  };
+  // 房内「玩法速览」：卡是全屏层，看毕回等候面板（面板与全屏层不并存，故先收后开）
+  Net.onHelp = () => {
+    Net.closePanel();
+    openSfpHelp();
+    overlayOnClose = () => { if (Net.active) Net.openPanel(); };
   };
   let rosterRoom = '';
   let wasHost = false;

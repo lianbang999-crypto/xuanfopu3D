@@ -50,6 +50,39 @@ npm run deploy     # = vite build + npx wrangler deploy（首次会引导登录 
 
 绑定自有域名：Cloudflare Dashboard → Workers → xuanfopu-sumeru → Settings → Domains & Routes。
 
+## 安卓 App（Capacitor · 2026-08-17）
+
+网站与 App 同一份构建，运行时以 `window.Capacitor` 分辨（`src/app-env.js`）；壳内 API 指向
+`game.foyue.org`，静态资源全内置（离线可玩单机与六卷阅读）。热更新自托管：`npm run deploy`
+产出的 `app-manifest.json`（逐文件 sha256）即热更清单，App 启动静默比对、增量下载
+（字体/材质等未变者不重下）、下次启动生效；出问题「我的」页有「回到内置版」自救，
+`notifyAppReady` 未报则插件 10 秒自动回滚。
+
+```bash
+npm run build && npm run gen:app-manifest && npx cap sync android   # 构建并同步进壳
+cd android && JAVA_HOME=$(/usr/libexec/java_home -v 21) ./gradlew assembleRelease
+cd .. && npm run stage:apk        # APK 归位 public/download/ 并出 release.json
+npm run deploy                    # 站点与安装包一并上线
+```
+
+**下载地址**：<https://game.foyue.org/app.html>（下载页：二维码＋安装引导＋校验码）
+安装包直链 <https://game.foyue.org/download/sumeru.apk>（固定短名，二维码与外发链接永不变；
+存盘名由 worker 的 `Content-Disposition` 给中文带版本）。两条路径已列入 `wrangler.jsonc` 的
+`run_worker_first`——命中静态资源的路径默认不进 worker，不列则自定义响应头是白附的。
+
+APK 与 `release.json` 不入库（`.gitignore`），故换机或重新 clone 后须先跑一遍
+`gradlew assembleRelease` 与 `npm run stage:apk` 再 deploy，否则下载页会显示「安装包尚未发布」。
+安装包**不入热更清单**（`gen-app-manifest.mjs` 排除 `download/`），否则 App 每次热更会把自己
+那 22MB 的 APK 一并拉下来。
+
+> ⚠️ Cloudflare 静态资源单文件硬上限 **25 MiB**，当前 APK 22.75 MiB 余量不足 2.3 MiB。
+> `stage:apk` 过 23 MiB 会告警；真超限则 deploy 被拒，须改走 R2 或 GitHub Releases。
+
+签名密钥在 `android/keystore/`（**不入库，务必自行备份**——丢失即无法给已装用户升级）。
+版本源唯一在 `package.json`（`0.403.0` ↔ v403），发版时同步递增 `android/app/build.gradle`
+的 `versionCode`。工具链：JDK 21（`~/Library/Java/JavaVirtualMachines/`）与
+Android SDK（`~/Library/Android/sdk/`），皆 headless 装妥，无需 Android Studio。
+
 推上 GitHub 后如需自动部署，可在仓库加一个 Actions 工作流跑 `npm ci && npm run deploy`
 （需在仓库 Secrets 配置 `CLOUDFLARE_API_TOKEN`）。
 

@@ -152,6 +152,10 @@ try {
   // 邀请归底行「邀请同修」常在——旧「邀请为主」断言随定案更替
   ok((await page.locator('#netStartBtn').innerText()).includes('开始掷轮'), '独自在房时主按钮＝开始掷轮');
   ok((await page.locator('#netInvBtn').innerText()).includes('邀请同修'), '底行邀请钮题「邀请同修」');
+  // 2026-08-16「单人房只保留一个主动作」：孤座时「我已准备」已隐藏（开局由主钮内部代办，点它推进不了任何事）。
+  // 以下六条仍测它的状态机——那是多人房才呈现的钮，此处借孤座房直驱其逻辑（evaluate 不作可见性检查）；
+  // 其「多人房才现」这一面由 test:ui 的三人局断言把关，两处合起来才是完整的账。
+  ok(await page.locator('#netReadyBtn').isHidden(), '孤座时「我已准备」不出现——无效钮不占位');
   const readyPending = await page.locator('#netReadyBtn').evaluate((button) => {
     for (let index = 0; index < 6; index++) button.click();
     return {
@@ -161,7 +165,7 @@ try {
       guide: document.querySelector('#netGuide')?.textContent || '',
     };
   });
-  ok(readyPending.disabled && readyPending.busy === 'true' && readyPending.text.includes('正在准备'), '快速连点“我已准备”只进入一次待确认状态');
+  ok(readyPending.disabled && readyPending.busy === 'true' && readyPending.text.includes('正在准备'), '快速连点“我已准备”只进入一次待确认状态（状态机直驱）');
   ok(readyPending.guide.includes('正在确认您的准备状态'), '确认期间引导文案与按钮状态一致');
   // polling 定时而非默认 rAF：freezeVisuals 后无头断帧，rAF 轮询会在回执早到的情况下干等 30s
   await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('取消准备'), null, { polling: 250 });
@@ -181,8 +185,10 @@ try {
   });
   ok(cancelPending.disabled && cancelPending.busy === 'true' && cancelPending.text.includes('正在取消'), '快速连点取消也只进入一次待确认状态');
   await page.waitForFunction(() => document.querySelector('#netReadyBtn')?.textContent.includes('我已准备'), null, { polling: 250 });
+  // 孤座名单不再写「等待准备」（2026-08-16：房里已无准备这个动作，见 net.js soloWaiting），
+  // 故此处验「名单不再挂着已准备」而非验那四个字
   ok(await page.locator('#netReadyBtn').getAttribute('aria-pressed') === 'false'
-    && (await page.locator('#netRoster').innerText()).includes('等待准备'), '取消确认后按钮与名单恢复未准备状态');
+    && !(await page.locator('#netRoster').innerText()).includes('已准备'), '取消确认后按钮与名单恢复未准备状态');
 
   await page.locator('#netLeaveBtn').click({ force: true });
   await page.locator('.pzPanel:not(.pzLoading)').waitFor({ state: 'visible', timeout: 30_000 }); // 慢机上离席→重开大厅含一次网络往返，放宽

@@ -1,0 +1,16 @@
+{
+  "name": "十法界须弥山世界",
+  "short_name": "须弥山世界",
+  "description": "依经立象的须弥山十法界教学模型：三界二十八天、四大部洲、处处注明经据；附蕅益大师《选佛谱》修行对局。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

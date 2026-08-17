@@ -1,7 +1,7 @@
 {
   "name": "shifajie-sumeru",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.403.0",
   "type": "module",
   "description": "十法界须弥山世界——依经立象的须弥山十法界教学模型（三界二十八天·四大部洲·处处注明经据），附蕅益大师《選佛譜》修行对局，最多四人实时联机",
   "scripts": {
@@ -9,7 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "server": "npx wrangler dev --port 8787",
-    "deploy": "npm run build && npx wrangler deploy",
+    "deploy": "npm run build && node scripts/gen-app-manifest.mjs && npx wrangler deploy",
+    "gen:app-manifest": "node scripts/gen-app-manifest.mjs",
+    "stage:apk": "node scripts/stage-apk.mjs",
     "api:build": "node api/build.mjs",
     "api:test": "node api/build.mjs && node api/test.mjs",
     "api:deploy": "node api/build.mjs && node api/test.mjs && npx wrangler deploy --config api/wrangler.jsonc",
@@ -51,10 +53,15 @@
     "test:card": "node scripts/test-card-v2.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@capgo/capacitor-updater": "^8.51.13",
     "qrcode-generator": "^2.0.4",
     "three": "^0.169.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
     "playwright-core": "^1.55.0",
     "vite": "^5.4.0"
   }
