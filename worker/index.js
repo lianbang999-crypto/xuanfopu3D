@@ -19,6 +19,10 @@ const PLAYER_COLORS = ['#7ba2dc', '#6fbf9e', '#b9a7e0', '#e5c0cf']; // 青金石
 // 房主离开后按入座次序递补，不再让用户理解“东南西北”。
 const ASK_INTERNAL_URL = 'https://ask.internal/v1/ask';
 
+// 装机统计的取用方（2026-08-17）：唯 foyue.org 后台可跨站来取，且须持 ADMIN_TOKEN。
+// 此名单只管这一路，与公开 API 的通配 CORS 无涉——带密钥的路不可用通配。
+const ADMIN_ORIGINS = ['https://foyue.org', 'https://www.foyue.org'];
+
 // ---- 共修广场：固定 9 张共修室（桌数固定、座数固定，入座准备后共同开局；2026-08-11 由 12 收为 9） ----
 const PLAZA_OBJECT = '__xuanfopu_plaza__';
 const TABLE_COUNT = 9;
@@ -165,7 +169,9 @@ export default {
     // 壳内页面 origin 是 https://localhost（Capacitor 本地资源服务器），POST application/json
     // 必先发 OPTIONS。json() 素来带 access-control-allow-origin:*（本站 API 公开口径），
     // 独缺预检应答——补齐即通。101 WebSocket 升级不涉跨域，原样不动。
-    if (request.method === 'OPTIONS' && path.startsWith('/api/')) {
+    // /api/admin/* 除外：那一路带 ADMIN_TOKEN，须严格白名单，不可落进此处的通配应答
+    // （通配在前会把白名单那条截胡，等于任何站点都能拿着用户浏览器去试密钥）
+    if (request.method === 'OPTIONS' && path.startsWith('/api/') && !path.startsWith('/api/admin/')) {
       return new Response(null, {
         status: 204,
         headers: {
@@ -185,6 +191,15 @@ export default {
     if (path === '/download/sumeru.apk') {
       const res = await env.ASSETS.fetch(request);
       if (!res.ok) return res;
+      // 下载计数（2026-08-17）：只在整包请求时记一笔。断点续传与安卓下载器的分段取件
+      // 皆带 Range 头，若一并计入，一次下载会记成七八次。下载数≠安装数，仅看下载页转化。
+      // 另发干净的内部请求：plazaForward 会连原请求的方法与身体一并转过去，
+      // 而此处原请求是取 APK 的 GET，不可拿来当计数用。
+      if (!request.headers.get('Range')) {
+        try {
+          await plazaStub(env).fetch('https://plaza.internal/plaza/apk-hit', { method: 'POST' });
+        } catch (e) { /* 计数失手不碍下载 */ }
+      }
       let ver = '';
       try { ver = (await (await env.ASSETS.fetch(new Request(new URL('/download/release.json', url.origin)))).json()).version || ''; } catch (e) {}
       const headers = new Headers(res.headers);
@@ -202,6 +217,58 @@ export default {
       const headers = new Headers(res.headers);
       headers.set('access-control-allow-origin', '*');
       headers.set('cache-control', 'no-store'); // 版本探针不缓存，发布即见
+      return new Response(res.body, { status: res.status, headers });
+    }
+
+    // ---- 装机报到（2026-08-17）：App 启动上报一次，回答「装在多少台手机上」----
+    if (path === '/api/app/hello') {
+      if (request.method !== 'POST') return json({ error: 'method not allowed' }, 405);
+      return plazaForward(request, env, '/app/hello');
+    }
+
+    // ---- 热更事件（2026-08-17）：Capgo 插件自行上报 download/set/revert 等 ----
+    // 收此一路是为看「热更成功率与回滚」——装机报到看不到这一层。
+    // 插件所发身体含其自备的设备 id 等，此处一概不存，只按事件名计数。
+    if (path === '/api/app/stats') {
+      if (request.method !== 'POST') return json({ ok: true });
+      let action = '';
+      try { action = String((await request.json())?.action || '').slice(0, 24).replace(/[^a-zA-Z_]/g, ''); }
+      catch (e) { /* 插件版本不同身体格式或异，收不到就算 */ }
+      if (action) {
+        try {
+          await plazaStub(env).fetch(`https://plaza.internal/plaza/ota-hit?a=${encodeURIComponent(action)}`,
+            { method: 'POST' });
+        } catch (e) { /* 统计失手无碍热更 */ }
+      }
+      return json({ ok: true });
+    }
+
+    // ---- 装机统计：只给后台（foyue.org/admin 跨站取用）----
+    // 鉴权 Bearer ADMIN_TOKEN，与 foyue01 后台同一形制。
+    // 此路不可用通配 CORS：带 Authorization 的跨站请求若配 allow-origin:*，
+    // 等于任何站点都能拿着用户浏览器去试密钥。故独此一路收严为白名单。
+    if (path === '/api/admin/app-stat') {
+      const origin = request.headers.get('Origin') || '';
+      const allowed = ADMIN_ORIGINS.includes(origin);
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          status: 204,
+          headers: allowed ? {
+            'access-control-allow-origin': origin,
+            'access-control-allow-methods': 'GET, OPTIONS',
+            'access-control-allow-headers': 'authorization',
+            'access-control-max-age': '86400',
+            vary: 'Origin',
+          } : {},
+        });
+      }
+      if (!env.ADMIN_TOKEN || request.headers.get('Authorization') !== `Bearer ${env.ADMIN_TOKEN}`) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      const res = await plazaForward(request, env, '/app/stat');
+      const headers = new Headers(res.headers);
+      if (allowed) { headers.set('access-control-allow-origin', origin); headers.set('vary', 'Origin'); }
+      headers.set('cache-control', 'no-store');
       return new Response(res.body, { status: res.status, headers });
     }
 
@@ -333,6 +400,21 @@ export class RoomDO {
         lastAt INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS plaza_practice_recent ON plaza_practice(lastAt DESC);
+      -- 装机台账（2026-08-17）：一行一个安装实例，回答「App 装在多少台手机上、几台还在用」。
+      -- 身份 install 是本机随机串（i_ 前缀 24 位十六进制，同 practice 之匿名法），
+      -- 不含账号、IP、设备标识——与本站一贯口径同：不采集可认人之物。
+      -- 实为「安装实例数」而非「物理设备数」：卸载重装即另起一行（本机随机串随之重生）。
+      -- 此数天然偏保守，不虚高；要真设备级去重须取 Android ID 一类系统标识，
+      -- 那是采集设备唯一标识，与本站口径相违，不取。
+      CREATE TABLE IF NOT EXISTS app_installs (
+        install TEXT PRIMARY KEY,
+        plat TEXT NOT NULL,                  -- android / ios（备 iOS 之日）
+        ver TEXT NOT NULL,                   -- 末次见到的 web 版本（热更后随之变）
+        nat TEXT NOT NULL DEFAULT '',        -- 末次见到的原生 APK 版本（重装才变）
+        firstAt INTEGER NOT NULL,
+        lastAt INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS app_installs_recent ON app_installs(lastAt DESC);
       CREATE TABLE IF NOT EXISTS plaza_feed (
         seq INTEGER PRIMARY KEY AUTOINCREMENT,
         kind TEXT NOT NULL, text TEXT NOT NULL, ts INTEGER NOT NULL
@@ -564,6 +646,53 @@ export class RoomDO {
     )][0];
     const locked = Number(row?.n || 0);
     return json({ ok: locked < LOCK_MAX_PER_HALL, locked, max: LOCK_MAX_PER_HALL });
+  }
+
+  // 装机报到（2026-08-17）：App 每次启动上报一次，UPSERT 一行。
+  // 只收四样：随机安装串、平台、web 版本、原生版本——皆非可认人之物。
+  // 不记 IP、不记 UA、不记时区语言，与本站「匿名莲号」一贯口径同。
+  async appHello(request) {
+    this.plazaInit();
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ error: 'invalid json' }, 400); }
+    const install = /^i_[a-f0-9]{24}$/.test(String(body?.install || '')) ? String(body.install) : '';
+    if (!install) return json({ error: 'bad install id' }, 400);
+    const plat = ['android', 'ios'].includes(String(body?.plat)) ? String(body.plat) : 'android';
+    const clip = (s) => String(s || '').slice(0, 16).replace(/[^0-9a-zA-Z.\-]/g, ''); // 版本号只留形，防注入与超长
+    const now = Date.now();
+    this.state.storage.sql.exec(
+      `INSERT INTO app_installs (install, plat, ver, nat, firstAt, lastAt) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(install) DO UPDATE SET
+         ver = excluded.ver, nat = excluded.nat, plat = excluded.plat, lastAt = excluded.lastAt`,
+      install, plat, clip(body?.ver), clip(body?.nat), now, now);
+    return json({ ok: true });
+  }
+
+  // 装机统计（2026-08-17）：供 foyue.org/admin 跨站取用，聚合数不含任何单机身份
+  appStat() {
+    this.plazaInit();
+    const now = Date.now();
+    const DAY = 86400000;
+    const one = (sql, ...args) => Number([...this.state.storage.sql.exec(sql, ...args)][0]?.n || 0);
+    const rows = (sql, ...args) => [...this.state.storage.sql.exec(sql, ...args)];
+    return json({
+      installs: one('SELECT COUNT(*) n FROM app_installs'),               // 装机实例总数
+      active1: one('SELECT COUNT(*) n FROM app_installs WHERE lastAt >= ?', now - DAY),
+      active7: one('SELECT COUNT(*) n FROM app_installs WHERE lastAt >= ?', now - 7 * DAY),
+      active30: one('SELECT COUNT(*) n FROM app_installs WHERE lastAt >= ?', now - 30 * DAY),
+      new7: one('SELECT COUNT(*) n FROM app_installs WHERE firstAt >= ?', now - 7 * DAY),
+      downloads: this.plazaGet('apk_downloads'),                          // APK 下载次数（下载≠安装）
+      // 版本分布：看还有多少台停在旧版没热更上来，此为热更运维之眼
+      byVer: rows('SELECT ver AS v, COUNT(*) AS n FROM app_installs GROUP BY ver ORDER BY n DESC LIMIT 12')
+        .map(r => ({ ver: r.v || '(未报)', n: Number(r.n) })),
+      byNat: rows('SELECT nat AS v, COUNT(*) AS n FROM app_installs GROUP BY nat ORDER BY n DESC LIMIT 12')
+        .map(r => ({ ver: r.v || '(未报)', n: Number(r.n) })),
+      // 热更事件（Capgo 自报）：download_complete / set / revert 之属，看成功率与回滚
+      ota: rows("SELECT k, v FROM plaza_counter WHERE k LIKE 'ota_%' ORDER BY v DESC")
+        .map(r => ({ act: String(r.k).slice(4), n: Number(r.v) })),
+      at: now,
+    });
   }
 
   async plazaTick(request) {
@@ -1449,6 +1578,18 @@ export class RoomDO {
     if (url.pathname === '/plaza/record') return this.plazaRecord(request);
     if (url.pathname === '/plaza/me') return this.plazaMine(request);
     if (url.pathname === '/plaza/chat') return this.plazaChat(request, url);
+    if (url.pathname === '/app/hello') return this.appHello(request);   // 装机报到
+    if (url.pathname === '/app/stat') return this.appStat();            // 装机统计（后台用）
+    if (url.pathname === '/plaza/apk-hit') {                            // APK 下载计数
+      this.plazaInit();
+      this.plazaBump('apk_downloads', 1);
+      return json({ ok: true });
+    }
+    if (url.pathname === '/plaza/ota-hit') {                            // 热更事件计数
+      this.plazaInit();
+      this.plazaBump(`ota_${url.searchParams.get('a') || 'unknown'}`, 1);
+      return json({ ok: true });
+    }
     // 只对 DO 之间开放：公共 Worker 的 /api/* 路由不会转到这里
     if (url.pathname === '/plaza/record-verified') return this.plazaRecordVerified(request);
     if (url.pathname === '/plaza/table') return this.plazaTableReport(request);

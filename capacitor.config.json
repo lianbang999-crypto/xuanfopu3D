@@ -9,7 +9,7 @@
   "plugins": {
     "CapacitorUpdater": {
       "autoUpdate": false,
-      "statsUrl": "",
+      "statsUrl": "https://game.foyue.org/api/app/stats",
       "appReadyTimeout": 10000
     }
   }

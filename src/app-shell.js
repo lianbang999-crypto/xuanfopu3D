@@ -44,6 +44,25 @@ export async function currentVersion() {
   return __APP_VERSION__; // 内置包在跑（vite define 烧入，与 package.json 同源）
 }
 
+const INSTALL_KEY = 'sm10.app.install'; // 本机安装串：随机生成，不含账号、IP、设备标识
+
+// 装机报到之身（2026-08-17）：与广场匿名莲号同法（随机 12 字节，i_ 前缀），
+// 只为数「装在多少台上」，认不出是谁。卸载重装即另起一串——故所数是安装实例，
+// 非物理设备；此数天然偏保守，不虚高。真设备级去重须取系统标识，与本站口径相违，不取。
+function installId() {
+  try {
+    const old = localStorage.getItem(INSTALL_KEY) || '';
+    if (/^i_[a-f0-9]{24}$/.test(old)) return old;
+    const b = new Uint8Array(12);
+    (globalThis.crypto?.getRandomValues)
+      ? globalThis.crypto.getRandomValues(b)
+      : b.forEach((_, i) => { b[i] = Math.floor(Math.random() * 256); });
+    const id = `i_${[...b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+    localStorage.setItem(INSTALL_KEY, id);
+    return id;
+  } catch (e) { return ''; }
+}
+
 export async function bootAppShell() {
   try { await CapacitorUpdater.notifyAppReady(); } catch (e) {}
   try {
@@ -58,6 +77,16 @@ export async function bootAppShell() {
     //     此路与热更无涉——图标、开机屏、原生插件热更换不动，唯重装可得。
     updateState.builtin = await builtinVersion();
     updateState.apkNew = newerThan(remote.nativeVersion, updateState.builtin) ? remote.nativeVersion : '';
+
+    // 装机报到：与热更同一趟启动里捎带，不另起一次唤醒。失手即罢，不重试不扰用户。
+    const install = installId();
+    if (install) {
+      fetch(`${API_BASE}/api/app/hello`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ install, plat: 'android', ver: cur, nat: updateState.builtin }),
+      }).catch(() => {});
+    }
 
     // 二、web 层：热更能办的
     if (remote.version === cur) {
