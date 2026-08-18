@@ -2983,7 +2983,11 @@ button:not(:disabled):active{transform:scale(.97)}
 .ladDoor.cur b,.ladDoor.on b,.ladDoor:hover b{opacity:1}
 #ladder.ladAll .ladDoor b{opacity:.62}
 #ladder.ladAll .ladDoor.cur b,#ladder.ladAll .ladDoor.on b{opacity:1}
-.ladDoor i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.28);box-shadow:0 0 5px rgba(10,8,20,.5);margin-right:11px;transition:transform .22s,box-shadow .22s;flex:0 0 auto}
+/* 色点须正坐轨心（2026-08-18 发起人报「杆和圆点没对齐」）：
+   轨 #ladTrack right:16px 宽 4px，故轨心距右缘 18px；
+   点连边框实宽 11px，欲其心亦距右缘 18px，则 margin-right = 18 - 11/2 = 12.5px。
+   旧值 11px 使点心距右缘 15.5px，右偏 1.5px——放大到 .cur 那颗（scale 1.55）时歪得显眼。 */
+.ladDoor i{width:9px;height:9px;border-radius:50%;border:1px solid rgba(255,255,255,.28);box-shadow:0 0 5px rgba(10,8,20,.5);margin-right:12.5px;transition:transform .22s,box-shadow .22s;flex:0 0 auto}
 .ladDoor.on b{color:#f4e6b8}
 .ladDoor .ladPeer{position:absolute;top:50%;width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:0 0 4px currentColor;transform:translateY(-50%);pointer-events:none} /* v392 联机同修现居门座色小刻 */
 /* v393 两质金（壁画光第三期）：入极乐场（applyLight('pureland') 挂 html.pureTone）UI 金上移半阶——
@@ -3217,21 +3221,33 @@ function toastPump() {
 }
 // 即时换话（2026-08-14，门签门义提示所用）：「当前所指」型提示后点立换前话——
 // 排队制只适合互不相干的播报；门3 长义九秒占屏，门8 的话排队一秒六才上，指东话西。
-function showToastNow(msg        , ms = 2600) {
+function showToastNow(msg        , ms = 2600, onTap                 = null, tapLabel = '详读') {
   toastQ.length = 0;
   if (toastTimer) { clearTimeout(toastTimer); toastTimer = 0; }
   toastBusy = true;
-  toast.style.pointerEvents = 'none'; toast.style.cursor = '';
-  toast.textContent = zh(msg); toast.style.opacity = '1';
+  toast.onclick = null;
+  // 可点小条（2026-08-18 发起人定案「亮不变，只把 toast 换成可点小条」）：
+  // 传 onTap 即在话末缀一枚「详读 ›」文字链——话仍是话，不夺屏、不改亮，
+  // 要深读者自点。不传则一如既往，只是一句会自敛的话。
+  if (onTap) {
+    toast.style.pointerEvents = 'auto'; toast.style.cursor = 'pointer';
+    toast.innerHTML = `${esc(zh(msg))}<span style="margin-left:10px;color:var(--gold-hi);white-space:nowrap">${esc(zh(tapLabel))} ›</span>`;
+    toast.onclick = () => { hideToast(); onTap(); };
+  } else {
+    toast.style.pointerEvents = 'none'; toast.style.cursor = '';
+    toast.textContent = zh(msg);
+  }
+  toast.style.opacity = '1';
   toastTimer = window.setTimeout(() => {
     toast.style.opacity = '0';
-    window.setTimeout(() => { toastBusy = false; toastPump(); }, 260);
+    window.setTimeout(() => { toastBusy = false; toast.onclick = null; toast.style.pointerEvents = 'none'; toastPump(); }, 260);
   }, ms);
 }
 // v393 即刻收话：话说到一半而其所指已撤时（如门义正报着、门却被收拢），
 // 该让它当场淡去，而不是另说一句「已收拢」把它顶掉——收起本是无声的事。
 function hideToast() {
   toastQ.length = 0;
+  toast.onclick = null; toast.style.pointerEvents = 'none'; // 可点态随话一并收，免残留的手落在空处
   if (!toastBusy) return;
   if (toastTimer) { clearTimeout(toastTimer); toastTimer = 0; }
   toast.style.opacity = '0';
@@ -7205,7 +7221,13 @@ function showDoorTip(dno        ) {
   const txt = gist ? `「${title}」${gist}` : `「${title}」全亮`;
   // 停留时长随字数走：门13 十八字与门8 八十八字若同用 3.6 秒，后者读不完。
   // 即时换话（非排队）：连点两签，后签门义立顶前签——所指已换，话不该还在排队。
-  showToastNow(txt, Math.min(9000, 2200 + txt.length * 90));
+  // 末缀「详读 ›」入门卡（2026-08-18）：门卡本已完备（门义·谱曰总说·位次一览可点入位卡·读本门原文），
+  // 此前只弹一句话说完就散，深读无门可入。亮与镜头一概不动，卡由人自取。
+  // 棋子正在此门者，卡开即落位次一览段（focus:'pos' 是现成来路，门1导语与场中「凡圣同居土」同用），
+  // 省一次下滚；不在此门则如常从门首读起。
+  const here = sfpS.active && sfpS.pos && SFP_BY[sfpS.pos] && SFP_BY[sfpS.pos].door === dno;
+  showToastNow(txt, Math.min(9000, 2200 + txt.length * 90),
+    () => openDoor(dno, here ? { focus: 'pos' } : {}));
 }
 // 签栏点门：单击＝本门全亮（镜头框位珠云、无关题字全隐），再点＝收拢；双击＝入门内观照；净土门＝极乐链路
 let railLT = 0, railLD = 0, railCardT = 0;
