@@ -4193,17 +4193,11 @@ function openTitle() {
   if (tourOn) tourExit();
   // 主钮三态：局中→回局；有存局→直接续掷；无局→直开新局（单人零阻力，共修入口另在）。
   const go = b.querySelector('#bootGo')               ;
-  go.innerHTML = `<b>${act ? '回到局中' : (hasSfp ? '续掷上局' : '开始行谱')}</b>`
+  // 一门而入（2026-08-18）：导览钮既撤，题屏只此一枚钮，三态仍在——
+  // 局中＝回到局中，有存局＝续掷上局，皆无＝观 · 十法界。
+  // 字面与 index.html 静态骨架及内联读档脚本逐字同文——就绪重写写的是同一句话，屏上零翻面。
+  go.innerHTML = `<b>${act ? '回到局中' : (hasSfp ? '续掷上局' : '观 · 十法界')}</b>`
     + (cur ? `<span>现居「${esc(cur.name)}」 · 第 ${act ? sfpS.n : save.sfp.n} 掷</span>` : '');
-  // 门面对调（2026-08-14）：金主位随存局易主——无局＝导览为主（教学模型是门面），
-  // 有局/局中＝行谱回主位（修行人回来第一眼要的还是续掷）。元素语义不动，主次全由 .hasSave 说话
-  // （翻序换色皆在 index.html 的 CSS：column-reverse 与金/纱两皮）。字面与 index.html 静态骨架
-  // 及内联读档脚本逐字同文——就绪重写写的是同一句话，屏上零翻面。
-  b.classList.toggle('hasSave', act || hasSfp);
-  const tb = b.querySelector('#bootTour')               ;
-  tb.innerHTML = (act || hasSfp) ? '<b>导览十法界</b>'
-    : '<b>进入十法界</b><span>依经导览 · 从地狱到佛</span>';
-  tb.onclick = () => { titleHide(); tourStart(); };
   go.onclick = () => {
     if (act) { titleHide(); return; }
     if (netRejoin()) { titleHide(); return; }   // 共修在座：回服务器棋况，不落到本机旧存局
@@ -11400,12 +11394,12 @@ window.addEventListener('pointerdown', function audioWake() {
     deepVisit = '';
     if (!overlayEl && !sfpS.active && !Net.isPanelOpen()) {
       openTitle();
-      // 兑现就绪前记下的心愿（内联脚本 __wantStart：true＝行谱主钮、'tour'＝导览钮）——
-      // 各自复用本钮 onclick 的现成逻辑：有存局续掷、在座回局、无局新开／起导览，与亲手点无异
+      // 兑现就绪前记下的心愿（内联脚本 __wantStart）——复用本钮 onclick 的现成逻辑：
+      // 有存局续掷、在座回局、无局入界，与亲手点无异。
+      // 2026-08-18 一门而入：导览钮既撤，'tour' 之愿不复存在，一律落 #bootGo。
       if ((window       ).__wantStart) {
-        const w = (window       ).__wantStart;
         (window       ).__wantStart = false;
-        (document.getElementById('boot')?.querySelector(w === 'tour' ? '#bootTour' : '#bootGo')               )?.click();
+        (document.getElementById('boot')?.querySelector('#bootGo')               )?.click();
       }
     } else titleHide();
   };

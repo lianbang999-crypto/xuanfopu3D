@@ -1,8 +1,12 @@
-// 导览模式自测（2026-08-14 门面对调随行）：门面双钮＋导览巡游＋单站深链＋分享海报 四路真机走查。
-// 先启动 `npm run dev`，再运行：npm run test:tour
-// 四路各验一事：①无局门面（导览为主、行谱仍在、点导览入巡游、卡开着导览条仍可点、海报即出且驻足）
-// ②深链 #v=节点（不亮题屏直落该站、自动巡游不开、hash 用毕即清）③有局门面（.hasSave 首帧即在、零翻面）
-// ④行谱钮职守不变（点「开始行谱」入局不入导览）。无头下 rAF 不走，沿用 1px 催帧法（见 test-boot-face）。
+// 单站深链与题屏分享自测。先启动 `npm run dev`，再运行：npm run test:tour
+//
+// 2026-08-18 一门而入：题屏双钮收为一枚，导览钮撤（十七站既定路线换作用户自行探索）。
+//   本本原验四路，其中「无局门面双钮」「有局门面翻序」「行谱钮不入导览」三节所验之物已随入口而去，
+//   一并切除；余下两节所验者仍在，故留：
+//   ① 单站深链 #v=节点——**导览代码与深链皆未删**，已印出去的海报扫码仍须直落其站，
+//      此节即守这份不失信；导览台（#tourBar）在深链落站时照旧出现，只是不再有题屏入口。
+//   ② 题屏点分享——分享卡须压得住题屏（2026-08-14 发起人报「点分享没反应」之守）。
+// 无头下 rAF 不走，沿用 1px 催帧法（见 test-boot-face）。
 import { chromium } from 'playwright-core';
 
 const EXE = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
@@ -45,75 +49,8 @@ async function pump(page, cond, tries = 40) {
   return false;
 }
 
-// ── 一 无存局门面：导览钮为主、行谱钮仍在，点导览入巡游 ──
-console.log('\n【一 无存局 · 导览钮为主，点入巡游】');
-{
-  const { page, ctx, errs } = await open(BASE, { zh: 's', sfpHelp: true });
-  const ready = await pump(page, () => document.querySelector('#boot')?.classList.contains('ready'));
-  ok(ready, '主包就绪');
-  const f = await page.evaluate(() => ({
-    tour: (document.querySelector('#bootTour')?.innerText || '').replace(/\s+/g, ' ').trim(),
-    go: (document.querySelector('#bootGo')?.innerText || '').replace(/\s+/g, ' ').trim(),
-    hasSave: document.querySelector('#boot').classList.contains('hasSave'),
-    name: document.querySelector('#bootName')?.textContent || '',
-  }));
-  ok(/进入十法界/.test(f.tour) && /依经导览/.test(f.tour), '导览钮题「进入十法界 · 依经导览」', f.tour);
-  ok(f.go === '开始行谱', '行谱钮仍题「开始行谱」', f.go);
-  ok(!f.hasSave, '无存局不带 hasSave（导览金钮在上）');
-  ok(f.name === '十法界须弥山世界', '题名已对调', f.name);
-  await page.click('#bootTour');
-  const started = await pump(page, () =>
-    document.querySelector('#boot')?.classList.contains('bye')
-    && !!document.querySelector('#tourBar')
-    && (document.querySelector('#tourText')?.textContent || '') !== '', 20);
-  ok(started, '点导览：题屏退场、导览台现身、站引已题字');
-  const t1 = await page.evaluate(() => ({
-    pos: document.querySelector('#tourPos')?.textContent || '',
-    text: document.querySelector('#tourText')?.textContent || '',
-    cardOpen: !!document.querySelector('.overlay #card'),
-    auto: document.querySelector('#tourBar button[data-a="auto"]')?.classList.contains('on'),
-  }));
-  ok(/^1\/17/.test(t1.pos) && /须弥山/.test(t1.pos), '站标 1/17 · 须弥山', t1.pos);
-  ok(!!t1.text, '站引一句已出（看景为主）', t1.text);
-  ok(!t1.cardOpen, '默认不压全卡（档一②）');
-  ok(t1.auto === true, '入口起步＝自动巡游开');
-  await page.click('#tourBar button[data-a="next"]');
-  const t2ok = await pump(page, () => /^2\/17/.test(document.querySelector('#tourPos')?.textContent || ''), 10);
-  const t2 = await page.evaluate(() => ({ pos: document.querySelector('#tourPos')?.textContent || '' }));
-  ok(t2ok && /地狱/.test(t2.pos), '下一站＝2/17 地狱法界', t2.pos);
-  // 读经证 → 全卡深读，开卡即驻足（档一①）
-  await page.click('#tourBar [data-a="card"]');
-  const cardOk = await pump(page, () => /地狱/.test(document.querySelector('#cardName')?.textContent || ''), 10);
-  ok(cardOk, '「读经证」开全卡＝地狱法界');
-  ok(await page.evaluate(() => !document.querySelector('#tourBar button[data-a="auto"]')?.classList.contains('on')),
-    '开卡即驻足（自动巡游停）');
-  // 分享此站 → 海报
-  await page.click('#tourBar button[data-a="share"]');
-  const posterOk = await pump(page, () => {
-    const im = document.querySelector('#posterCard img');
-    return !!im && (im.getAttribute('src') || '').length > 50000;
-  }, 15);
-  ok(posterOk, '「分享此站」出海报（图已画成，非空底）');
-  const pv = await page.evaluate(() => ({
-    autoOff: !document.querySelector('#tourBar button[data-a="auto"]')?.classList.contains('on'),
-    hint: document.querySelector('#posterCard .pcHint')?.textContent || '',
-  }));
-  ok(pv.autoOff, '出海报即驻足（自动巡游已停）');
-  await page.click('#posterCard .pcLink');
-  const link = await page.evaluate(() => navigator.clipboard.readText().catch(() => ''));
-  ok(/#v=hell$/.test(link), '复制的是本站深链 #v=hell', link);
-  await page.click('#posterCard .pcX');
-  await page.click('#tourBar button[data-a="exit"]');
-  const exited = await page.evaluate(() => ({
-    bar: getComputedStyle(document.querySelector('#tourBar')).display,
-  }));
-  ok(exited.bar === 'none', '退出导览：条已收');
-  ok(errs.length === 0, '无脚本报错', errs.slice(0, 2).join(' | '));
-  await ctx.close();
-}
-
-// ── 二 单站深链 #v=trayastrimsa：点开即落忉利天，自动巡游不开 ──
-console.log('\n【二 深链 · #v=trayastrimsa 直落忉利天】');
+// ── 一 单站深链 #v=trayastrimsa：点开即落忉利天，自动巡游不开 ──
+console.log('\n【一 深链 · #v=trayastrimsa 直落忉利天】');
 {
   const { page, ctx, errs } = await open(`${BASE}/#v=trayastrimsa`, { zh: 's', sfpHelp: true });
   const landed = await pump(page, () =>
@@ -135,47 +72,10 @@ console.log('\n【二 深链 · #v=trayastrimsa 直落忉利天】');
   await ctx.close();
 }
 
-// ── 三 有存局门面：续掷回主位，导览钮收短形 ──
-console.log('\n【三 有存局 · 续掷为主，导览为附】');
-{
-  const { page, ctx, errs } = await open(BASE, {
-    zh: 's', sfpHelp: true,
-    sfp: { pos: '圓頓妙觀', n: 3, label: '圆顿妙观', hist: [], seenD: [], trail: ['圓頓妙觀'] },
-  });
-  const first = await page.evaluate(() => ({
-    hasSave: document.querySelector('#boot').classList.contains('hasSave'),
-    tour: (document.querySelector('#bootTour')?.innerText || '').replace(/\s+/g, ' ').trim(),
-  }));
-  ok(first.hasSave, '首帧即 hasSave（续掷金钮在上，内联同步写）');
-  ok(first.tour === '导览十法界', '导览钮首帧即短形「导览十法界」', first.tour);
-  const ready = await pump(page, () => document.querySelector('#boot')?.classList.contains('ready'));
-  ok(ready, '主包就绪');
-  const after = await page.evaluate(() => ({
-    hasSave: document.querySelector('#boot').classList.contains('hasSave'),
-    tour: (document.querySelector('#bootTour')?.innerText || '').replace(/\s+/g, ' ').trim(),
-  }));
-  ok(after.hasSave && after.tour === first.tour, '就绪后零翻面（hasSave 与导览钮字面不变）', `${after.tour}`);
-  ok(errs.length === 0, '无脚本报错', errs.slice(0, 2).join(' | '));
-  await ctx.close();
-}
-
-// ── 四 行谱钮职守不变：点「开始行谱」入局不入导览 ──
-console.log('\n【四 行谱钮 · 仍直入对局】');
-{
-  const { page, ctx, errs } = await open(BASE, { zh: 's', sfpHelp: true });
-  await pump(page, () => document.querySelector('#boot')?.classList.contains('ready'));
-  await page.click('#bootGo');
-  const inGame = await pump(page, () =>
-    document.querySelector('#boot')?.classList.contains('bye') && !document.querySelector('#tourBar'), 15);
-  ok(inGame, '题屏退场且未出导览条（走的是行谱路）');
-  ok(errs.length === 0, '无脚本报错', errs.slice(0, 2).join(' | '));
-  await ctx.close();
-}
-
-// ── 五 题屏分享：卡须压得住题屏（2026-08-14 发起人报「点分享没反应，再点大厅才出来」）──
+// ── 二 题屏分享：卡须压得住题屏（2026-08-14 发起人报「点分享没反应，再点大厅才出来」）──
 // 病根：分享卡 z:70 而题屏 #boot z:100——卡开在题屏底下，人只见画面不动；
 // 题屏一退（点大厅）那张卡才露出来，看着像「要点两次才行」。
-console.log('\n【五 题屏点分享 · 卡即刻可见（不被题屏压住）】');
+console.log('\n【二 题屏点分享 · 卡即刻可见（不被题屏压住）】');
 {
   const { page, ctx, errs } = await open(BASE, { zh: 's', sfpHelp: true });
   ok(await pump(page, () => document.querySelector('#boot')?.classList.contains('ready')), '主包就绪');

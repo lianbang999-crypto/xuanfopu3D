@@ -7,6 +7,11 @@
 //
 // 本本盯的就是「不等」与「不改口」两件，故第一条断言**不催帧、不等 .ready**——
 //   若谁把读档挪回主包，这一条立刻红。
+//
+// 2026-08-18 一门而入：题屏双钮收为一枚，导览钮 #bootTour 撤（十七站既定路线换作自行探索，
+//   导览代码与 #v= 单站深链皆留，只是题屏无入口）。无存局之钮题随之由「开始行谱」正名
+//   「观 · 十法界」——点进去先见的是 3D 世界而非棋盘，钮名应「进一个世界」而非「开一局棋」。
+//   三态仍在：局中＝回到局中，有存局＝续掷上局，皆无＝观 · 十法界。
 // 先启动 `npm run dev`，再运行：npm run test:boot
 import { chromium } from 'playwright-core';
 
@@ -93,7 +98,7 @@ console.log('\n【三 无存局 · 亦零翻面】');
 {
   const { page, ctx, errs } = await open({ zh: 's', sfpHelp: true });
   const first = await snap(page);
-  ok(/开始行谱/.test(first.go), '钮题「开始行谱」', first.go);
+  ok(/观 · 十法界/.test(first.go), '钮题「观 · 十法界」', first.go);
   ok(!/新开一局/.test(first.links), '细字行无「新开一局」（无局可弃）', first.links);
   const gotReady = await pumpToReady(page);
   ok(gotReady, '主包已就绪');
@@ -122,7 +127,7 @@ console.log('\n【四 档坏 · 页面照常起】');
 {
   const { page, ctx, errs } = await open('{{{ 这不是 JSON');
   const first = await snap(page);
-  ok(/开始行谱/.test(first.go), '坏档退回「开始行谱」，不空钮不报错', first.go);
+  ok(/观 · 十法界/.test(first.go), '坏档退回「观 · 十法界」，不空钮不报错', first.go);
   ok(errs.length === 0, '无脚本报错', errs.slice(0, 2).join(' | '));
   await ctx.close();
 }

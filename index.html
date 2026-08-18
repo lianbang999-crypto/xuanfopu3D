@@ -68,24 +68,20 @@ canvas{display:block;touch-action:none}
 #bootSub{margin-top:17px;font-size:13px;letter-spacing:.24em;text-indent:.24em;color:#f2e7c9;
   font-family:"Kaiti SC","STKaiti","KaiTi","Songti SC",serif;
   text-shadow:0 1px 3px rgba(3,20,24,1),0 2px 14px rgba(3,20,24,.95),0 0 30px rgba(3,20,24,.75)}
-/* 行动区两钮（2026-08-14 门面对调）：导览为主（金）、行谱为附（青纱）——
-   元素语义不换（#bootGo 永远是行谱，自测脚本按名点它），主次只由样式与 .hasSave 说话：
-   无存局＝导览金钮在上；有存局＝续掷金钮在上（column-reverse 翻序，行谱回主位）。
-   两钮样式自足（第一毫秒即在，不等主包）；就绪前点了记心愿，文案由内联小脚本改「正在入界…」 */
+/* 行动区一钮（2026-08-18 一门而入）：导览钮既撤，主次之争随之消解——
+   金钮唯一律在题屏亦然：一屏只此一枚可推进之钮，恒金，不再有 .hasSave 翻序换色那套
+   （那是两钮时代分派主次的机关，一钮之后是死规则）。
+   样式自足（第一毫秒即在，不等主包）；就绪前点了记心愿，文案由内联小脚本改「正在入界…」 */
 #bootActs{margin-top:auto;display:flex;flex-direction:column;align-items:center;gap:10px;width:min(300px,82vw)}
-#boot.hasSave #bootActs{flex-direction:column-reverse}
-#bootGo,#bootTour{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+#bootGo{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   width:100%;min-height:54px;padding:12px;border-radius:13px;cursor:pointer;
-  font-family:inherit;font-weight:600;letter-spacing:5px;font-size:16px}
-#bootTour,#boot.hasSave #bootGo{border:1px solid rgba(255,240,200,.34);color:#2a1e08;
+  font-family:inherit;font-weight:600;letter-spacing:5px;font-size:16px;
+  border:1px solid rgba(255,240,200,.34);color:#2a1e08;
   background:linear-gradient(180deg,#e6bc5b,#b0831c);
   box-shadow:0 10px 34px -12px rgba(3,20,24,.9),0 0 26px rgba(215,170,69,.16)}
-#bootGo,#boot.hasSave #bootTour{border:1px solid rgba(255,240,200,.3);color:#e9dcba;
-  background:rgba(4,26,30,.4);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
-  box-shadow:0 8px 26px -14px rgba(3,20,24,.9)}
-#bootGo:hover,#bootTour:hover{filter:brightness(1.06)}
-#bootGo b,#bootTour b{letter-spacing:5px;font-size:16px}
-#bootGo span,#bootTour span{font-size:11px;letter-spacing:1px;opacity:.82;font-weight:400}
+#bootGo:hover{filter:brightness(1.06)}
+#bootGo b{letter-spacing:5px;font-size:16px}
+#bootGo span{font-size:11px;letter-spacing:1px;opacity:.82;font-weight:400}
 /* 开机仪式（2026-08-14 发起人点单重规划）：未点击＝纯画无装置；点击后唯二反馈——
    钮上一句境语、钮下一根发丝金线。境随真事踩点：取经卷（主包在途，线律动）→
    正开星图（主包求值毕 __gpReady，线满实）→ 就绪由 bootActivate 自动兑现所点之愿。
@@ -152,7 +148,7 @@ canvas{display:block;touch-action:none}
   #bootName{font-size:clamp(22px,8vh,38px);letter-spacing:.14em;text-indent:.14em}
   #bootSub{margin-top:10px;font-size:11.5px;letter-spacing:.2em;text-indent:.2em}
   #bootActs{width:min(280px,54vw);gap:8px}
-  #bootGo,#bootTour{min-height:46px;padding:9px 12px}
+  #bootGo{min-height:46px;padding:9px 12px}
   #bootLinks{margin-top:13px;gap:20px;font-size:12px}
   #bootSeat{bottom:calc(2.8vh + env(safe-area-inset-bottom));font-size:11px;letter-spacing:.44em;text-indent:.44em}
   #bootErr{bottom:calc(4.6vh + 20px + env(safe-area-inset-bottom))}
@@ -190,8 +186,13 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
   <div id="bootSub" data-t="看見佛經中的宇宙 · 附《選佛譜》修行對局">看见佛经中的宇宙 · 附《选佛谱》修行对局</div>
   <div id="bootPresence" hidden></div>
   <div id="bootActs">
-    <button id="bootTour" type="button"><b data-t="進入十法界">进入十法界</b><span data-t="依經導覽 · 從地獄到佛">依经导览 · 从地狱到佛</span></button>
-    <button id="bootGo" type="button"><b data-t="開始行譜">开始行谱</b></button>
+    <!-- 一门而入（2026-08-18 发起人定案「不要两个按钮了，只留一个，直接进入」）：
+         导览钮 #bootTour 撤——十七站的既定路线换作用户自行探索；导览代码与 #v= 单站深链
+         皆留（已印出去的海报扫码仍直落其站，不失信于已发之码），只是题屏不再有入口。
+         钮名「观 · 十法界」：点进去先见的是 3D 世界而非棋盘，行谱要到底坞再点掷轮，
+         故钮名应「进一个世界」而非「开一局棋」；「观」字亦点明进去是看、是探，不是玩。
+         元素语义不动（#bootGo 永远是入界钮，自测脚本按名点它）；有存局时仍自动改口「续掷上局」。 -->
+    <button id="bootGo" type="button"><b data-t="觀 · 十法界">观 · 十法界</b></button>
     <i id="bootLine" hidden></i>
   </div>
   <div id="bootLinks"><span data-t="玩法">玩法</span><span data-t="大廳">大厅</span><span data-t="分享">分享</span></div>
@@ -216,7 +217,7 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
    而终位不存局，故 pos 恒等于位名，至多字形略旧。
    就绪后 openTitle 仍会重写一遍，写的是同一份内容，故屏上不再有变化。 */
 (function(){
-  var g=document.getElementById('bootGo'),g2=document.getElementById('bootTour');
+  var g=document.getElementById('bootGo');
   var T=false;
   try{
     var s=JSON.parse(localStorage.getItem('sm10.save.v1')||'{}');
@@ -224,15 +225,13 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
     // ① 繁体设置：先把静态字面换成 data-t 那一份，免就绪时 zhDom 当众改口
     if(T){var ns=document.querySelectorAll('#boot [data-t]');
       for(var i=0;i<ns.length;i++)ns[i].textContent=ns[i].getAttribute('data-t');}
-    // ② 有存局：行谱回主位（.hasSave 翻序换色），钮改「续掷上局」并报现居与掷数，
-    //    导览钮收成短形「导览十法界」，细字行添「新开一局」
+    // ② 有存局：钮改「续掷上局」并报现居与掷数，细字行添「新开一局」
+    //    （一门而入后 .hasSave 翻序换色那套已撤，此处不再加类）
     if(s&&s.sfp&&s.sfp.pos){
-      document.getElementById('boot').classList.add('hasSave');
       var esc=function(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;')};
       var nm=esc(s.sfp.label||s.sfp.pos),n=s.sfp.n|0;
       if(g)g.innerHTML='<b>'+(T?'續擲上局':'续掷上局')+'</b><span>'
         +(T?'現居':'现居')+'「'+nm+'」 · 第 '+n+(T?' 擲':' 掷')+'</span>';
-      if(g2)g2.innerHTML='<b>'+(T?'導覽十法界':'导览十法界')+'</b>';
       var lk=document.getElementById('bootLinks');
       if(lk)lk.insertAdjacentHTML('afterbegin','<span>'+(T?'新開一局':'新开一局')+'</span>');
     }
@@ -259,7 +258,7 @@ addEventListener('error',function(e){var t=e.target;if(t&&t.tagName==='SCRIPT'){
     window.__wantStart=w;stageEl=el;
     el.innerHTML='<b>'+(T?'正取經卷…':'正取经卷…')+'</b>';
     ceremony();});};
-  want(g,true);want(g2,'tour');
+  want(g,true);   // 一门而入（2026-08-18）：导览钮既撤，此处只此一枚
 })();
 </script>
 <script type="module" src="./src/game.js"></script>
